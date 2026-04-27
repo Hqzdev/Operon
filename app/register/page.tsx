@@ -3,8 +3,9 @@ import { AuthShell } from "@/components/mvp/auth-shell";
 export default function RegisterPage() {
   return (
     <AuthShell
+      mode="register"
       title="Create your workspace"
-      description="Launch the MVP setup for your store, define the first operator account, and start saving metrics and decisions into PostgreSQL."
+      description="Create your account, set up your seller workspace, and start using Operon with a real backend and saved account data."
       submitLabel="Create account"
       secondaryLabel="Already have access?"
       secondaryHref="/login"
@@ -21,7 +22,7 @@ export default function RegisterPage() {
           placeholder: "founder@store.com",
         },
         {
-          id: "store",
+          id: "storeName",
           label: "Store name",
           placeholder: "Operon Labs",
         },

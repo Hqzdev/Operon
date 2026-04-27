@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { ArrowLeft, LockKeyhole, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 type AuthShellProps = {
+  mode: "login" | "register";
   title: string;
   description: string;
   submitLabel: string;
@@ -26,6 +31,7 @@ type AuthShellProps = {
 };
 
 export function AuthShell({
+  mode,
   title,
   description,
   submitLabel,
@@ -33,6 +39,45 @@ export function AuthShell({
   secondaryHref,
   fields,
 }: AuthShellProps) {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    const formData = new FormData(event.currentTarget);
+    const payload = Object.fromEntries(formData.entries());
+    const apiBaseUrl =
+      process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/${mode}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.message ?? "Authentication failed");
+        return;
+      }
+
+      localStorage.setItem("operon_token", data.token);
+      localStorage.setItem("operon_user", JSON.stringify(data.user));
+      router.push("/dashboard");
+    } catch {
+      setError("Unable to reach the backend. Start the API server and try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(20,20,20,0.08),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(20,20,20,0.06),transparent_30%)]" />
@@ -98,7 +143,7 @@ export function AuthShell({
               </CardDescription>
             </CardHeader>
             <CardContent className="px-6 py-8">
-              <form action="/dashboard" className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 {fields.map((field) => (
                   <div key={field.id} className="space-y-2">
                     <Label htmlFor={field.id}>{field.label}</Label>
@@ -112,10 +157,14 @@ export function AuthShell({
                     />
                   </div>
                 ))}
-                <Button type="submit" className="h-11 w-full rounded-xl">
-                  {submitLabel}
+                <Button type="submit" className="h-11 w-full rounded-xl" disabled={isSubmitting}>
+                  {isSubmitting ? "Please wait..." : submitLabel}
                 </Button>
               </form>
+
+              {error ? (
+                <p className="mt-4 text-sm text-red-600">{error}</p>
+              ) : null}
 
               <div className="mt-6 text-center text-sm text-muted-foreground">
                 {secondaryLabel}{" "}

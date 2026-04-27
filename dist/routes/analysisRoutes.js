@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.analysisRoutes = void 0;
+const express_1 = require("express");
+const analysisController_1 = require("../controllers/analysisController");
+const authenticate_1 = require("../middleware/authenticate");
+const validate_1 = require("../middleware/validate");
+const analysisService_1 = require("../services/analysisService");
+const router = (0, express_1.Router)();
+exports.analysisRoutes = router;
+router.get("/", authenticate_1.authenticate, analysisController_1.listAnalysesController);
+router.post("/", authenticate_1.authenticate, (0, validate_1.validateBody)(analysisService_1.analysisInputSchema), analysisController_1.createAnalysisController);

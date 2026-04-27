@@ -4,9 +4,12 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Operon — Stop Guessing What to Do With Your Ads',
+  title: 'Operon',
   description: 'Clear direction for e-commerce sellers who want to stop wasting money on weak ads, low-converting products, and uncertain decisions.',
-  generator: 'v0.app',
+  icons: {
+    icon: '/icon.png',
+    apple: '/apple-icon.png',
+  },
 }
 
 export default function RootLayout({

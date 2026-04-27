@@ -3,6 +3,7 @@ import { AuthShell } from "@/components/mvp/auth-shell";
 export default function LoginPage() {
   return (
     <AuthShell
+      mode="login"
       title="Log in to Operon"
       description="Access the seller workspace where metrics become decisions. Review product verdicts, ad actions, and team execution in one place."
       submitLabel="Enter dashboard"
@@ -19,7 +20,7 @@ export default function LoginPage() {
           id: "password",
           label: "Password",
           type: "password",
-          placeholder: "Enter your password",
+          placeholder: "At least 8 characters",
         },
       ]}
     />
