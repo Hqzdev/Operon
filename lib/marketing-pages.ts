@@ -15,6 +15,39 @@ export type MarketingPage = {
 
 export const marketingPages: MarketingPage[] = [
   {
+    slug: "product",
+    label: "Product",
+    eyebrow: "Product",
+    title: "The product layer for clearer seller decisions.",
+    intro:
+      "Operon brings the key parts of e-commerce decision-making into one simple flow: review the numbers, understand the issue, and choose the next move.",
+    sections: [
+      {
+        title: "Features that point to action",
+        body:
+          "The product is designed around practical recommendations, not dashboards that leave you guessing what to do next.",
+      },
+      {
+        title: "A workflow sellers can repeat",
+        body:
+          "Use the same clear review process for products, ads, offers, and tests so your decisions become faster and more consistent.",
+      },
+      {
+        title: "Pricing and payments kept simple",
+        body:
+          "Plans are easy to understand, checkout is straightforward, and access starts quickly after payment.",
+      },
+    ],
+    highlights: [
+      "Decision guidance",
+      "Simple workflow",
+      "Clear pricing",
+      "Fast access",
+    ],
+    ctaLabel: "Explore Features",
+    ctaHref: "/features",
+  },
+  {
     slug: "features",
     label: "Features",
     eyebrow: "Product",
@@ -147,6 +180,39 @@ export const marketingPages: MarketingPage[] = [
     ctaHref: "/register",
   },
   {
+    slug: "support",
+    label: "Support",
+    eyebrow: "Support",
+    title: "Support for sellers who want clear answers.",
+    intro:
+      "Find the main answers about Operon, payments, setup, and whether the product fits the way your store works.",
+    sections: [
+      {
+        title: "Quick answers before you start",
+        body:
+          "The FAQ covers the practical questions sellers usually ask before creating an account or choosing a plan.",
+      },
+      {
+        title: "Help with payments",
+        body:
+          "Payment guidance explains how checkout works, which payment flow is used, and when access begins.",
+      },
+      {
+        title: "A direct path to contact",
+        body:
+          "If you need help choosing a plan or understanding the fit for your store, the contact page gives you a simple next step.",
+      },
+    ],
+    highlights: [
+      "FAQ",
+      "Payment help",
+      "Plan guidance",
+      "Contact options",
+    ],
+    ctaLabel: "Read FAQ",
+    ctaHref: "/faq",
+  },
+  {
     slug: "faq",
     label: "FAQ",
     eyebrow: "Support",
@@ -216,6 +282,39 @@ export const marketingPages: MarketingPage[] = [
     ],
     ctaLabel: "Get Started",
     ctaHref: "/register",
+  },
+  {
+    slug: "market",
+    label: "Market",
+    eyebrow: "Market",
+    title: "Built for the sellers and teams testing growth every day.",
+    intro:
+      "Operon fits e-commerce operators who need cleaner decisions across products, ads, stores, and client accounts.",
+    sections: [
+      {
+        title: "For Shopify sellers",
+        body:
+          "Review product and ad performance faster so you can decide what deserves more budget and what needs to change.",
+      },
+      {
+        title: "For DTC brands",
+        body:
+          "Keep product, offer, and campaign decisions focused as the cost of weak execution gets higher.",
+      },
+      {
+        title: "For stores and agencies",
+        body:
+          "Dropshipping teams and agencies can use the same decision flow to protect budgets and move accounts forward.",
+      },
+    ],
+    highlights: [
+      "Shopify sellers",
+      "DTC brands",
+      "Dropshipping stores",
+      "Agencies",
+    ],
+    ctaLabel: "View Shopify Page",
+    ctaHref: "/shopify-sellers",
   },
   {
     slug: "shopify-sellers",
@@ -348,6 +447,39 @@ export const marketingPages: MarketingPage[] = [
     ],
     ctaLabel: "Talk to Us",
     ctaHref: "/contact",
+  },
+  {
+    slug: "trust",
+    label: "Trust",
+    eyebrow: "Trust",
+    title: "A clearer, safer way to make e-commerce decisions.",
+    intro:
+      "Trust comes from short guidance, practical reasoning, and a checkout flow that feels simple when a seller is ready to start.",
+    sections: [
+      {
+        title: "Why the guidance works",
+        body:
+          "Operon focuses on turning messy signals into direct next steps, which helps sellers act with less hesitation.",
+      },
+      {
+        title: "Clear advice over noise",
+        body:
+          "The experience is built to keep attention on the decision that matters most instead of adding more complexity.",
+      },
+      {
+        title: "Safe checkout experience",
+        body:
+          "When it is time to pay, the checkout path stays familiar, clear, and easy to complete.",
+      },
+    ],
+    highlights: [
+      "Practical reasoning",
+      "Clear guidance",
+      "Less confusion",
+      "Safe checkout",
+    ],
+    ctaLabel: "Why It Works",
+    ctaHref: "/why-it-works",
   },
   {
     slug: "why-it-works",

@@ -6,12 +6,13 @@ export function generateStaticParams() {
   return marketingPages.map((page) => ({ slug: page.slug }));
 }
 
-export default function MarketingSlugPage({
+export default async function MarketingSlugPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const page = marketingPagesBySlug[params.slug];
+  const { slug } = await params;
+  const page = marketingPagesBySlug[slug];
 
   if (!page) {
     notFound();

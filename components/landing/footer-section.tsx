@@ -4,31 +4,47 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { AnimatedWave } from "./animated-wave";
 
-const footerLinks = {
-  Product: [
-    { name: "Features", href: "/features" },
-    { name: "How it works", href: "/how-it-works" },
-    { name: "Pricing", href: "/pricing" },
-    { name: "Payments", href: "/payments" },
-  ],
-  Support: [
-    { name: "FAQ", href: "/faq" },
-    { name: "How it works", href: "/how-it-works" },
-    { name: "Payments", href: "/payments" },
-    { name: "Contact", href: "/contact" },
-  ],
-  Market: [
-    { name: "Shopify sellers", href: "/shopify-sellers" },
-    { name: "DTC brands", href: "/dtc-brands" },
-    { name: "Dropshipping stores", href: "/dropshipping-stores" },
-    { name: "Agencies", href: "/agencies" },
-  ],
-  Trust: [
-    { name: "Why it works", href: "/why-it-works" },
-    { name: "Clear guidance", href: "/clear-guidance" },
-    { name: "Safe checkout", href: "/safe-checkout" },
-  ],
-};
+const footerLinks = [
+  {
+    title: "Product",
+    href: "/product",
+    links: [
+      { name: "Features", href: "/features" },
+      { name: "How it works", href: "/how-it-works" },
+      { name: "Pricing", href: "/pricing" },
+      { name: "Payments", href: "/payments" },
+    ],
+  },
+  {
+    title: "Support",
+    href: "/support",
+    links: [
+      { name: "FAQ", href: "/faq" },
+      { name: "How it works", href: "/how-it-works" },
+      { name: "Payments", href: "/payments" },
+      { name: "Contact", href: "/contact" },
+    ],
+  },
+  {
+    title: "Market",
+    href: "/market",
+    links: [
+      { name: "Shopify sellers", href: "/shopify-sellers" },
+      { name: "DTC brands", href: "/dtc-brands" },
+      { name: "Dropshipping stores", href: "/dropshipping-stores" },
+      { name: "Agencies", href: "/agencies" },
+    ],
+  },
+  {
+    title: "Trust",
+    href: "/trust",
+    links: [
+      { name: "Why it works", href: "/why-it-works" },
+      { name: "Clear guidance", href: "/clear-guidance" },
+      { name: "Safe checkout", href: "/safe-checkout" },
+    ],
+  },
+];
 
 const socialLinks = [
   { name: "X / Twitter", href: "#" },
@@ -75,11 +91,15 @@ export function FooterSection() {
             </div>
 
             {/* Link Columns */}
-            {Object.entries(footerLinks).map(([title, links]) => (
-              <div key={title}>
-                <h3 className="text-sm font-medium mb-6">{title}</h3>
+            {footerLinks.map((group) => (
+              <div key={group.title}>
+                <h3 className="text-sm font-medium mb-6">
+                  <Link href={group.href} className="hover:text-muted-foreground transition-colors">
+                    {group.title}
+                  </Link>
+                </h3>
                 <ul className="space-y-4">
-                  {links.map((link) => (
+                  {group.links.map((link) => (
                     <li key={link.name}>
                       <Link
                         href={link.href}
