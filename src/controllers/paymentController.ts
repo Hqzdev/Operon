@@ -24,7 +24,8 @@ export const paymentWebhookController = asyncHandler(async (req: Request, res: R
 });
 
 export const syncPaymentController = asyncHandler(async (req: Request, res: Response) => {
-  const payment = await syncPaymentStatus(req.auth!.userId, req.params.paymentId);
+  const paymentId = z.string().min(1).parse(req.params.paymentId);
+  const payment = await syncPaymentStatus(req.auth!.userId, paymentId);
   res.status(200).json({
     ok: true,
     paymentId: payment.id,

@@ -1,14 +1,12 @@
-"use client";
-
-import { useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
 
 const plans = [
   {
     name: "Starter",
     description: "For sellers who want simple, clear direction",
-    price: { monthly: 19, annual: 19 },
+    price: { monthly: 0, rub: 0 },
     features: [
+      "10 analyses per month",
       "Basic decision insights",
       "Manual data input",
     ],
@@ -16,27 +14,27 @@ const plans = [
     popular: false,
   },
   {
-    name: "Pro",
+    name: "Basic",
     description: "For store owners who want stronger guidance",
-    price: { monthly: 49, annual: 49 },
+    price: { monthly: 9, rub: 1090 },
     features: [
       "Full AI recommendations",
       "Performance analysis",
       "History tracking",
     ],
-    cta: "Start Pro",
+    cta: "Start Basic",
     popular: true,
   },
   {
-    name: "Scale",
+    name: "Pro",
     description: "For growing sellers managing more than one store",
-    price: { monthly: 99, annual: 99 },
+    price: { monthly: 19, rub: 2190 },
     features: [
-      "Multi-store support",
-      "Advanced insights",
+      "Budget Allocation",
+      "Scenario Simulator",
       "Priority support",
     ],
-    cta: "Choose Scale",
+    cta: "Choose Pro",
     popular: false,
   },
 ];
@@ -92,6 +90,11 @@ export function PricingSection() {
                   </span>
                   <span className="text-muted-foreground">/month</span>
                 </div>
+                {plan.price.rub > 0 && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {plan.price.rub.toLocaleString("ru-RU")} RUB/month via YooKassa
+                  </p>
+                )}
               </div>
 
               {/* Features */}

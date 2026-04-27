@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.scenarioRoutes = void 0;
+const express_1 = require("express");
+const scenarioController_1 = require("../controllers/scenarioController");
+const authenticate_1 = require("../middleware/authenticate");
+const requirePlan_1 = require("../middleware/requirePlan");
+const validate_1 = require("../middleware/validate");
+const scenarioService_1 = require("../services/scenarioService");
+const router = (0, express_1.Router)();
+exports.scenarioRoutes = router;
+router.post("/simulate", authenticate_1.authenticate, (0, requirePlan_1.requirePlan)("SCALE"), (0, validate_1.validateBody)(scenarioService_1.scenarioInputSchema), scenarioController_1.scenarioSimulatorController);

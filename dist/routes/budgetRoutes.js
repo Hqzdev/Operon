@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.budgetRoutes = void 0;
+const express_1 = require("express");
+const budgetController_1 = require("../controllers/budgetController");
+const authenticate_1 = require("../middleware/authenticate");
+const requirePlan_1 = require("../middleware/requirePlan");
+const validate_1 = require("../middleware/validate");
+const budgetService_1 = require("../services/budgetService");
+const router = (0, express_1.Router)();
+exports.budgetRoutes = router;
+router.post("/allocate", authenticate_1.authenticate, (0, requirePlan_1.requirePlan)("SCALE"), (0, validate_1.validateBody)(budgetService_1.budgetInputSchema), budgetController_1.budgetAllocationController);

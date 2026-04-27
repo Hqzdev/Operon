@@ -17,7 +17,7 @@ const planLabels: Record<UserPlan, string> = {
 };
 
 function getReturnUrl(paymentId: string) {
-  const url = new URL(env.YOOKASSA_RETURN_URL);
+  const url = new URL(env.YOOKASSA_RETURN_URL, env.NEXT_PUBLIC_APP_URL);
   url.searchParams.set("paymentId", paymentId);
   return url.toString();
 }

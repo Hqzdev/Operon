@@ -7,4 +7,5 @@ const authenticate_1 = require("../middleware/authenticate");
 const router = (0, express_1.Router)();
 exports.paymentRoutes = router;
 router.post("/create", authenticate_1.authenticate, paymentController_1.createPaymentController);
+router.post("/:paymentId/sync", authenticate_1.authenticate, paymentController_1.syncPaymentController);
 router.post("/webhook", paymentController_1.paymentWebhookController);

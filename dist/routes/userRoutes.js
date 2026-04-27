@@ -7,3 +7,6 @@ const authenticate_1 = require("../middleware/authenticate");
 const router = (0, express_1.Router)();
 exports.userRoutes = router;
 router.get("/me", authenticate_1.authenticate, userController_1.profileController);
+router.patch("/me", authenticate_1.authenticate, userController_1.updateProfileController);
+router.patch("/me/password", authenticate_1.authenticate, userController_1.changePasswordController);
+router.delete("/me", authenticate_1.authenticate, userController_1.deleteAccountController);
