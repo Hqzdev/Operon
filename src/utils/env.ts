@@ -21,4 +21,19 @@ const envSchema = z.object({
   GIGACHAT_OAUTH_URL: z.string().default("https://ngw.devices.sberbank.ru:9443/api/v2/oauth"),
 });
 
-export const env = envSchema.parse(process.env);
+type Env = z.infer<typeof envSchema>;
+
+let _parsed: Env | null = null;
+
+function getParsedEnv(): Env {
+  if (!_parsed) {
+    _parsed = envSchema.parse(process.env);
+  }
+  return _parsed;
+}
+
+export const env = new Proxy({} as Env, {
+  get(_, key: string) {
+    return getParsedEnv()[key as keyof Env];
+  },
+});
