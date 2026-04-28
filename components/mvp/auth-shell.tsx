@@ -51,7 +51,7 @@ export function AuthShell({
     const formData = new FormData(event.currentTarget);
     const payload = Object.fromEntries(formData.entries());
     const apiBaseUrl =
-      process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
+      process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
     try {
       const response = await fetch(`${apiBaseUrl}/auth/${mode}`, {

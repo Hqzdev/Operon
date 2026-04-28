@@ -223,7 +223,7 @@ export function AnalysisWorkbench() {
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
   function getToken() {
     return localStorage.getItem("operon_token");
