@@ -4,6 +4,8 @@ import { prisma } from "@/src/models/prisma";
 import { runScenario, scenarioInputSchema } from "@/src/services/scenarioService";
 import { getAuthUserId, errorResponse, ApiError } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 async function requireScalePlan(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
   if (!user) throw new ApiError("User not found", 404);

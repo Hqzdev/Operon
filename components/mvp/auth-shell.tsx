@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft, LockKeyhole, Sparkles } from "lucide-react";
+import { getApiBaseUrl } from "@/lib/api-base-url";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -50,8 +51,7 @@ export function AuthShell({
 
     const formData = new FormData(event.currentTarget);
     const payload = Object.fromEntries(formData.entries());
-    const apiBaseUrl =
-      process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
+    const apiBaseUrl = getApiBaseUrl();
 
     try {
       const response = await fetch(`${apiBaseUrl}/auth/${mode}`, {

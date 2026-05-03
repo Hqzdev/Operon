@@ -21,6 +21,7 @@ import {
   type AnalysisInput,
   type AnalysisOutput,
 } from "@/lib/analysis-schema";
+import { getApiBaseUrl } from "@/lib/api-base-url";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -223,7 +224,7 @@ export function AnalysisWorkbench() {
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
+  const apiBaseUrl = getApiBaseUrl();
 
   function getToken() {
     return localStorage.getItem("operon_token");

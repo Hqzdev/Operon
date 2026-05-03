@@ -6,6 +6,7 @@ const prisma_1 = require("../models/prisma");
 const appError_1 = require("../utils/appError");
 const password_1 = require("../utils/password");
 const jwt_1 = require("../utils/jwt");
+const userService_1 = require("./userService");
 async function registerUser(input) {
     const existingUser = await prisma_1.prisma.user.findUnique({
         where: { email: input.email },
@@ -26,16 +27,10 @@ async function registerUser(input) {
         userId: user.id,
         email: user.email,
     });
+    const profile = await (0, userService_1.getUserProfile)(user.id);
     return {
         token,
-        user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            storeName: user.storeName,
-            plan: user.plan,
-            createdAt: user.createdAt,
-        },
+        user: profile,
     };
 }
 async function loginUser(input) {
@@ -53,15 +48,9 @@ async function loginUser(input) {
         userId: user.id,
         email: user.email,
     });
+    const profile = await (0, userService_1.getUserProfile)(user.id);
     return {
         token,
-        user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            storeName: user.storeName,
-            plan: user.plan,
-            createdAt: user.createdAt,
-        },
+        user: profile,
     };
 }

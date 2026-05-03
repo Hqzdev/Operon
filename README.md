@@ -100,6 +100,10 @@ YOOKASSA_RETURN_URL   # https://ваш-домен.vercel.app/dashboard
 NEXT_PUBLIC_APP_URL   # https://ваш-домен.vercel.app
 ```
 
+`NEXT_PUBLIC_API_BASE_URL` для Vercel обычно не нужен: фронтенд использует встроенные
+Next.js API-роуты по `/api`. Если переменная уже добавлена в Vercel, не ставьте туда
+`http://localhost:4000/api` — удалите её или укажите реальный внешний backend URL.
+
 ---
 
 ## Структура проекта

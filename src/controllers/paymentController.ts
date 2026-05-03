@@ -3,13 +3,19 @@ import { UserPlan } from "@prisma/client";
 import { z } from "zod";
 import { asyncHandler } from "../utils/asyncHandler";
 import { createPaymentIntent, handlePaymentWebhook, syncPaymentStatus } from "../services/paymentService";
+import { normalizeUserPlan } from "../services/planService";
 
 const paymentCreateSchema = z.object({
-  plan: z.nativeEnum(UserPlan),
+  plan: z.string().min(1),
 });
 
 export const createPaymentController = asyncHandler(async (req: Request, res: Response) => {
-  const { plan } = paymentCreateSchema.parse(req.body);
+  const { plan: rawPlan } = paymentCreateSchema.parse(req.body);
+  const plan = normalizeUserPlan(rawPlan);
+  if (!plan || plan === UserPlan.STARTER) {
+    res.status(400).json({ error: "Paid plan must be PRO or SCALE" });
+    return;
+  }
   const payment = await createPaymentIntent(req.auth!.userId, plan);
   res.status(201).json(payment);
 });

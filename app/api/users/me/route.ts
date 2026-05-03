@@ -6,6 +6,8 @@ import {
 } from "@/src/services/userService";
 import { getAuthUserId, errorResponse } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const userId = getAuthUserId(request);

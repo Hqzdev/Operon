@@ -2,18 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { UserPlan } from "@prisma/client";
 import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
-
-const PLAN_RANK: Record<UserPlan, number> = {
-  STARTER: 0,
-  PRO: 1,
-  SCALE: 2,
-};
-
-const PLAN_LABEL: Record<UserPlan, string> = {
-  STARTER: "Starter",
-  PRO: "Basic",
-  SCALE: "Pro",
-};
+import { getPlanMeta, getPlanRank } from "../services/planService";
 
 export function requirePlan(minimumPlan: UserPlan) {
   return async (req: Request, _res: Response, next: NextFunction) => {
@@ -24,10 +13,10 @@ export function requirePlan(minimumPlan: UserPlan) {
       });
       if (!user) return next(new AppError("User not found", 404));
 
-      if (PLAN_RANK[user.plan] < PLAN_RANK[minimumPlan]) {
+      if (getPlanRank(user.plan) < getPlanRank(minimumPlan)) {
         return next(
           new AppError(
-            `This feature requires ${PLAN_LABEL[minimumPlan]} plan or higher`,
+            `This feature requires ${getPlanMeta(minimumPlan).displayName} plan or higher`,
             403,
             { requiredPlan: minimumPlan, currentPlan: user.plan },
           ),

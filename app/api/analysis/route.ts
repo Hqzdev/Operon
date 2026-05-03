@@ -4,6 +4,8 @@ import { prisma } from "@/src/models/prisma";
 import { createAnalysis, listAnalyses, analysisInputSchema } from "@/src/services/analysisService";
 import { getAuthUserId, errorResponse, ApiError } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 const MONTHLY_LIMITS: Record<UserPlan, number | null> = {
   STARTER: 10,
   PRO: null,

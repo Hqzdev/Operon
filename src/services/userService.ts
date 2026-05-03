@@ -1,6 +1,7 @@
 import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
 import { comparePassword, hashPassword } from "../utils/password";
+import { getMonthlyAnalysisLimit, getPlanMeta } from "./planService";
 
 const profileSelect = {
   id: true,
@@ -21,7 +22,17 @@ export async function getUserProfile(userId: string) {
     select: profileSelect,
   });
   if (!user) throw new AppError("User not found", 404);
-  return user;
+  const planMeta = getPlanMeta(user.plan);
+  const usageLimit = getMonthlyAnalysisLimit(user.plan);
+
+  return {
+    ...user,
+    planDisplay: planMeta.displayName,
+    legacyPlan: planMeta.legacyName,
+    usageLimit,
+    analysisCount: user.usageCount,
+    analysisLimit: usageLimit,
+  };
 }
 
 export async function updateUserProfile(userId: string, input: { name?: string; storeName?: string }) {

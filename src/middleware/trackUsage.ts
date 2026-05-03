@@ -1,13 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
-import { UserPlan } from "@prisma/client";
 import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
-
-const MONTHLY_LIMITS: Record<UserPlan, number | null> = {
-  STARTER: 10,
-  PRO: null,
-  SCALE: null,
-};
+import { getMonthlyAnalysisLimit } from "../services/planService";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -19,7 +13,7 @@ export async function trackUsage(req: Request, _res: Response, next: NextFunctio
     });
     if (!user) return next(new AppError("User not found", 404));
 
-    const limit = MONTHLY_LIMITS[user.plan];
+    const limit = getMonthlyAnalysisLimit(user.plan);
     const now = new Date();
     let currentCount = user.usageCount;
 

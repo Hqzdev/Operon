@@ -7,6 +7,7 @@ exports.deleteUserAccount = deleteUserAccount;
 const prisma_1 = require("../models/prisma");
 const appError_1 = require("../utils/appError");
 const password_1 = require("../utils/password");
+const planService_1 = require("./planService");
 const profileSelect = {
     id: true,
     email: true,
@@ -26,7 +27,16 @@ async function getUserProfile(userId) {
     });
     if (!user)
         throw new appError_1.AppError("User not found", 404);
-    return user;
+    const planMeta = (0, planService_1.getPlanMeta)(user.plan);
+    const usageLimit = (0, planService_1.getMonthlyAnalysisLimit)(user.plan);
+    return {
+        ...user,
+        planDisplay: planMeta.displayName,
+        legacyPlan: planMeta.legacyName,
+        usageLimit,
+        analysisCount: user.usageCount,
+        analysisLimit: usageLimit,
+    };
 }
 async function updateUserProfile(userId, input) {
     const user = await prisma_1.prisma.user.update({

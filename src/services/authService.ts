@@ -2,6 +2,7 @@ import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
 import { comparePassword, hashPassword } from "../utils/password";
 import { signToken } from "../utils/jwt";
+import { getUserProfile } from "./userService";
 
 export async function registerUser(input: {
   email: string;
@@ -33,16 +34,11 @@ export async function registerUser(input: {
     email: user.email,
   });
 
+  const profile = await getUserProfile(user.id);
+
   return {
     token,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      storeName: user.storeName,
-      plan: user.plan,
-      createdAt: user.createdAt,
-    },
+    user: profile,
   };
 }
 
@@ -65,15 +61,10 @@ export async function loginUser(input: { email: string; password: string }) {
     email: user.email,
   });
 
+  const profile = await getUserProfile(user.id);
+
   return {
     token,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      storeName: user.storeName,
-      plan: user.plan,
-      createdAt: user.createdAt,
-    },
+    user: profile,
   };
 }

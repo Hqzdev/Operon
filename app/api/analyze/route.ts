@@ -7,6 +7,8 @@ import { runRuleAnalysis } from "@/lib/decision-engine";
 import { runGigachatAnalysis } from "@/lib/gigachat";
 import { getRecentAnalyses, saveAnalysis } from "@/lib/storage";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const history = await getRecentAnalyses();
   return NextResponse.json({ history });

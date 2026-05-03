@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { syncPaymentStatus } from "@/src/services/paymentService";
 import { getAuthUserId, errorResponse } from "@/lib/api-auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ paymentId: string }> },

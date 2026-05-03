@@ -24,4 +24,15 @@ const envSchema = zod_1.z.object({
     GIGACHAT_BASE_URL: zod_1.z.string().default("https://gigachat.devices.sberbank.ru/api/v1"),
     GIGACHAT_OAUTH_URL: zod_1.z.string().default("https://ngw.devices.sberbank.ru:9443/api/v2/oauth"),
 });
-exports.env = envSchema.parse(process.env);
+let _parsed = null;
+function getParsedEnv() {
+    if (!_parsed) {
+        _parsed = envSchema.parse(process.env);
+    }
+    return _parsed;
+}
+exports.env = new Proxy({}, {
+    get(_, key) {
+        return getParsedEnv()[key];
+    },
+});
