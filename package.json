@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
+    "prisma:deploy": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate dev",
     "start": "next start"
   },

@@ -104,6 +104,15 @@ NEXT_PUBLIC_APP_URL   # https://ваш-домен.vercel.app
 Next.js API-роуты по `/api`. Если переменная уже добавлена в Vercel, не ставьте туда
 `http://localhost:4000/api` — удалите её или укажите реальный внешний backend URL.
 
+После подключения production-базы примените миграции:
+
+```bash
+pnpm prisma:deploy
+```
+
+Ошибка вида `The table public.User does not exist` означает, что `DATABASE_URL`
+указывает на базу без таблиц Prisma или миграции ещё не были применены.
+
 ---
 
 ## Структура проекта
