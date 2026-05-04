@@ -19,6 +19,16 @@ const envSchema = z.object({
   GIGACHAT_MODEL: z.string().default("GigaChat-2-Pro"),
   GIGACHAT_BASE_URL: z.string().default("https://gigachat.devices.sberbank.ru/api/v1"),
   GIGACHAT_OAUTH_URL: z.string().default("https://ngw.devices.sberbank.ru:9443/api/v2/oauth"),
+  INTEGRATION_TOKEN_SECRET: z.string().optional(),
+  INTEGRATION_SYNC_SECRET: z.string().optional(),
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  META_API_VERSION: z.string().default("v22.0"),
+  TIKTOK_APP_ID: z.string().optional(),
+  TIKTOK_APP_SECRET: z.string().optional(),
+  SHOPIFY_API_KEY: z.string().optional(),
+  SHOPIFY_API_SECRET: z.string().optional(),
+  SHOPIFY_API_VERSION: z.string().default("2026-01"),
 });
 
 type Env = z.infer<typeof envSchema>;

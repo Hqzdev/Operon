@@ -23,6 +23,16 @@ const envSchema = zod_1.z.object({
     GIGACHAT_MODEL: zod_1.z.string().default("GigaChat-2-Pro"),
     GIGACHAT_BASE_URL: zod_1.z.string().default("https://gigachat.devices.sberbank.ru/api/v1"),
     GIGACHAT_OAUTH_URL: zod_1.z.string().default("https://ngw.devices.sberbank.ru:9443/api/v2/oauth"),
+    INTEGRATION_TOKEN_SECRET: zod_1.z.string().optional(),
+    INTEGRATION_SYNC_SECRET: zod_1.z.string().optional(),
+    META_APP_ID: zod_1.z.string().optional(),
+    META_APP_SECRET: zod_1.z.string().optional(),
+    META_API_VERSION: zod_1.z.string().default("v22.0"),
+    TIKTOK_APP_ID: zod_1.z.string().optional(),
+    TIKTOK_APP_SECRET: zod_1.z.string().optional(),
+    SHOPIFY_API_KEY: zod_1.z.string().optional(),
+    SHOPIFY_API_SECRET: zod_1.z.string().optional(),
+    SHOPIFY_API_VERSION: zod_1.z.string().default("2026-01"),
 });
 let _parsed = null;
 function getParsedEnv() {

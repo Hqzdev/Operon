@@ -60,6 +60,7 @@ Operon анализирует метрики рекламы и продукто�
 | API | Next.js Route Handlers (serverless) |
 | База данных | PostgreSQL + Prisma ORM (`@prisma/adapter-pg`) |
 | AI | GigaChat API (Сбер), rule-based fallback |
+| Интеграции | Meta Marketing API, TikTok Marketing API, Shopify Admin API (read-only OAuth) |
 | Аутентификация | JWT (jsonwebtoken), пароли через bcryptjs |
 | Платежи | YooKassa REST API |
 | Язык | TypeScript (строгий режим) |
@@ -100,6 +101,27 @@ YOOKASSA_RETURN_URL   # https://ваш-домен.vercel.app/dashboard
 NEXT_PUBLIC_APP_URL   # https://ваш-домен.vercel.app
 ```
 
+Для read-only интеграций добавьте OAuth-ключи нужных провайдеров:
+
+```
+META_APP_ID
+META_APP_SECRET
+TIKTOK_APP_ID
+TIKTOK_APP_SECRET
+SHOPIFY_API_KEY
+SHOPIFY_API_SECRET
+INTEGRATION_TOKEN_SECRET  # рекомендуется: отдельная случайная строка для шифрования токенов
+INTEGRATION_SYNC_SECRET   # опционально: секрет для /api/integrations/sync
+```
+
+OAuth callback URL:
+
+```
+https://ваш-домен.vercel.app/api/integrations/oauth/meta/callback
+https://ваш-домен.vercel.app/api/integrations/oauth/tiktok/callback
+https://ваш-домен.vercel.app/api/integrations/oauth/shopify/callback
+```
+
 `NEXT_PUBLIC_API_BASE_URL` для Vercel обычно не нужен: фронтенд использует встроенные
 Next.js API-роуты по `/api`. Если переменная уже добавлена в Vercel, не ставьте туда
 `http://localhost:4000/api` — удалите её или укажите реальный внешний backend URL.
@@ -124,6 +146,7 @@ app/                  # Next.js страницы и API-роуты
     users/me/         # профиль, смена пароля, удаление
     analysis/         # история и создание анализов
     payments/         # создание платежа, вебхук, синхронизация
+    integrations/     # OAuth, sync и synced analysis inputs
     budget/allocate/  # аллокатор бюджета
     scenario/simulate/ # симулятор сценариев
 components/mvp/       # основные UI-компоненты (дашборд, форма анализа)

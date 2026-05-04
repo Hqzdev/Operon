@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BookOpen,
+  Cable,
   Crown,
   KeyRound,
   LoaderCircle,
@@ -12,6 +13,7 @@ import {
   Minus,
   Plus,
   Settings,
+  Store,
   Target,
   Trash2,
   TrendingUp,
@@ -163,6 +165,30 @@ type ScenarioResult = {
   insight: string;
 };
 
+type IntegrationConnection = {
+  id: string;
+  provider: "META" | "TIKTOK" | "SHOPIFY";
+  externalAccountId: string;
+  accountName: string | null;
+  status: "CONNECTED" | "ACTION_REQUIRED" | "DISCONNECTED" | "ERROR";
+  scopes: string[];
+  lastSyncedAt: string | null;
+  nextSyncAt: string;
+  lastError: string | null;
+  createdAt: string;
+};
+
+type IntegrationSnapshot = {
+  id: string;
+  provider: "META" | "TIKTOK" | "SHOPIFY";
+  externalAccountId: string;
+  externalEntityId: string;
+  entityName: string | null;
+  date: string;
+  analysisInput: AnalysisInput;
+  metrics: Record<string, unknown>;
+};
+
 const emptyAdSet = (): AdSetInput => ({
   name: "", spend: 0, impressions: 0, clicks: 0,
   add_to_cart: 0, purchases: 0, revenue: 0, product_price: 0, cost: 0,
@@ -224,6 +250,13 @@ export function AnalysisWorkbench() {
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
 
+  // Integrations state
+  const [integrations, setIntegrations] = useState<IntegrationConnection[]>([]);
+  const [snapshots, setSnapshots] = useState<IntegrationSnapshot[]>([]);
+  const [shopifyShop, setShopifyShop] = useState("");
+  const [integrationsLoading, setIntegrationsLoading] = useState(false);
+  const [integrationsMsg, setIntegrationsMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   const apiBaseUrl = getApiBaseUrl();
 
   function getToken() {
@@ -257,9 +290,11 @@ export function AnalysisWorkbench() {
           window.history.replaceState(null, "", window.location.pathname);
         }
 
-        const [profileRes, historyRes] = await Promise.all([
+        const [profileRes, historyRes, integrationsRes, metricsRes] = await Promise.all([
           fetch(`${apiBaseUrl}/users/me`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/analysis`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiBaseUrl}/integrations`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiBaseUrl}/integrations/metrics`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
         if (!isMounted) return;
@@ -276,6 +311,18 @@ export function AnalysisWorkbench() {
         if (historyRes.ok) {
           const data = await historyRes.json() as Array<{ id: string; createdAt: string; inputData: AnalysisInput; result: AnalysisOutput }>;
           setHistory(data.map((item) => ({ id: item.id, createdAt: item.createdAt, input: item.inputData, output: item.result })));
+        }
+
+        if (integrationsRes.ok) {
+          setIntegrations(await integrationsRes.json() as IntegrationConnection[]);
+        }
+
+        if (metricsRes.ok) {
+          const data = await metricsRes.json() as { snapshots: IntegrationSnapshot[]; latestInput: AnalysisInput | null };
+          setSnapshots(data.snapshots);
+          if (data.latestInput) {
+            setForm(data.latestInput);
+          }
         }
       } catch {
         if (isMounted) setHistory([]);
@@ -480,6 +527,80 @@ export function AnalysisWorkbench() {
     } finally {
       setScenarioLoading(false);
     }
+  }
+
+  async function refreshIntegrations() {
+    const token = getToken();
+    if (!token) return;
+    const [integrationsRes, metricsRes] = await Promise.all([
+      fetch(`${apiBaseUrl}/integrations`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${apiBaseUrl}/integrations/metrics`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    if (integrationsRes.ok) {
+      setIntegrations(await integrationsRes.json() as IntegrationConnection[]);
+    }
+    if (metricsRes.ok) {
+      const data = await metricsRes.json() as { snapshots: IntegrationSnapshot[]; latestInput: AnalysisInput | null };
+      setSnapshots(data.snapshots);
+    }
+  }
+
+  async function connectProvider(provider: IntegrationConnection["provider"]) {
+    const token = getToken();
+    if (!token) return;
+    setIntegrationsLoading(true);
+    setIntegrationsMsg(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/integrations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ provider, shop: provider === "SHOPIFY" ? shopifyShop : undefined }),
+      });
+      const data = await res.json() as { url?: string; message?: string };
+      if (!res.ok || !data.url) {
+        setIntegrationsMsg({ type: "err", text: data.message ?? "Connection failed" });
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setIntegrationsMsg({ type: "err", text: "Network error" });
+    } finally {
+      setIntegrationsLoading(false);
+    }
+  }
+
+  async function syncIntegrations() {
+    const token = getToken();
+    if (!token) return;
+    setIntegrationsLoading(true);
+    setIntegrationsMsg(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/integrations`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { message?: string };
+      if (!res.ok) {
+        setIntegrationsMsg({ type: "err", text: data.message ?? "Sync failed" });
+        return;
+      }
+      await refreshIntegrations();
+      setIntegrationsMsg({ type: "ok", text: "Metrics synced" });
+    } catch {
+      setIntegrationsMsg({ type: "err", text: "Network error" });
+    } finally {
+      setIntegrationsLoading(false);
+    }
+  }
+
+  async function disconnectIntegration(connectionId: string) {
+    const token = getToken();
+    if (!token) return;
+    await fetch(`${apiBaseUrl}/integrations/${connectionId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    await refreshIntegrations();
   }
 
   function updateAdSet(index: number, field: keyof AdSetInput, value: string) {
@@ -797,6 +918,10 @@ export function AnalysisWorkbench() {
             <TabsTrigger value="analysis" className="rounded-xl h-9 px-4">
               Analysis
             </TabsTrigger>
+            <TabsTrigger value="integrations" className="rounded-xl h-9 px-4 gap-1.5">
+              <Cable className="size-3.5" />
+              Integrations
+            </TabsTrigger>
             <TabsTrigger value="budget" className="rounded-xl h-9 px-4 gap-1.5">
               {!hasProFeatures && <Crown className="size-3 text-amber-500" />}
               Budget Allocation
@@ -806,6 +931,178 @@ export function AnalysisWorkbench() {
               Scenario Simulator
             </TabsTrigger>
           </TabsList>
+
+          {/* ── Integrations tab ── */}
+          <TabsContent value="integrations">
+            <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+              <Card className="border-foreground/10 bg-card/70 py-0">
+                <CardHeader className="border-b border-foreground/10 py-6">
+                  <CardTitle className="font-display text-3xl">Connections</CardTitle>
+                  <CardDescription>
+                    Read-only OAuth for ad and store data.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="px-6 py-6">
+                  <div className="grid gap-3">
+                    <Button
+                      variant="outline"
+                      className="h-11 justify-start rounded-xl"
+                      disabled={integrationsLoading}
+                      onClick={() => connectProvider("META")}
+                    >
+                      <Cable className="size-4" />
+                      Connect Meta Ads
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-11 justify-start rounded-xl"
+                      disabled={integrationsLoading}
+                      onClick={() => connectProvider("TIKTOK")}
+                    >
+                      <Cable className="size-4" />
+                      Connect TikTok Ads
+                    </Button>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <Input
+                        placeholder="your-store.myshopify.com"
+                        value={shopifyShop}
+                        onChange={(event) => setShopifyShop(event.target.value)}
+                        className="h-11 rounded-xl"
+                      />
+                      <Button
+                        variant="outline"
+                        className="h-11 rounded-xl"
+                        disabled={integrationsLoading || !shopifyShop}
+                        onClick={() => connectProvider("SHOPIFY")}
+                      >
+                        <Store className="size-4" />
+                        Connect Shopify
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Separator className="my-6" />
+
+                  <div className="flex flex-wrap gap-3">
+                    <Button className="rounded-full" onClick={syncIntegrations} disabled={integrationsLoading}>
+                      {integrationsLoading ? <LoaderCircle className="size-4 animate-spin" /> : <TrendingUp className="size-4" />}
+                      Sync now
+                    </Button>
+                    <Button variant="outline" className="rounded-full" onClick={refreshIntegrations}>
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {integrationsMsg ? (
+                    <p className={`mt-4 text-sm ${integrationsMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
+                      {integrationsMsg.text}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-6 space-y-3">
+                    {integrations.length ? integrations.map((connection) => (
+                      <div key={connection.id} className="rounded-2xl border border-foreground/10 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-medium">{connection.accountName ?? connection.externalAccountId}</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {connection.provider} · {connection.status}
+                            </div>
+                            {connection.lastSyncedAt ? (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                Last sync {new Date(connection.lastSyncedAt).toLocaleString()}
+                              </div>
+                            ) : null}
+                            {connection.lastError ? (
+                              <div className="mt-2 text-xs text-red-600">{connection.lastError}</div>
+                            ) : null}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-full text-red-600 hover:text-red-600"
+                            onClick={() => disconnectIntegration(connection.id)}
+                          >
+                            Disconnect
+                          </Button>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="rounded-2xl border border-dashed border-foreground/10 p-6 text-sm text-muted-foreground">
+                        No connected accounts yet.
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-foreground/10 bg-card/70 py-0">
+                <CardHeader className="border-b border-foreground/10 py-6">
+                  <CardTitle className="font-display text-3xl">Synced metrics</CardTitle>
+                  <CardDescription>
+                    Pick a daily snapshot to auto-populate the analysis form.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="px-6 py-6">
+                  <div className="space-y-3">
+                    {snapshots.length ? snapshots.map((snapshot) => (
+                      <div key={snapshot.id} className="rounded-2xl border border-foreground/10 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="font-medium">{snapshot.entityName ?? snapshot.externalEntityId}</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {snapshot.provider} · {new Date(snapshot.date).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="rounded-full"
+                            onClick={() => {
+                              setForm(snapshot.analysisInput);
+                              setActiveTab("analysis");
+                            }}
+                          >
+                            Use in form
+                          </Button>
+                        </div>
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+                          <div>
+                            <div className="text-xs text-muted-foreground">Impressions</div>
+                            <div className="tabular-nums">{snapshot.analysisInput.impressions}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Clicks</div>
+                            <div className="tabular-nums">{snapshot.analysisInput.clicks}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">CTR</div>
+                            <div className="tabular-nums">{snapshot.analysisInput.ctr}%</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Purchases</div>
+                            <div className="tabular-nums">{snapshot.analysisInput.purchases}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Revenue</div>
+                            <div className="tabular-nums">${snapshot.analysisInput.revenue}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-dashed border-foreground/10 text-center">
+                        <div className="max-w-sm">
+                          <div className="font-display text-3xl">No synced metrics</div>
+                          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                            Connect an account and run sync to populate daily snapshots.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          </TabsContent>
 
           {/* ── Analysis tab ── */}
           <TabsContent value="analysis">
