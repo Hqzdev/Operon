@@ -194,6 +194,25 @@ export async function handlePaymentWebhook(payload: Record<string, unknown>) {
   return updated;
 }
 
+export async function listPayments(userId: string) {
+  return prisma.payment.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      plan: true,
+      amount: true,
+      currency: true,
+      status: true,
+      provider: true,
+      providerPaymentId: true,
+      confirmationUrl: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+}
+
 export async function syncPaymentStatus(userId: string, paymentId: string) {
   const payment = await prisma.payment.findFirst({
     where: { id: paymentId, userId },
