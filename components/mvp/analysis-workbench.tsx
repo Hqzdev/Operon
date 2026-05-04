@@ -489,7 +489,7 @@ export function AnalysisWorkbench() {
     }));
   }
 
-  const hasProFeatures = user?.plan === "SCALE";
+  const hasProFeatures = true;
 
   return (
     <main className="min-h-screen bg-background text-foreground">

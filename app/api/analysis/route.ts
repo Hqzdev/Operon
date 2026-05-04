@@ -7,7 +7,7 @@ import { getAuthUserId, errorResponse, ApiError } from "@/lib/api-auth";
 export const dynamic = "force-dynamic";
 
 const MONTHLY_LIMITS: Record<UserPlan, number | null> = {
-  STARTER: 10,
+  STARTER: null,
   PRO: null,
   SCALE: null,
 };
