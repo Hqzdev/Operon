@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Operon Lens",
+  "version": "0.1.0",
+  "description": "Operon decision layer for ad managers and Shopify pages.",
+  "action": {
+    "default_title": "Operon Lens",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.facebook.com/*",
+        "https://business.facebook.com/*",
+        "https://ads.tiktok.com/*",
+        "https://*.myshopify.com/*",
+        "https://admin.shopify.com/*"
+      ],
+      "js": ["src/contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "host_permissions": [
+    "https://*.facebook.com/*",
+    "https://business.facebook.com/*",
+    "https://ads.tiktok.com/*",
+    "https://*.myshopify.com/*",
+    "https://admin.shopify.com/*"
+  ]
+}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Operon Lens</title>
+    <link rel="stylesheet" href="src/popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Operon Lens</p>
+          <h1>Page scanner scaffold</h1>
+        </div>
+        <span id="page-kind" class="badge">Detecting</span>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <span>Current page</span>
+          <strong id="current-host">-</strong>
+        </div>
+        <div class="row">
+          <span>Content script</span>
+          <strong id="script-status">Checking</strong>
+        </div>
+      </section>
+
+      <section class="actions">
+        <button id="scan-button" type="button">Scan page</button>
+        <button id="open-dashboard-button" type="button" class="secondary">
+          Open Operon
+        </button>
+      </section>
+
+      <p id="status-message" class="status">
+        Auth, metric capture, and parser logic come in the next steps.
+      </p>
+    </main>
+    <script src="src/popup.js" type="module"></script>
+  </body>
+</html>
