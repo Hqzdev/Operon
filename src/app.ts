@@ -5,6 +5,7 @@ import { apiRateLimiter } from "./middleware/rateLimiter";
 import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";
 import { apiRoutes } from "./routes";
+import { healthRoutes } from "./routes/healthRoutes";
 import { env } from "./utils/env";
 
 export function createApp() {
@@ -20,9 +21,7 @@ export function createApp() {
   app.use(pinoHttp());
   app.use(apiRateLimiter);
 
-  app.get("/health", (_req, res) => {
-    res.status(200).json({ ok: true });
-  });
+  app.use("/health", healthRoutes);
 
   app.use("/api", apiRoutes);
   app.use(notFound);
