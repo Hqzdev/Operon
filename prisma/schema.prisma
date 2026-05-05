@@ -61,6 +61,7 @@ model User {
   payments            Payment[]
   integrations        IntegrationConnection[]
   integrationMetrics  IntegrationMetricSnapshot[]
+  seoAnalysis         SeoAnalysis?
 }
 
 model Analysis {
@@ -139,4 +140,13 @@ model IntegrationMetricSnapshot {
   @@unique([userId, provider, externalAccountId, externalEntityId, date])
   @@index([userId, date])
   @@index([connectionId, date])
+}
+
+model SeoAnalysis {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  storeUrl   String
+  result     Json
+  analyzedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

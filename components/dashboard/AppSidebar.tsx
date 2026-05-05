@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Analytics01Icon,
+  ChartBreakoutSquareIcon,
   ConnectIcon,
   Home01Icon,
   Money01Icon,
@@ -85,6 +86,9 @@ export function AppSidebar() {
     if (tab === null) {
       return pathname === "/dashboard" && !currentTab;
     }
+    if (href.startsWith("/dashboard/")) {
+      return pathname === href;
+    }
     return currentTab === tab;
   }
 
@@ -123,6 +127,29 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Marketing</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/dashboard/seo"}
+                  tooltip="SEO & Marketing"
+                  size="default"
+                >
+                  <Link href="/dashboard/seo">
+                    <ChartBreakoutSquareIcon size={16} />
+                    <span>SEO & Marketing</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
