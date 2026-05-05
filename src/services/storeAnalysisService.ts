@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { completeGigaChatJson } from "./aiService";
 
 export interface StoreAnalysisResult {
   niche: string;
@@ -57,6 +57,30 @@ function extractMeta(html: string) {
   };
 }
 
+function fallbackStoreAnalysis(
+  storeUrl: string,
+  platform: string,
+  meta: { title: string; description: string; siteName: string },
+): Partial<StoreAnalysisResult> {
+  const storeName = meta.siteName || meta.title || new URL(storeUrl).hostname.replace(/^www\./, "");
+  const description = meta.description || meta.title || "Online store";
+
+  return {
+    niche: "General E-commerce",
+    targetAudience: "Online shoppers interested in this store's products",
+    estimatedPriceRange: "Unknown",
+    topCategories: [],
+    suggestedMetrics: ["ROAS", "CTR", "AOV", "CVR", "Cart Abandonment Rate"],
+    platform,
+    storeName,
+    storeDescription: description,
+  };
+}
+
+function normalizeStringArray(value: unknown, fallback: string[]) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : fallback;
+}
+
 export async function analyzeStore(storeUrl: string): Promise<StoreAnalysisResult> {
   let html = "";
   let meta = { title: "", description: "", siteName: "" };
@@ -79,8 +103,6 @@ export async function analyzeStore(storeUrl: string): Promise<StoreAnalysisResul
     // Proceed with empty data if scraping fails
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
   const prompt = `You are an e-commerce analyst. Analyze this online store and return a JSON object.
 
 Store URL: ${storeUrl}
@@ -102,23 +124,24 @@ Return ONLY a JSON object with these exact fields:
 
 Suggested metrics should be specific KPIs relevant to this store's niche (e.g. 'ROAS', 'Cart Abandonment Rate', 'Average Order Value', 'Customer Lifetime Value', 'Return Rate', 'Email CTR').`;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_tokens: 500,
-    temperature: 0.3,
-  });
-
-  const raw = completion.choices[0]?.message?.content ?? "{}";
-  const parsed = JSON.parse(raw) as Partial<StoreAnalysisResult>;
+  let parsed: Partial<StoreAnalysisResult>;
+  try {
+    parsed = await completeGigaChatJson<Partial<StoreAnalysisResult>>(
+      "storeAnalysis",
+      "You are a strict e-commerce analyst. Return valid JSON only. No markdown. No text outside the JSON.",
+      prompt,
+    );
+  } catch (error) {
+    console.error("[onboarding] GigaChat store analysis failed, using local fallback", error);
+    parsed = fallbackStoreAnalysis(storeUrl, platform, meta);
+  }
 
   return {
     niche: parsed.niche ?? "General E-commerce",
     targetAudience: parsed.targetAudience ?? "Online shoppers",
     estimatedPriceRange: parsed.estimatedPriceRange ?? "Unknown",
-    topCategories: parsed.topCategories ?? [],
-    suggestedMetrics: parsed.suggestedMetrics ?? ["ROAS", "CTR", "AOV", "CVR"],
+    topCategories: normalizeStringArray(parsed.topCategories, []),
+    suggestedMetrics: normalizeStringArray(parsed.suggestedMetrics, ["ROAS", "CTR", "AOV", "CVR"]),
     platform,
     storeName: parsed.storeName ?? meta.title ?? storeUrl,
     storeDescription: parsed.storeDescription ?? "",

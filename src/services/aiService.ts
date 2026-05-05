@@ -68,7 +68,7 @@ function stripCodeFences(content: string) {
     .trim();
 }
 
-async function complete<T>(
+export async function completeGigaChatJson<T>(
   schemaName: string,
   systemPrompt: string,
   userPrompt: string,
@@ -109,6 +109,8 @@ async function complete<T>(
 
   return JSON.parse(stripCodeFences(content)) as T;
 }
+
+const complete = completeGigaChatJson;
 
 const SYSTEM =
   "You are a strict e-commerce performance analyst. Return valid JSON only — no markdown, no text outside the JSON.";
