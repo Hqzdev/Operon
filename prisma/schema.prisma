@@ -44,19 +44,21 @@ enum IntegrationStatus {
 }
 
 model User {
-  id                 String             @id @default(cuid())
-  email              String             @unique
-  password           String
-  name               String?
-  storeName          String?
-  plan               UserPlan           @default(STARTER)
-  subscriptionStatus SubscriptionStatus @default(NONE)
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  password            String
+  name                String?
+  storeName           String?
+  storeUrl            String?
+  onboardingCompleted Boolean            @default(false)
+  plan                UserPlan           @default(STARTER)
+  subscriptionStatus  SubscriptionStatus @default(NONE)
   subscriptionEndDate DateTime?
-  usageCount         Int                @default(0)
-  usageResetAt       DateTime           @default(now())
-  createdAt          DateTime           @default(now())
-  analyses           Analysis[]
-  payments           Payment[]
+  usageCount          Int                @default(0)
+  usageResetAt        DateTime           @default(now())
+  createdAt           DateTime           @default(now())
+  analyses            Analysis[]
+  payments            Payment[]
   integrations        IntegrationConnection[]
   integrationMetrics  IntegrationMetricSnapshot[]
 }
