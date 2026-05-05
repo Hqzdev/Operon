@@ -10,6 +10,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
   NEXT_PUBLIC_API_BASE_URL: z.string().default("http://localhost:4000/api"),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
   YOOKASSA_SHOP_ID: z.string().optional(),
   YOOKASSA_SECRET_KEY: z.string().optional(),
   YOOKASSA_RETURN_URL: z.string().default("http://localhost:3000/dashboard"),

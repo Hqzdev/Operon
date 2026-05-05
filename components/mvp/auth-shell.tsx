@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, Eye, EyeOff, LockKeyhole, Sparkles } from "lucide-react";
+import { ArrowLeft, Chrome, Eye, EyeOff, LockKeyhole, Sparkles } from "lucide-react";
 import { getApiBaseUrl } from "@/lib/api-base-url";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,6 +149,19 @@ export function AuthShell({
               </CardDescription>
             </CardHeader>
             <CardContent className="px-6 py-8">
+              <Button asChild variant="outline" className="mb-6 h-11 w-full rounded-xl">
+                <Link href="/api/auth/google">
+                  <Chrome className="size-4" />
+                  Continue with Google
+                </Link>
+              </Button>
+
+              <div className="mb-6 flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
+                <div className="h-px flex-1 bg-border" />
+                Email
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
               <form onSubmit={handleSubmit} className="space-y-5">
                 {fields.map((field) => {
                   const isPassword = field.type === "password";
