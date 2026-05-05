@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import https from "https";
 
 export interface StoreAnalysisResult {
   niche: string;
@@ -57,6 +57,78 @@ function extractMeta(html: string) {
   };
 }
 
+function httpsPost(url: string, headers: Record<string, string>, body: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const bodyBuffer = Buffer.from(body, "utf-8");
+    const req = https.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || "443",
+        path: parsed.pathname + parsed.search,
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Length": bodyBuffer.length,
+        },
+        rejectUnauthorized: false,
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk: string) => { data += chunk; });
+        res.on("end", () => resolve(data));
+      }
+    );
+    req.on("error", reject);
+    req.write(bodyBuffer);
+    req.end();
+  });
+}
+
+async function getGigaChatToken(): Promise<string> {
+  const authKey = process.env.GIGACHAT_AUTH_KEY ?? "";
+  const oauthUrl = process.env.GIGACHAT_OAUTH_URL ?? "https://ngw.devices.sberbank.ru:9443/api/v2/oauth";
+  const scope = process.env.GIGACHAT_SCOPE ?? "GIGACHAT_API_PERS";
+
+  const responseText = await httpsPost(
+    oauthUrl,
+    {
+      "Authorization": `Basic ${authKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    `scope=${encodeURIComponent(scope)}`
+  );
+
+  const data = JSON.parse(responseText) as { access_token: string };
+  return data.access_token;
+}
+
+async function gigaChatComplete(token: string, prompt: string): Promise<string> {
+  const baseUrl = process.env.GIGACHAT_BASE_URL ?? "https://gigachat.devices.sberbank.ru/api/v1";
+  const model = process.env.GIGACHAT_MODEL ?? "GigaChat";
+
+  const body = JSON.stringify({
+    model,
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 500,
+    temperature: 0.3,
+  });
+
+  const responseText = await httpsPost(
+    `${baseUrl}/chat/completions`,
+    {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body
+  );
+
+  const data = JSON.parse(responseText) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return data.choices?.[0]?.message?.content ?? "{}";
+}
+
 export async function analyzeStore(storeUrl: string): Promise<StoreAnalysisResult> {
   let html = "";
   let meta = { title: "", description: "", siteName: "" };
@@ -79,8 +151,6 @@ export async function analyzeStore(storeUrl: string): Promise<StoreAnalysisResul
     // Proceed with empty data if scraping fails
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
   const prompt = `You are an e-commerce analyst. Analyze this online store and return a JSON object.
 
 Store URL: ${storeUrl}
@@ -102,16 +172,13 @@ Return ONLY a JSON object with these exact fields:
 
 Suggested metrics should be specific KPIs relevant to this store's niche (e.g. 'ROAS', 'Cart Abandonment Rate', 'Average Order Value', 'Customer Lifetime Value', 'Return Rate', 'Email CTR').`;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_tokens: 500,
-    temperature: 0.3,
-  });
+  const token = await getGigaChatToken();
+  const raw = await gigaChatComplete(token, prompt);
 
-  const raw = completion.choices[0]?.message?.content ?? "{}";
-  const parsed = JSON.parse(raw) as Partial<StoreAnalysisResult>;
+  // GigaChat may wrap the JSON in markdown code fences
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? raw.match(/(\{[\s\S]*\})/);
+  const jsonStr = jsonMatch ? jsonMatch[1] : raw;
+  const parsed = JSON.parse(jsonStr) as Partial<StoreAnalysisResult>;
 
   return {
     niche: parsed.niche ?? "General E-commerce",
