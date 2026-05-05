@@ -6,6 +6,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";
 import { apiRoutes } from "./routes";
 import { healthRoutes } from "./routes/healthRoutes";
+import { startScheduler } from "./services/schedulerService";
 import { env } from "./utils/env";
 
 export function createApp() {
@@ -26,6 +27,8 @@ export function createApp() {
   app.use("/api", apiRoutes);
   app.use(notFound);
   app.use(errorHandler);
+
+  startScheduler();
 
   return app;
 }

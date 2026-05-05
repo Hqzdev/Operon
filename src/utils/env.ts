@@ -31,6 +31,11 @@ const envSchema = z.object({
   SHOPIFY_API_VERSION: z.string().default("2026-01"),
   SHOPIFY_STORE_URL: z.string().optional(),
   SHOPIFY_ACCESS_TOKEN: z.string().optional(),
+  SMTP_HOST: z.string().default("smtp.gmail.com"),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().default("Operon <noreply@operon.app>"),
 });
 
 type Env = z.infer<typeof envSchema>;

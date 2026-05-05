@@ -43,6 +43,12 @@ enum IntegrationStatus {
   ERROR
 }
 
+enum NotificationType {
+  digest
+  alert
+  info
+}
+
 model User {
   id                  String             @id @default(cuid())
   email               String             @unique
@@ -62,6 +68,32 @@ model User {
   integrations        IntegrationConnection[]
   integrationMetrics  IntegrationMetricSnapshot[]
   seoAnalysis         SeoAnalysis?
+  notifications       Notification[]
+  digestLogs          DigestLog[]
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  body      String           @db.Text
+  type      NotificationType @default(info)
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, read])
+}
+
+model DigestLog {
+  id      String   @id @default(cuid())
+  userId  String
+  sentAt  DateTime @default(now())
+  summary Json
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sentAt])
 }
 
 model Analysis {
