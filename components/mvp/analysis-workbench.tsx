@@ -1,21 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
-  BookOpen,
   Cable,
   Crown,
   KeyRound,
   LoaderCircle,
   LogOut,
   Minus,
+  Moon,
   Plus,
-  Settings,
   Store,
+  Sun,
   Target,
-  Trash2,
   TrendingUp,
 } from "lucide-react";
 import {
@@ -24,7 +23,6 @@ import {
   type AnalysisOutput,
 } from "@/lib/analysis-schema";
 import { getApiBaseUrl } from "@/lib/api-base-url";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,33 +34,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 const initialForm: AnalysisInput = {
   product_name: "Lumbar Support Cushion",
@@ -195,6 +170,7 @@ const emptyAdSet = (): AdSetInput => ({
 });
 
 const STARTER_LIMIT = 10;
+const dashboardTabs = new Set(["analysis", "integrations", "budget", "scenario", "payments", "settings"]);
 
 function planLabel(plan?: string | null) {
   if (plan === "PRO") return "Basic";
@@ -205,6 +181,9 @@ function planLabel(plan?: string | null) {
 
 export function AnalysisWorkbench() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDarkTheme = resolvedTheme === "dark";
 
   // Analysis state
   const [form, setForm] = useState<AnalysisInput>(initialForm);
@@ -226,8 +205,6 @@ export function AnalysisWorkbench() {
   const [pwConfirm, setPwConfirm] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  const [deletePassword, setDeletePassword] = useState("");
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Budget Allocation state
   const [budgetTotal, setBudgetTotal] = useState(1000);
@@ -334,6 +311,12 @@ export function AnalysisWorkbench() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    const nextTab = tabParam === "scenarios" ? "scenario" : (tabParam ?? "analysis");
+    setActiveTab(dashboardTabs.has(nextTab) ? nextTab : "analysis");
+  }, [searchParams]);
+
   async function saveProfile() {
     const token = getToken();
     if (!token) return;
@@ -380,30 +363,6 @@ export function AnalysisWorkbench() {
       setPwMsg({ type: "err", text: "Network error" });
     } finally {
       setPwSaving(false);
-    }
-  }
-
-  async function deleteAccount() {
-    if (!deletePassword) return;
-    const token = getToken();
-    if (!token) return;
-    setDeleteLoading(true);
-    try {
-      const res = await fetch(`${apiBaseUrl}/users/me`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ password: deletePassword }),
-      });
-      if (!res.ok) {
-        const data = await res.json() as { message?: string };
-        alert(data.message ?? "Failed to delete account");
-        return;
-      }
-      logout();
-    } catch {
-      alert("Network error");
-    } finally {
-      setDeleteLoading(false);
     }
   }
 
@@ -613,328 +572,20 @@ export function AnalysisWorkbench() {
   const hasProFeatures = true;
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="relative h-full overflow-hidden bg-background text-foreground">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(20,20,20,0.08),transparent_25%),radial-gradient(circle_at_center_right,rgba(20,20,20,0.05),transparent_30%)]" />
-      <div className="mx-auto max-w-[1440px] px-6 py-6 lg:px-10">
-        <header className="mb-8 flex items-center justify-between rounded-[28px] border border-foreground/10 bg-background/80 px-6 py-5 backdrop-blur">
-          <div>
+      <div className="flex h-full min-h-0 flex-col px-4 py-4 sm:px-6 lg:px-8">
+          <header className="mb-4 shrink-0">
             <div className="font-display text-2xl tracking-tight">Operon Analysis Workbench</div>
-            <div className="font-mono text-xs text-muted-foreground">
+            <div className="mt-1 text-sm text-muted-foreground">
               Decision engine, diagnosis, action plan, and product validation
             </div>
-          </div>
-          <Link href="/docs" target="_blank">
-            <Button variant="outline" size="sm" className="h-9 rounded-full gap-2">
-              <BookOpen className="size-3.5" />
-              Docs
-            </Button>
-          </Link>
-        </header>
+          </header>
 
-        {/* ── bottom-left dock ── */}
-        <div className="fixed bottom-6 left-6 z-50 flex flex-col items-center gap-2">
-
-          {/* Profile popover */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button className="flex size-11 items-center justify-center rounded-2xl border border-foreground/10 bg-background/90 shadow-lg backdrop-blur transition hover:bg-muted">
-                <Avatar className="size-7">
-                  <AvatarFallback className="text-xs font-medium">
-                    {user?.name ? user.name.slice(0, 2).toUpperCase() : "?"}
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent side="right" align="end" className="w-64 rounded-2xl p-4">
-              <div className="flex items-center gap-3 mb-4">
-                <Avatar className="size-10">
-                  <AvatarFallback className="text-sm font-semibold">
-                    {user?.name ? user.name.slice(0, 2).toUpperCase() : "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{user?.name ?? "—"}</p>
-                  <p className="truncate text-xs text-muted-foreground">{user?.email ?? "—"}</p>
-                </div>
-              </div>
-              <Separator className="mb-3" />
-              <div className="space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Plan</span>
-                  <span className="font-medium text-foreground">{planLabel(user?.plan)}</span>
-                </div>
-                {user?.plan === "STARTER" && (
-                  <div className="flex justify-between">
-                    <span>Analyses used</span>
-                    <span className="font-medium text-foreground">{user.usageCount}/{STARTER_LIMIT}</span>
-                  </div>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          {/* Settings dialog */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <button className="flex size-11 items-center justify-center rounded-2xl border border-foreground/10 bg-background/90 shadow-lg backdrop-blur transition hover:bg-muted">
-                <Settings className="size-4" />
-              </button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl p-6 gap-0">
-              <DialogHeader className="mb-6">
-                <DialogTitle className="font-display text-2xl">Settings</DialogTitle>
-                <DialogDescription className="text-sm text-muted-foreground">
-                  Manage your account
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3">
-
-                {/* Profile block */}
-                <div className="rounded-2xl border border-foreground/10 p-5 space-y-4">
-                  <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                    Profile
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Email</p>
-                    <div className="flex h-10 w-full items-center rounded-xl border border-foreground/10 bg-muted/40 px-3 text-sm">
-                      {user?.email ?? "—"}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="settings-name" className="text-sm">Name</Label>
-                    <Input
-                      id="settings-name"
-                      value={settingsName}
-                      onChange={(e) => setSettingsName(e.target.value)}
-                      className="h-10 rounded-xl"
-                    />
-                  </div>
-
-                  {settingsMsg && (
-                    <p className={`text-xs ${settingsMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
-                      {settingsMsg.text}
-                    </p>
-                  )}
-
-                  <Button
-                    size="sm"
-                    className="h-9 w-full rounded-full"
-                    onClick={saveProfile}
-                    disabled={settingsSaving}
-                  >
-                    {settingsSaving ? <LoaderCircle className="size-3.5 animate-spin" /> : "Save changes"}
-                  </Button>
-                </div>
-
-                {/* Plan block */}
-                <div className="rounded-2xl border border-foreground/10 p-5 space-y-4">
-                  <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                    <Crown className="size-3.5" />
-                    Plan
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Current plan</span>
-                    <Badge variant="outline" className="rounded-full font-mono text-xs">
-                      {planLabel(user?.plan)}
-                    </Badge>
-                  </div>
-
-                  {user?.plan === "STARTER" && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Analyses this month</span>
-                        <span className="font-medium tabular-nums">
-                          {user.usageCount}/{STARTER_LIMIT}
-                        </span>
-                      </div>
-                      <Progress
-                        value={Math.min((user.usageCount / STARTER_LIMIT) * 100, 100)}
-                        className="h-1.5"
-                      />
-                    </div>
-                  )}
-
-                  {user?.subscriptionStatus === "ACTIVE" && user.subscriptionEndDate && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Renews</span>
-                      <span className="tabular-nums">
-                        {new Date(user.subscriptionEndDate).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
-
-                  {user?.plan === "SCALE" ? (
-                    <p className="text-xs text-muted-foreground">You have full access to all features.</p>
-                  ) : (
-                    <div className="space-y-2 pt-1">
-                      {user?.plan === "STARTER" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-9 w-full rounded-full"
-                          onClick={() => upgradePlan("PRO")}
-                        >
-                          Upgrade to Basic · $9/mo
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        className="h-9 w-full rounded-full gap-2"
-                        onClick={() => upgradePlan("SCALE")}
-                      >
-                        <TrendingUp className="size-3.5" />
-                        {user?.plan === "PRO" ? "Upgrade to Pro · $19/mo" : "Go to Pro · $19/mo"}
-                      </Button>
-                      <p className="text-xs text-center text-muted-foreground pt-1">
-                        Pro unlocks Budget Allocation and Scenario Simulator
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Password block */}
-                <div className="rounded-2xl border border-foreground/10 p-5 space-y-4">
-                  <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                    <KeyRound className="size-3.5" />
-                    Change password
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="pw-current" className="text-sm">Current password</Label>
-                    <Input
-                      id="pw-current"
-                      type="password"
-                      value={pwCurrent}
-                      onChange={(e) => setPwCurrent(e.target.value)}
-                      className="h-10 rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="pw-new" className="text-sm">New password</Label>
-                    <Input
-                      id="pw-new"
-                      type="password"
-                      value={pwNew}
-                      onChange={(e) => setPwNew(e.target.value)}
-                      className="h-10 rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="pw-confirm" className="text-sm">Confirm new password</Label>
-                    <Input
-                      id="pw-confirm"
-                      type="password"
-                      value={pwConfirm}
-                      onChange={(e) => setPwConfirm(e.target.value)}
-                      className="h-10 rounded-xl"
-                    />
-                  </div>
-
-                  {pwMsg && (
-                    <p className={`text-xs ${pwMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
-                      {pwMsg.text}
-                    </p>
-                  )}
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-9 w-full rounded-full"
-                    onClick={changePassword}
-                    disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm}
-                  >
-                    {pwSaving ? <LoaderCircle className="size-3.5 animate-spin" /> : "Update password"}
-                  </Button>
-                </div>
-
-                {/* Actions */}
-                <div className="rounded-2xl border border-foreground/10 p-5 space-y-2">
-                  <Button
-                    variant="ghost"
-                    className="h-10 w-full rounded-xl justify-start gap-3 px-3 font-normal"
-                    onClick={logout}
-                  >
-                    <LogOut className="size-4 text-muted-foreground" />
-                    Log out
-                  </Button>
-
-                  <Separator />
-
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="h-10 w-full rounded-xl justify-start gap-3 px-3 font-normal text-red-600 hover:text-red-600 hover:bg-red-50/60"
-                      >
-                        <Trash2 className="size-4" />
-                        Delete account
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="rounded-3xl">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete account</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete your account and all analyses. Enter your password to confirm.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <Input
-                        type="password"
-                        placeholder="Your password"
-                        value={deletePassword}
-                        onChange={(e) => setDeletePassword(e.target.value)}
-                        className="h-10 rounded-xl"
-                      />
-                      <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-full" onClick={() => setDeletePassword("")}>
-                          Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          className="rounded-full bg-red-600 hover:bg-red-700"
-                          onClick={deleteAccount}
-                          disabled={!deletePassword || deleteLoading}
-                        >
-                          {deleteLoading ? <LoaderCircle className="size-3.5 animate-spin" /> : "Delete permanently"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-        {/* ── end dock ── */}
-
-        {/* ── Tabs ── */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 rounded-2xl h-11 px-1">
-            <TabsTrigger value="analysis" className="rounded-xl h-9 px-4">
-              Analysis
-            </TabsTrigger>
-            <TabsTrigger value="integrations" className="rounded-xl h-9 px-4 gap-1.5">
-              <Cable className="size-3.5" />
-              Integrations
-            </TabsTrigger>
-            <TabsTrigger value="budget" className="rounded-xl h-9 px-4 gap-1.5">
-              {!hasProFeatures && <Crown className="size-3 text-amber-500" />}
-              Budget Allocation
-            </TabsTrigger>
-            <TabsTrigger value="scenario" className="rounded-xl h-9 px-4 gap-1.5">
-              {!hasProFeatures && <Crown className="size-3 text-amber-500" />}
-              Scenario Simulator
-            </TabsTrigger>
-          </TabsList>
-
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-0 flex-1 overflow-hidden">
           {/* ── Integrations tab ── */}
-          <TabsContent value="integrations">
-            <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+          <TabsContent value="integrations" className="h-full overflow-hidden">
+            <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.85fr_1.15fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
               <Card className="border-foreground/10 bg-card/70 py-0">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="font-display text-3xl">Connections</CardTitle>
@@ -1105,8 +756,8 @@ export function AnalysisWorkbench() {
           </TabsContent>
 
           {/* ── Analysis tab ── */}
-          <TabsContent value="analysis">
-            <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <TabsContent value="analysis" className="h-full overflow-hidden">
+            <section className="grid h-[60%] min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.95fr_1.05fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
               <Card className="border-foreground/10 bg-card/70 py-0">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="font-display text-3xl">Input</CardTitle>
@@ -1331,7 +982,7 @@ export function AnalysisWorkbench() {
               </Card>
             </section>
 
-            <section className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+            <section className="mt-6 grid h-[calc(40%-1.5rem)] min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.95fr_1.05fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
               <Card className="border-foreground/10 bg-card/70 py-0">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="font-display text-3xl">Derived metrics</CardTitle>
@@ -1401,7 +1052,7 @@ export function AnalysisWorkbench() {
           </TabsContent>
 
           {/* ── Budget Allocation tab ── */}
-          <TabsContent value="budget">
+          <TabsContent value="budget" className="h-full overflow-hidden">
             {!hasProFeatures ? (
               <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-foreground/10">
                 <div className="max-w-sm text-center">
@@ -1417,7 +1068,7 @@ export function AnalysisWorkbench() {
                 </div>
               </div>
             ) : (
-              <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+              <div className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[1fr_1fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
                 <Card className="border-foreground/10 bg-card/70 py-0">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="font-display text-3xl">Budget Allocation</CardTitle>
@@ -1547,7 +1198,7 @@ export function AnalysisWorkbench() {
           </TabsContent>
 
           {/* ── Scenario Simulator tab ── */}
-          <TabsContent value="scenario">
+          <TabsContent value="scenario" className="h-full overflow-hidden">
             {!hasProFeatures ? (
               <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-foreground/10">
                 <div className="max-w-sm text-center">
@@ -1563,7 +1214,7 @@ export function AnalysisWorkbench() {
                 </div>
               </div>
             ) : (
-              <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+              <div className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[1fr_1fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
                 <Card className="border-foreground/10 bg-card/70 py-0">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="font-display text-3xl">Scenario Setup</CardTitle>
@@ -1706,7 +1357,204 @@ export function AnalysisWorkbench() {
               </div>
             )}
           </TabsContent>
-        </Tabs>
+          <TabsContent value="payments" className="h-full overflow-hidden">
+            <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.8fr_1.2fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
+              <Card className="border-foreground/10 bg-card/70 py-0">
+                <CardHeader className="border-b border-foreground/10 py-6">
+                  <CardTitle className="font-display text-3xl">Payments</CardTitle>
+                  <CardDescription>Plan, usage, and upgrade controls.</CardDescription>
+                </CardHeader>
+                <CardContent className="px-6 py-6 space-y-5">
+                  <div className="rounded-2xl border border-foreground/10 p-5">
+                    <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                      Current plan
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-display text-3xl">{planLabel(user?.plan)}</div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {user?.subscriptionStatus ?? "Active"} subscription
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="rounded-full">
+                        {user?.plan ?? "STARTER"}
+                      </Badge>
+                    </div>
+                    {user?.subscriptionEndDate ? (
+                      <p className="mt-4 text-xs text-muted-foreground">
+                        Renews {new Date(user.subscriptionEndDate).toLocaleDateString()}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-2xl border border-foreground/10 p-5">
+                    <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                      Usage
+                    </div>
+                    <div className="mt-3 flex items-end justify-between gap-4">
+                      <div>
+                        <div className="font-display text-3xl">{user?.usageCount ?? 0}</div>
+                        <p className="mt-1 text-sm text-muted-foreground">Analyses used this period</p>
+                      </div>
+                      {user?.usageResetAt ? (
+                        <p className="text-xs text-muted-foreground">
+                          Resets {new Date(user.usageResetAt).toLocaleDateString()}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-foreground/10 bg-card/70 py-0">
+                <CardHeader className="border-b border-foreground/10 py-6">
+                  <CardTitle className="font-display text-3xl">Upgrade</CardTitle>
+                  <CardDescription>Move to a higher tier when analysis volume grows.</CardDescription>
+                </CardHeader>
+                <CardContent className="px-6 py-6">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Button className="h-11 rounded-full gap-2" onClick={() => upgradePlan("PRO")}>
+                      <Crown className="size-4" />
+                      Upgrade to Basic
+                    </Button>
+                    <Button variant="outline" className="h-11 rounded-full gap-2" onClick={() => upgradePlan("SCALE")}>
+                      <Crown className="size-4" />
+                      Upgrade to Pro
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          </TabsContent>
+          <TabsContent value="settings" className="h-full overflow-hidden">
+            <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.8fr_1.2fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
+              <Card className="border-foreground/10 bg-card/70 py-0">
+                <CardHeader className="border-b border-foreground/10 py-6">
+                  <CardTitle className="font-display text-3xl">Settings</CardTitle>
+                  <CardDescription>Profile, appearance, and account controls.</CardDescription>
+                </CardHeader>
+                <CardContent className="px-6 py-6 space-y-5">
+                  <div className="rounded-2xl border border-foreground/10 p-5 space-y-4">
+                    <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                      {isDarkTheme ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
+                      Appearance
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-medium">Dark theme</div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Switch the workspace between light and black mode.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={isDarkTheme}
+                        onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                        aria-label="Toggle dark theme"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-foreground/10 p-5 space-y-4">
+                    <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                      Profile
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <div className="flex h-10 w-full items-center rounded-xl border border-foreground/10 bg-muted/40 px-3 text-sm">
+                        {user?.email ?? "—"}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="settings-page-name" className="text-sm">Name</Label>
+                      <Input
+                        id="settings-page-name"
+                        value={settingsName}
+                        onChange={(e) => setSettingsName(e.target.value)}
+                        className="h-10 rounded-xl"
+                      />
+                    </div>
+                    {settingsMsg && (
+                      <p className={`text-xs ${settingsMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
+                        {settingsMsg.text}
+                      </p>
+                    )}
+                    <Button
+                      size="sm"
+                      className="h-9 rounded-full"
+                      onClick={saveProfile}
+                      disabled={settingsSaving}
+                    >
+                      {settingsSaving ? <LoaderCircle className="size-3.5 animate-spin" /> : "Save changes"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-foreground/10 bg-card/70 py-0">
+                <CardHeader className="border-b border-foreground/10 py-6">
+                  <CardTitle className="font-display text-3xl">Account</CardTitle>
+                  <CardDescription>Password and session actions.</CardDescription>
+                </CardHeader>
+                <CardContent className="px-6 py-6 space-y-5">
+                  <div className="rounded-2xl border border-foreground/10 p-5 space-y-4">
+                    <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
+                      <KeyRound className="size-3.5" />
+                      Change password
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Input
+                        type="password"
+                        placeholder="Current password"
+                        value={pwCurrent}
+                        onChange={(e) => setPwCurrent(e.target.value)}
+                        className="h-10 rounded-xl"
+                      />
+                      <Input
+                        type="password"
+                        placeholder="New password"
+                        value={pwNew}
+                        onChange={(e) => setPwNew(e.target.value)}
+                        className="h-10 rounded-xl"
+                      />
+                      <Input
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={pwConfirm}
+                        onChange={(e) => setPwConfirm(e.target.value)}
+                        className="h-10 rounded-xl"
+                      />
+                    </div>
+                    {pwMsg && (
+                      <p className={`text-xs ${pwMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
+                        {pwMsg.text}
+                      </p>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 rounded-full"
+                      onClick={changePassword}
+                      disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm}
+                    >
+                      {pwSaving ? <LoaderCircle className="size-3.5 animate-spin" /> : "Update password"}
+                    </Button>
+                  </div>
+
+                  <div className="rounded-2xl border border-foreground/10 p-5 space-y-3">
+                    <Button
+                      variant="ghost"
+                      className="h-10 rounded-xl justify-start gap-3 px-3 font-normal"
+                      onClick={logout}
+                    >
+                      <LogOut className="size-4 text-muted-foreground" />
+                      Log out
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          </TabsContent>
+          </Tabs>
       </div>
     </main>
   );

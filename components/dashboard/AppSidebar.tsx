@@ -89,10 +89,10 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1">
-          <div className="flex size-7 items-center justify-center rounded-md bg-foreground text-background text-xs font-bold shrink-0">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-none bg-foreground text-xs font-bold text-background">
             O
           </div>
           <span className="font-semibold text-sm truncate group-data-[collapsible=icon]:hidden">
@@ -115,6 +115,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href, item.tab)}
                     tooltip={item.title}
                     size="default"
+                    className="rounded-none justify-start"
                   >
                     <Link href={item.href}>
                       <item.icon size={16} />
@@ -140,6 +141,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href, item.tab)}
                     tooltip={item.title}
                     size="default"
+                    className="rounded-none justify-start"
                   >
                     <Link href={item.href}>
                       <item.icon size={16} />
@@ -162,6 +164,7 @@ export function AppSidebar() {
               asChild
               tooltip="Profile"
               size="default"
+              className="rounded-none justify-start"
             >
               <Link href="/dashboard?tab=settings">
                 <UserCircle02Icon size={16} />
