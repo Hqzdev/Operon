@@ -2,11 +2,16 @@ import type { Request, Response } from "express";
 import { UserPlan } from "@prisma/client";
 import { z } from "zod";
 import { asyncHandler } from "../utils/asyncHandler";
-import { createPaymentIntent, handlePaymentWebhook, syncPaymentStatus } from "../services/paymentService";
+import { createPaymentIntent, handlePaymentWebhook, listPayments, syncPaymentStatus } from "../services/paymentService";
 import { normalizeUserPlan } from "../services/planService";
 
 const paymentCreateSchema = z.object({
   plan: z.string().min(1),
+});
+
+export const listPaymentsController = asyncHandler(async (req: Request, res: Response) => {
+  const payments = await listPayments(req.auth!.userId);
+  res.status(200).json(payments);
 });
 
 export const createPaymentController = asyncHandler(async (req: Request, res: Response) => {

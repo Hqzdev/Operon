@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createPaymentIntent = createPaymentIntent;
 exports.handlePaymentWebhook = handlePaymentWebhook;
+exports.listPayments = listPayments;
 exports.syncPaymentStatus = syncPaymentStatus;
 const node_crypto_1 = __importDefault(require("node:crypto"));
 const client_1 = require("@prisma/client");
@@ -158,6 +159,24 @@ async function handlePaymentWebhook(payload) {
         await activateSubscription(payment);
     }
     return updated;
+}
+async function listPayments(userId) {
+    return prisma_1.prisma.payment.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        select: {
+            id: true,
+            plan: true,
+            amount: true,
+            currency: true,
+            status: true,
+            provider: true,
+            providerPaymentId: true,
+            confirmationUrl: true,
+            createdAt: true,
+            updatedAt: true,
+        },
+    });
 }
 async function syncPaymentStatus(userId, paymentId) {
     const payment = await prisma_1.prisma.payment.findFirst({

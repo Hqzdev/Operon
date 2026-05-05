@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncPaymentController = exports.paymentWebhookController = exports.createPaymentController = void 0;
+exports.syncPaymentController = exports.paymentWebhookController = exports.createPaymentController = exports.listPaymentsController = void 0;
 const client_1 = require("@prisma/client");
 const zod_1 = require("zod");
 const asyncHandler_1 = require("../utils/asyncHandler");
@@ -8,6 +8,10 @@ const paymentService_1 = require("../services/paymentService");
 const planService_1 = require("../services/planService");
 const paymentCreateSchema = zod_1.z.object({
     plan: zod_1.z.string().min(1),
+});
+exports.listPaymentsController = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const payments = await (0, paymentService_1.listPayments)(req.auth.userId);
+    res.status(200).json(payments);
 });
 exports.createPaymentController = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const { plan: rawPlan } = paymentCreateSchema.parse(req.body);
