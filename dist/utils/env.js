@@ -33,6 +33,8 @@ const envSchema = zod_1.z.object({
     SHOPIFY_API_KEY: zod_1.z.string().optional(),
     SHOPIFY_API_SECRET: zod_1.z.string().optional(),
     SHOPIFY_API_VERSION: zod_1.z.string().default("2026-01"),
+    SHOPIFY_STORE_URL: zod_1.z.string().optional(),
+    SHOPIFY_ACCESS_TOKEN: zod_1.z.string().optional(),
 });
 let _parsed = null;
 function getParsedEnv() {

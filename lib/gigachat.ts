@@ -64,7 +64,11 @@ function stripCodeFences(value: string) {
   return value.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "").trim();
 }
 
-async function completeJson<T>(prompt: string): Promise<T> {
+export async function gigaChatComplete<T>(prompt: string, systemPrompt?: string): Promise<T> {
+  return completeJson<T>(prompt, systemPrompt);
+}
+
+async function completeJson<T>(prompt: string, systemPrompt?: string): Promise<T> {
   const token = await getAccessToken();
   const response = await fetch(`${apiBaseUrl}/chat/completions`, {
     method: "POST",
@@ -79,7 +83,7 @@ async function completeJson<T>(prompt: string): Promise<T> {
         {
           role: "system",
           content:
-            "You are a strict e-commerce operator. Return valid JSON only. No markdown. No code fences.",
+            systemPrompt ?? "You are a strict e-commerce operator. Return valid JSON only. No markdown. No code fences.",
         },
         {
           role: "user",
@@ -88,7 +92,7 @@ async function completeJson<T>(prompt: string): Promise<T> {
       ],
       n: 1,
       stream: false,
-      max_tokens: 512,
+      max_tokens: 1024,
       repetition_penalty: 1,
       update_interval: 0,
     }),

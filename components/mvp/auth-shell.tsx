@@ -71,7 +71,12 @@ export function AuthShell({
 
       localStorage.setItem("operon_token", data.token);
       localStorage.setItem("operon_user", JSON.stringify(data.user));
-      router.push("/dashboard");
+      if (mode === "register") {
+        router.push("/onboarding");
+      } else {
+        const user = data.user as { onboardingCompleted?: boolean };
+        router.push(user.onboardingCompleted ? "/dashboard" : "/onboarding");
+      }
     } catch {
       setError("Unable to reach the backend. Start the API server and try again.");
     } finally {

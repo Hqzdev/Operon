@@ -8,6 +8,8 @@ const profileSelect = {
   email: true,
   name: true,
   storeName: true,
+  storeUrl: true,
+  onboardingCompleted: true,
   plan: true,
   subscriptionStatus: true,
   subscriptionEndDate: true,

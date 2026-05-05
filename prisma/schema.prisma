@@ -44,21 +44,24 @@ enum IntegrationStatus {
 }
 
 model User {
-  id                 String             @id @default(cuid())
-  email              String             @unique
-  password           String
-  name               String?
-  storeName          String?
-  plan               UserPlan           @default(STARTER)
-  subscriptionStatus SubscriptionStatus @default(NONE)
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  password            String
+  name                String?
+  storeName           String?
+  storeUrl            String?
+  onboardingCompleted Boolean            @default(false)
+  plan                UserPlan           @default(STARTER)
+  subscriptionStatus  SubscriptionStatus @default(NONE)
   subscriptionEndDate DateTime?
-  usageCount         Int                @default(0)
-  usageResetAt       DateTime           @default(now())
-  createdAt          DateTime           @default(now())
-  analyses           Analysis[]
-  payments           Payment[]
+  usageCount          Int                @default(0)
+  usageResetAt        DateTime           @default(now())
+  createdAt           DateTime           @default(now())
+  analyses            Analysis[]
+  payments            Payment[]
   integrations        IntegrationConnection[]
   integrationMetrics  IntegrationMetricSnapshot[]
+  seoAnalysis         SeoAnalysis?
 }
 
 model Analysis {
@@ -137,4 +140,13 @@ model IntegrationMetricSnapshot {
   @@unique([userId, provider, externalAccountId, externalEntityId, date])
   @@index([userId, date])
   @@index([connectionId, date])
+}
+
+model SeoAnalysis {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  storeUrl   String
+  result     Json
+  analyzedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
