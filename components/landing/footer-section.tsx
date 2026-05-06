@@ -11,8 +11,7 @@ const footerLinks = [
     links: [
       { name: "Features", href: "/features" },
       { name: "How it works", href: "/how-it-works" },
-      { name: "Pricing", href: "/pricing" },
-      { name: "Payments", href: "/payments" },
+      { name: "FAQ", href: "/faq" },
     ],
   },
   {
@@ -21,7 +20,6 @@ const footerLinks = [
     links: [
       { name: "FAQ", href: "/faq" },
       { name: "How it works", href: "/how-it-works" },
-      { name: "Payments", href: "/payments" },
       { name: "Contact", href: "/contact" },
     ],
   },
@@ -41,7 +39,6 @@ const footerLinks = [
     links: [
       { name: "Why it works", href: "/why-it-works" },
       { name: "Clear guidance", href: "/clear-guidance" },
-      { name: "Safe checkout", href: "/safe-checkout" },
     ],
   },
 ];

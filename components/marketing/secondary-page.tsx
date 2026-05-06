@@ -106,14 +106,6 @@ export function SecondaryPage({ page }: { page: MarketingPage }) {
                     <ArrowRight className="ml-2 size-4" />
                   </Link>
                 </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="h-14 rounded-full border-foreground/20 px-8 text-base"
-                >
-                  <Link href="/pricing">See pricing</Link>
-                </Button>
               </div>
             </div>
           </div>
