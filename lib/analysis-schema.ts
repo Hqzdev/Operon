@@ -70,6 +70,19 @@ export type AnalysisOutput = {
     reason: string;
     minimumAdditionalTestNeeded: string;
   };
+  ltvAdjustment?: {
+    ltv: number;
+    aov: number;
+    repeatPurchaseRate: number;
+    ltvBreakEvenRoas: number;
+    ltvBreakEvenCpa: number;
+    firstOrderBreakEvenRoas: number;
+    firstOrderBreakEvenCpa: number;
+    shopifyConnected: boolean;
+    ordersAnalyzed: number;
+    customersAnalyzed: number;
+    hasEnoughHistory: boolean;
+  };
   derived: {
     spend: number;
     roas: number;

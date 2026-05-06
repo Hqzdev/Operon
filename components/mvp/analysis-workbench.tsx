@@ -904,6 +904,41 @@ export function AnalysisWorkbench() {
                         </div>
                       </div>
 
+                      {result.ltvAdjustment?.hasEnoughHistory ? (
+                        <div className="rounded-2xl border border-foreground/10 p-4">
+                          <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground mb-3">LTV adjustment · Shopify data</div>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                            <div>
+                              <div className="text-xs text-muted-foreground">First-order break-even ROAS</div>
+                              <div className="mt-1 font-mono">{result.ltvAdjustment.firstOrderBreakEvenRoas}x</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">LTV-adjusted break-even ROAS</div>
+                              <div className="mt-1 font-mono text-green-600">{result.ltvAdjustment.ltvBreakEvenRoas}x</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">First-order break-even CPA</div>
+                              <div className="mt-1 font-mono">${result.ltvAdjustment.firstOrderBreakEvenCpa}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">LTV-adjusted break-even CPA</div>
+                              <div className="mt-1 font-mono text-green-600">${result.ltvAdjustment.ltvBreakEvenCpa}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Customer LTV</div>
+                              <div className="mt-1 font-mono">${result.ltvAdjustment.ltv}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Repeat purchase rate</div>
+                              <div className="mt-1 font-mono">{(result.ltvAdjustment.repeatPurchaseRate * 100).toFixed(1)}%</div>
+                            </div>
+                          </div>
+                          <div className="mt-3 text-xs text-muted-foreground">
+                            Based on {result.ltvAdjustment.ordersAnalyzed} orders from {result.ltvAdjustment.customersAnalyzed} customers (90-day window).
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div className="rounded-2xl border border-foreground/10 p-4">
                         <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Funnel leak</div>
                         <div className="mt-2 text-lg font-medium">{result.funnelLeak.weakestStage}</div>

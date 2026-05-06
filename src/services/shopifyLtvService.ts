@@ -145,6 +145,101 @@ function mockResult(reason: string): LtvBreakevenResult {
   };
 }
 
+export type LtvComputeResult = {
+  ltv: number;
+  aov: number;
+  repeatPurchaseRate: number;
+  ltvBreakEvenRoas: number;
+  ltvBreakEvenCpa: number;
+  firstOrderBreakEvenRoas: number;
+  firstOrderBreakEvenCpa: number;
+  ordersAnalyzed: number;
+  customersAnalyzed: number;
+  hasEnoughHistory: boolean;
+};
+
+type ShopifyOrderWithDate = ShopifyOrder & { created_at?: string };
+
+export async function computeLtvFromConnection(
+  storeUrl: string,
+  accessToken: string,
+  productPrice: number,
+  cost: number,
+): Promise<LtvComputeResult | null> {
+  const apiVersion = env.SHOPIFY_API_VERSION;
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const url =
+    `https://${storeUrl}/admin/api/${apiVersion}/orders.json` +
+    `?status=any&financial_status=paid&limit=250&created_at_min=${encodeURIComponent(since)}&fields=id,email,customer,total_price,created_at`;
+
+  const response = await fetch(url, {
+    headers: { "X-Shopify-Access-Token": accessToken },
+  });
+  if (!response.ok) return null;
+
+  const data = (await response.json()) as { orders?: ShopifyOrderWithDate[] };
+  const orders = data.orders ?? [];
+  if (orders.length === 0) return null;
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const hasEnoughHistory = orders.some(
+    (o) => o.created_at && new Date(o.created_at) < thirtyDaysAgo,
+  );
+
+  const customerOrders = new Map<string, number[]>();
+  let totalRevenue = 0;
+
+  for (const order of orders) {
+    const key = order.customer?.id
+      ? `id:${order.customer.id}`
+      : order.email
+        ? `email:${order.email}`
+        : "anon";
+    const price = parseFloat(order.total_price ?? "0");
+    totalRevenue += Number.isFinite(price) ? price : 0;
+    const existing = customerOrders.get(key) ?? [];
+    existing.push(price);
+    customerOrders.set(key, existing);
+  }
+
+  const totalOrders = orders.length;
+  const totalCustomers = customerOrders.size;
+  const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  let repeatCustomers = 0;
+  for (const orderPrices of customerOrders.values()) {
+    if (orderPrices.length >= 2) repeatCustomers += 1;
+  }
+  const repeatPurchaseRate = totalCustomers > 0 ? repeatCustomers / totalCustomers : 0;
+  const ltv = aov * (1 + repeatPurchaseRate);
+
+  const margin = Math.max(productPrice - cost, 0.01);
+  const firstOrderBreakEvenRoas = round2(productPrice / margin);
+  const firstOrderBreakEvenCpa = round2(margin);
+
+  // LTV break-even: you can acquire customers for up to (lifetime profit) per order
+  // Lifetime margin = LTV × (1 - cost/productPrice) assuming same margin ratio on repeats
+  const ltvBreakEvenCpa = round2(ltv * (margin / productPrice));
+  const ltvBreakEvenRoas = ltvBreakEvenCpa > 0 ? round2(productPrice / ltvBreakEvenCpa) : firstOrderBreakEvenRoas;
+
+  return {
+    ltv: round2(ltv),
+    aov: round2(aov),
+    repeatPurchaseRate: round2(repeatPurchaseRate * 100) / 100,
+    ltvBreakEvenRoas,
+    ltvBreakEvenCpa,
+    firstOrderBreakEvenRoas,
+    firstOrderBreakEvenCpa,
+    ordersAnalyzed: totalOrders,
+    customersAnalyzed: totalCustomers,
+    hasEnoughHistory,
+  };
+}
+
+function round2(v: number) {
+  return Math.round(v * 100) / 100;
+}
+
 /**
  * Pull repeat-purchase data from Shopify and compute LTV-aware break-even.
  *

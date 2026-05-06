@@ -665,3 +665,20 @@ export async function getLatestAnalysisInput(userId: string) {
   if (!latest) return null;
   return analysisInputSchema.parse(latest.analysisInput);
 }
+
+export async function getShopifyConnectionCredentials(userId: string) {
+  const connection = await prisma.integrationConnection.findFirst({
+    where: {
+      userId,
+      provider: IntegrationProvider.SHOPIFY,
+      status: IntegrationStatus.CONNECTED,
+    },
+    orderBy: { lastSyncedAt: "desc" },
+    select: { externalAccountId: true, accessToken: true },
+  });
+  if (!connection) return null;
+  return {
+    storeUrl: connection.externalAccountId,
+    accessToken: decryptToken(connection.accessToken),
+  };
+}

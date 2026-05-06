@@ -2,6 +2,8 @@ import { AnalysisStage, type Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../models/prisma";
 import { runAiAnalysis, deriveMetrics, type AiAnalysisResult } from "./aiService";
+import { getShopifyConnectionCredentials } from "./integrationService";
+import { computeLtvFromConnection, type LtvComputeResult } from "./shopifyLtvService";
 
 export const analysisInputSchema = z.object({
   product_name: z.string().min(2).max(120).optional(),
@@ -25,6 +27,7 @@ type AnalysisResult = Omit<AiAnalysisResult, "provider"> & {
   provider: "gigachat" | "rules";
   saved: boolean;
   savedId?: string;
+  ltvAdjustment?: LtvComputeResult & { shopifyConnected: boolean };
 };
 
 function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" | "savedId"> {
@@ -275,7 +278,40 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
     partialResult = fallbackAnalysis(payload);
   }
 
-  const result: AnalysisResult = { ...partialResult, saved: true };
+  let ltvAdjustment: (LtvComputeResult & { shopifyConnected: boolean }) | undefined;
+  try {
+    const creds = await getShopifyConnectionCredentials(userId);
+    if (creds) {
+      const ltvResult = await computeLtvFromConnection(
+        creds.storeUrl,
+        creds.accessToken,
+        payload.product_price,
+        payload.cost,
+      );
+      if (ltvResult?.hasEnoughHistory) {
+        ltvAdjustment = { ...ltvResult, shopifyConnected: true };
+        const derived = partialResult.derived;
+        // Append LTV note to shortReason when LTV changes the verdict
+        if (
+          derived.roas >= ltvResult.ltvBreakEvenRoas &&
+          derived.roas < ltvResult.firstOrderBreakEvenRoas
+        ) {
+          partialResult = {
+            ...partialResult,
+            decision: {
+              ...partialResult.decision,
+              shortReason:
+                `${partialResult.decision.shortReason} LTV adjustment: your current ROAS (${derived.roas}x) is below the first-order break-even (${ltvResult.firstOrderBreakEvenRoas}x) but above the LTV-adjusted break-even (${ltvResult.ltvBreakEvenRoas}x), so this setup is already profitable over the customer lifetime.`,
+            },
+          };
+        }
+      }
+    }
+  } catch {
+    // LTV enrichment is best-effort; fall back silently
+  }
+
+  const result: AnalysisResult = { ...partialResult, saved: true, ltvAdjustment };
 
   const analysis = await prisma.analysis.create({
     data: {
