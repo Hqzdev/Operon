@@ -567,11 +567,11 @@ export function AnalysisWorkbench() {
   const hasProFeatures = true;
 
   return (
-    <main className="relative h-full overflow-hidden bg-[#F7F8FA] text-[#111827]">
+    <main className="relative h-full overflow-hidden bg-background text-foreground">
       <div className="flex h-full min-h-0 flex-col px-6 py-5 sm:px-8 lg:px-8">
           <header className="mb-4 shrink-0">
-            <div className="text-[20px] font-semibold text-[#111827]">Operon Analysis Workbench</div>
-            <div className="mt-0.5 text-[13px] text-[#9CA3AF]">
+            <div className="text-[20px] font-semibold text-foreground">Operon Analysis Workbench</div>
+            <div className="mt-0.5 text-[13px] text-muted-foreground">
               Decision engine, diagnosis, action plan, and product validation
             </div>
           </header>
@@ -580,7 +580,7 @@ export function AnalysisWorkbench() {
           {/* ── Integrations tab ── */}
           <TabsContent value="integrations" className="h-full overflow-hidden">
             <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.85fr_1.15fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
-              <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+              <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Connections</CardTitle>
                   <CardDescription>
@@ -646,7 +646,7 @@ export function AnalysisWorkbench() {
 
                   <div className="mt-6 space-y-3">
                     {integrations.length ? integrations.map((connection) => (
-                      <div key={connection.id} className="rounded-2xl border border-[#E5E7EB] p-4">
+                      <div key={connection.id} className="rounded-2xl border border-border p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="font-medium">{connection.accountName ?? connection.externalAccountId}</div>
@@ -673,7 +673,7 @@ export function AnalysisWorkbench() {
                         </div>
                       </div>
                     )) : (
-                      <div className="rounded-2xl border border-dashed border-[#E5E7EB] p-6 text-sm text-muted-foreground">
+                      <div className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
                         No connected accounts yet.
                       </div>
                     )}
@@ -681,7 +681,7 @@ export function AnalysisWorkbench() {
                 </CardContent>
               </Card>
 
-              <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+              <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Synced metrics</CardTitle>
                   <CardDescription>
@@ -691,7 +691,7 @@ export function AnalysisWorkbench() {
                 <CardContent className="px-6 py-6">
                   <div className="space-y-3">
                     {snapshots.length ? snapshots.map((snapshot) => (
-                      <div key={snapshot.id} className="rounded-2xl border border-[#E5E7EB] p-4">
+                      <div key={snapshot.id} className="rounded-2xl border border-border p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <div className="font-medium">{snapshot.entityName ?? snapshot.externalEntityId}</div>
@@ -734,7 +734,7 @@ export function AnalysisWorkbench() {
                         </div>
                       </div>
                     )) : (
-                      <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-dashed border-[#E5E7EB] text-center">
+                      <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-dashed border-border text-center">
                         <div className="max-w-sm">
                           <div className="text-[20px] font-semibold">No synced metrics</div>
                           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
@@ -752,7 +752,7 @@ export function AnalysisWorkbench() {
           {/* ── Analysis tab ── */}
           <TabsContent value="analysis" className="h-full overflow-hidden">
             <section className="grid h-[60%] min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.95fr_1.05fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
-              <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+              <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Input</CardTitle>
                   <CardDescription>
@@ -851,7 +851,7 @@ export function AnalysisWorkbench() {
                 </CardContent>
               </Card>
 
-              <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+              <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Output</CardTitle>
                   <CardDescription>
@@ -901,12 +901,12 @@ export function AnalysisWorkbench() {
                       </div>
 
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-[#E5E7EB] p-4">
+                        <div className="rounded-2xl border border-border p-4">
                           <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Product validation</div>
                           <div className="mt-2 text-lg font-medium">{result.validation.verdict}</div>
                           <p className="mt-2 text-sm text-muted-foreground">{result.validation.reason}</p>
                         </div>
-                        <div className="rounded-2xl border border-[#E5E7EB] p-4">
+                        <div className="rounded-2xl border border-border p-4">
                           <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Continue testing</div>
                           <div className="mt-2 text-lg font-medium">{result.validation.shouldContinueTesting ? "Yes" : "No"}</div>
                           <div className="mt-3 text-sm text-muted-foreground">Break-even ROAS: {result.derived.breakEvenRoas}</div>
@@ -914,13 +914,13 @@ export function AnalysisWorkbench() {
                       </div>
 
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-[#E5E7EB] p-4">
+                        <div className="rounded-2xl border border-border p-4">
                           <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Profitability check</div>
                           <div className="mt-2 text-lg font-medium">{result.profitability.isProfitable ? "Profitable" : "Not profitable yet"}</div>
                           <p className="mt-2 text-sm text-muted-foreground">{result.profitability.why}</p>
                           <div className="mt-3 text-sm text-muted-foreground">Break-even CPA: ${result.profitability.breakEvenCpa}</div>
                         </div>
-                        <div className="rounded-2xl border border-[#E5E7EB] p-4">
+                        <div className="rounded-2xl border border-border p-4">
                           <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Continue or stop</div>
                           <div className="mt-2 text-lg font-medium">{result.continueDecision.decision}</div>
                           <p className="mt-2 text-sm text-muted-foreground">{result.continueDecision.reason}</p>
@@ -929,7 +929,7 @@ export function AnalysisWorkbench() {
                       </div>
 
                       {result.ltvAdjustment?.hasEnoughHistory ? (
-                        <div className="rounded-2xl border border-[#E5E7EB] p-4">
+                        <div className="rounded-2xl border border-border p-4">
                           <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground mb-3">LTV adjustment · Shopify data</div>
                           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                             <div>
@@ -963,7 +963,7 @@ export function AnalysisWorkbench() {
                         </div>
                       ) : null}
 
-                      <div className="rounded-2xl border border-[#E5E7EB] p-4">
+                      <div className="rounded-2xl border border-border p-4">
                         <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Funnel leak</div>
                         <div className="mt-2 text-lg font-medium">{result.funnelLeak.weakestStage}</div>
                         <p className="mt-2 text-sm text-muted-foreground">{result.funnelLeak.explanation}</p>
@@ -986,7 +986,7 @@ export function AnalysisWorkbench() {
                         <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Creative angles</div>
                         <div className="mt-3 grid gap-4">
                           {result.creativeAngles.map((angle, index) => (
-                            <div key={`${angle.hookIdea}-${index}`} className="rounded-2xl border border-[#E5E7EB] p-4">
+                            <div key={`${angle.hookIdea}-${index}`} className="rounded-2xl border border-border p-4">
                               <div className="text-sm font-medium">Angle {index + 1}</div>
                               <div className="mt-3 text-sm"><span className="font-medium">Hook:</span> {angle.hookIdea}</div>
                               <div className="mt-2 text-sm text-muted-foreground"><span className="font-medium text-foreground">Concept:</span> {angle.concept}</div>
@@ -997,7 +997,7 @@ export function AnalysisWorkbench() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex min-h-[520px] items-center justify-center rounded-3xl border border-dashed border-[#E5E7EB] text-center">
+                    <div className="flex min-h-[520px] items-center justify-center rounded-3xl border border-dashed border-border text-center">
                       <div className="max-w-sm">
                         <div className="text-[20px] font-semibold">Run the first analysis</div>
                         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
@@ -1012,7 +1012,7 @@ export function AnalysisWorkbench() {
             </section>
 
             <section className="mt-6 grid h-[calc(40%-1.5rem)] min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.95fr_1.05fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
-              <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+              <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Derived metrics</CardTitle>
                   <CardDescription>Calculated from the submitted dataset.</CardDescription>
@@ -1032,7 +1032,7 @@ export function AnalysisWorkbench() {
                         ["Profit", `$${result.derived.profit}`],
                         ["Net profit margin", `${result.derived.netProfitMargin}%`],
                       ].map(([label, value]) => (
-                        <div key={label} className="rounded-2xl border border-[#E5E7EB] p-4">
+                        <div key={label} className="rounded-2xl border border-border p-4">
                           <div className="text-sm text-muted-foreground">{label}</div>
                           <div className="mt-1.5 text-[26px] font-semibold leading-none">{value}</div>
                         </div>
@@ -1044,7 +1044,7 @@ export function AnalysisWorkbench() {
                 </CardContent>
               </Card>
 
-              <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+              <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Recent analyses</CardTitle>
                   <CardDescription>Loaded from PostgreSQL when DATABASE_URL is configured.</CardDescription>
@@ -1084,7 +1084,7 @@ export function AnalysisWorkbench() {
           {/* ── Budget Allocation tab ── */}
           <TabsContent value="budget" className="h-full overflow-hidden">
             {!hasProFeatures ? (
-              <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-[#E5E7EB]">
+              <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-border">
                 <div className="max-w-sm text-center">
                   <Crown className="mx-auto size-10 text-amber-500 mb-4" />
                   <div className="text-[20px] font-semibold">Pro plan required</div>
@@ -1099,7 +1099,7 @@ export function AnalysisWorkbench() {
               </div>
             ) : (
               <div className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[1fr_1fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
-                <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+                <Card className="border-border bg-card py-0 shadow-none">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="text-[15px] font-semibold tracking-normal">Budget Allocation</CardTitle>
                     <CardDescription>
@@ -1120,7 +1120,7 @@ export function AnalysisWorkbench() {
 
                     <div className="space-y-4">
                       {adSets.map((set, idx) => (
-                        <div key={idx} className="rounded-2xl border border-[#E5E7EB] p-4 space-y-3">
+                        <div key={idx} className="rounded-2xl border border-border p-4 space-y-3">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium">Ad Set {idx + 1}</span>
                             {adSets.length > 2 && (
@@ -1160,7 +1160,7 @@ export function AnalysisWorkbench() {
                       {adSets.length < 10 && (
                         <button
                           onClick={() => setAdSets((prev) => [...prev, emptyAdSet()])}
-                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[#E5E7EB] py-3 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/20 transition"
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-3 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/20 transition"
                         >
                           <Plus className="size-4" />
                           Add ad set
@@ -1179,7 +1179,7 @@ export function AnalysisWorkbench() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+                <Card className="border-border bg-card py-0 shadow-none">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="text-[15px] font-semibold tracking-normal">Allocation result</CardTitle>
                     <CardDescription>Recommended budget distribution by efficiency score.</CardDescription>
@@ -1190,7 +1190,7 @@ export function AnalysisWorkbench() {
                         <p className="text-sm text-muted-foreground leading-relaxed">{budgetResult.summary}</p>
                         <div className="space-y-4">
                           {budgetResult.adSets.map((set) => (
-                            <div key={set.name} className="rounded-2xl border border-[#E5E7EB] p-4 space-y-3">
+                            <div key={set.name} className="rounded-2xl border border-border p-4 space-y-3">
                               <div className="flex items-center justify-between">
                                 <span className="font-medium">{set.name || "Unnamed"}</span>
                                 <Badge variant={recBadgeVariant(set.recommendation) as "default" | "secondary" | "destructive"}>
@@ -1215,7 +1215,7 @@ export function AnalysisWorkbench() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-dashed border-[#E5E7EB] text-center">
+                      <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-dashed border-border text-center">
                         <p className="text-sm text-muted-foreground max-w-xs">
                           Fill in your ad sets and click "Allocate budget" to see recommendations.
                         </p>
@@ -1230,7 +1230,7 @@ export function AnalysisWorkbench() {
           {/* ── Scenario Simulator tab ── */}
           <TabsContent value="scenario" className="h-full overflow-hidden">
             {!hasProFeatures ? (
-              <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-[#E5E7EB]">
+              <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-border">
                 <div className="max-w-sm text-center">
                   <Crown className="mx-auto size-10 text-amber-500 mb-4" />
                   <div className="text-[20px] font-semibold">Pro plan required</div>
@@ -1245,7 +1245,7 @@ export function AnalysisWorkbench() {
               </div>
             ) : (
               <div className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[1fr_1fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
-                <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+                <Card className="border-border bg-card py-0 shadow-none">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="text-[15px] font-semibold tracking-normal">Scenario Setup</CardTitle>
                     <CardDescription>
@@ -1318,7 +1318,7 @@ export function AnalysisWorkbench() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+                <Card className="border-border bg-card py-0 shadow-none">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="text-[15px] font-semibold tracking-normal">Projection</CardTitle>
                     <CardDescription>Baseline vs. projected outcome side by side.</CardDescription>
@@ -1359,7 +1359,7 @@ export function AnalysisWorkbench() {
                           );
                         })}
 
-                        <div className="rounded-2xl border border-[#E5E7EB] p-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-border p-4 grid grid-cols-2 gap-3">
                           {[
                             ["Revenue Δ", scenarioResult.delta.revenue_pct, "%"],
                             ["Purchases Δ", scenarioResult.delta.purchases_pct, "%"],
@@ -1376,7 +1376,7 @@ export function AnalysisWorkbench() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-dashed border-[#E5E7EB] text-center">
+                      <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-dashed border-border text-center">
                         <p className="text-sm text-muted-foreground max-w-xs">
                           Set your baseline, define the changes, and click "Run scenario" to see projections.
                         </p>
@@ -1389,13 +1389,13 @@ export function AnalysisWorkbench() {
           </TabsContent>
           <TabsContent value="settings" className="h-full overflow-hidden">
             <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.8fr_1.2fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
-              <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+              <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Settings</CardTitle>
                   <CardDescription>Profile, appearance, and account controls.</CardDescription>
                 </CardHeader>
                 <CardContent className="px-6 py-6 space-y-5">
-                  <div className="rounded-2xl border border-[#E5E7EB] p-5 space-y-4">
+                  <div className="rounded-2xl border border-border p-5 space-y-4">
                     <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
                       {isDarkTheme ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
                       Appearance
@@ -1415,13 +1415,13 @@ export function AnalysisWorkbench() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-[#E5E7EB] p-5 space-y-4">
+                  <div className="rounded-2xl border border-border p-5 space-y-4">
                     <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
                       Profile
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground">Email</p>
-                      <div className="flex h-10 w-full items-center rounded-xl border border-[#E5E7EB] bg-muted/40 px-3 text-sm">
+                      <div className="flex h-10 w-full items-center rounded-xl border border-border bg-muted/40 px-3 text-sm">
                         {user?.email ?? "—"}
                       </div>
                     </div>
@@ -1451,13 +1451,13 @@ export function AnalysisWorkbench() {
                 </CardContent>
               </Card>
 
-              <Card className="border-[#E5E7EB] bg-white py-0 shadow-none">
+              <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Account</CardTitle>
                   <CardDescription>Password and session actions.</CardDescription>
                 </CardHeader>
                 <CardContent className="px-6 py-6 space-y-5">
-                  <div className="rounded-2xl border border-[#E5E7EB] p-5 space-y-4">
+                  <div className="rounded-2xl border border-border p-5 space-y-4">
                     <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
                       <KeyRound className="size-3.5" />
                       Change password
@@ -1501,7 +1501,7 @@ export function AnalysisWorkbench() {
                     </Button>
                   </div>
 
-                  <div className="rounded-2xl border border-[#E5E7EB] p-5 space-y-3">
+                  <div className="rounded-2xl border border-border p-5 space-y-3">
                     <Button
                       variant="ghost"
                       className="h-10 rounded-xl justify-start gap-3 px-3 font-normal"
