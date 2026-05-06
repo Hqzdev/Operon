@@ -60,7 +60,7 @@ import { useNotifications } from "@/hooks/use-notifications";
 
 const mainNav = [
   {
-    title: "Dashboard",
+    title: "Home",
     href: "/dashboard",
     icon: Home01Icon,
     tab: null,
@@ -140,7 +140,7 @@ function NotificationBell() {
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="relative flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none"
+          className="relative flex items-center justify-center rounded-md p-1.5 text-[#606060] transition-colors hover:bg-[#dddddd] hover:text-[#151515] focus:outline-none"
           aria-label="Notifications"
         >
           <Notification01Icon size={18} strokeWidth={1.5} />
@@ -323,11 +323,10 @@ function StoreSwitcher() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left transition-colors hover:bg-sidebar-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold group-data-[collapsible=icon]:hidden">
+          <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#999999]">
+            <span className="min-w-0 flex-1 truncate text-[22px] font-bold leading-7 text-[#171717] group-data-[collapsible=icon]:hidden">
               {displayName}
             </span>
-            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-64">
@@ -414,23 +413,25 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader>
-        <div className="flex items-center justify-between gap-2 px-2 py-1">
-          <StoreSwitcher />
-          <div className="group-data-[collapsible=icon]:hidden">
-            <NotificationBell />
+    <Sidebar collapsible="icon" className="border-r-0 bg-[#eeeeee] text-[#171717]">
+      <SidebarHeader className="px-6 pb-7 pt-8">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="min-w-0">
+              <StoreSwitcher />
+              <div className="mt-1 truncate text-[17px] leading-5 text-[#5f5f5f] group-data-[collapsible=icon]:hidden">
+                Last scan 1d ago
+              </div>
+            </div>
           </div>
+          <ChevronsUpDown className="mt-2 size-5 shrink-0 text-[#606060] group-data-[collapsible=icon]:hidden" />
         </div>
       </SidebarHeader>
 
-      <SidebarSeparator className="mx-0" />
-
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+      <SidebarContent className="px-6">
+        <SidebarGroup className="px-0">
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-3">
               {mainNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
@@ -438,7 +439,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href, item.tab)}
                     tooltip={item.title}
                     size="default"
-                    className="rounded-none justify-start"
+                    className="h-16 rounded-lg px-6 text-[21px] font-medium text-[#1e1e1e] hover:bg-[#dedede] hover:text-[#111111] data-[active=true]:bg-[#dedede] data-[active=true]:font-medium data-[active=true]:text-[#111111] [&>svg]:size-6"
                   >
                     <Link href={item.href}>
                       <item.icon size={16} />
@@ -451,18 +452,16 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="mx-0" />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Marketing</SidebarGroupLabel>
+        <SidebarGroup className="px-0">
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-3">
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
                   isActive={pathname === "/dashboard/seo"}
                   tooltip="SEO & Marketing"
                   size="default"
+                  className="h-16 rounded-lg px-6 text-[21px] font-medium text-[#1e1e1e] hover:bg-[#dedede] hover:text-[#111111] data-[active=true]:bg-[#dedede] data-[active=true]:font-medium data-[active=true]:text-[#111111] [&>svg]:size-6"
                 >
                   <Link href="/dashboard/seo">
                     <ChartBreakoutSquareIcon size={16} />
@@ -474,12 +473,9 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Account</SidebarGroupLabel>
+        <SidebarGroup className="px-0">
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-3">
               {secondaryNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
@@ -487,7 +483,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href, item.tab)}
                     tooltip={item.title}
                     size="default"
-                    className="rounded-none justify-start"
+                    className="h-16 rounded-lg px-6 text-[21px] font-medium text-[#1e1e1e] hover:bg-[#dedede] hover:text-[#111111] data-[active=true]:bg-[#dedede] data-[active=true]:font-medium data-[active=true]:text-[#111111] [&>svg]:size-6"
                   >
                     <Link href={item.href}>
                       <item.icon size={16} />
@@ -503,14 +499,23 @@ export function AppSidebar() {
 
       <SidebarSeparator className="mx-0" />
 
-      <SidebarFooter>
-        <SidebarMenu>
+      <SidebarFooter className="border-t border-[#dddddd] px-6 py-8">
+        <SidebarMenu className="gap-4">
+          <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
+            <div className="px-1">
+              <div className="mb-3 flex items-center justify-between text-[17px] text-[#555555]">
+                <span>Usage</span>
+                <span className="font-medium text-[#171717]">Upgrade</span>
+              </div>
+              <div className="h-2 rounded-full bg-[#c42d3f]" />
+            </div>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               tooltip="Profile"
               size="default"
-              className="rounded-none justify-start"
+              className="h-14 rounded-lg px-4 text-[19px] font-medium text-[#1e1e1e] hover:bg-[#dedede] [&>svg]:size-5"
             >
               <Link href="/dashboard?tab=settings">
                 <UserCircle02Icon size={16} />
