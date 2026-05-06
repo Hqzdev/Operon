@@ -115,6 +115,24 @@ type SidebarProfile = {
   stores?: StoreSummary[];
 };
 
+function storeDisplayName(store?: Pick<StoreSummary, "name" | "url"> | null) {
+  const raw = store?.name || store?.url || "";
+  if (!raw.trim()) return "Add store";
+
+  try {
+    const withProtocol = raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
+    const hostname = new URL(withProtocol).hostname.replace(/^www\./, "");
+    const [name] = hostname.split(".");
+    return name || hostname;
+  } catch {
+    return raw
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\.[a-z]{2,}(?:\.[a-z]{2,})?$/i, "")
+      .replace(/\/$/, "");
+  }
+}
+
 function NotificationBell() {
   const { notifications, unreadCount, markOneRead, markAllRead } = useNotifications();
 
@@ -231,8 +249,7 @@ function StoreSwitcher() {
   const activeStore = profile?.activeStore
     ?? stores.find((store) => store.id === profile?.activeStoreId)
     ?? stores[0];
-  const displayName = activeStore?.name || "Add store";
-  const initial = displayName.trim().charAt(0).toUpperCase() || "S";
+  const displayName = storeDisplayName(activeStore);
 
   async function loadProfile() {
     if (!token) return;
@@ -307,9 +324,6 @@ function StoreSwitcher() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left transition-colors hover:bg-sidebar-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-none bg-foreground text-xs font-bold text-background">
-              {initial}
-            </div>
             <span className="min-w-0 flex-1 truncate text-sm font-semibold group-data-[collapsible=icon]:hidden">
               {displayName}
             </span>
@@ -327,10 +341,7 @@ function StoreSwitcher() {
             stores.map((store) => (
               <DropdownMenuItem key={store.id} onSelect={() => void selectStore(store.id)}>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{store.name}</div>
-                  {store.url && (
-                    <div className="truncate text-xs text-muted-foreground">{store.url}</div>
-                  )}
+                  <div className="truncate text-sm">{storeDisplayName(store)}</div>
                 </div>
                 {store.id === activeStore?.id && <Check className="size-4" />}
               </DropdownMenuItem>
