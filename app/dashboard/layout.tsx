@@ -19,31 +19,31 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider
-      className="h-svh min-h-svh overflow-hidden bg-[#f3f3f3] text-[#171717]"
+      className="h-svh min-h-svh overflow-hidden bg-white"
       style={{
-        "--sidebar-width": "22rem",
-        "--sidebar-width-icon": "4rem",
+        "--sidebar-width": "192px",
+        "--sidebar-width-icon": "3.5rem",
       } as React.CSSProperties}
     >
       <Suspense>
         <AppSidebar />
       </Suspense>
-      <SidebarInset className="relative h-svh min-h-0 overflow-hidden bg-[#f7f7f7]">
-        <header className="relative z-20 flex h-[108px] shrink-0 items-center justify-between bg-[#f3f3f3] px-8">
-          <SidebarTrigger className="-ml-1 text-[#171717]" />
-          <div className="flex items-center gap-6">
-            <button className="flex h-14 items-center gap-3 rounded-xl border border-[#dddddd] bg-[#f5f5f5] px-6 text-[19px] font-medium text-[#555555]">
-              <Bot className="size-5" />
+      <SidebarInset className="flex h-svh min-h-0 flex-col overflow-hidden bg-[#F7F8FA]">
+        <header className="relative z-20 flex h-12 shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-5">
+          <SidebarTrigger className="-ml-1 text-[#9CA3AF]" />
+          <div className="flex items-center gap-2">
+            <button className="flex h-8 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#374151] transition-colors hover:bg-[#F9FAFB]">
+              <Bot className="size-3.5 text-[#6B7280]" />
               Autopilot
-              <span className="size-2.5 rounded-full bg-[#c9c9c9]" />
+              <span className="size-2 rounded-full bg-[#D1D5DB]" />
             </button>
-            <button className="flex size-10 items-center justify-center text-[#171717]">
-              <Bell className="size-7" />
+            <button className="flex size-8 items-center justify-center rounded-lg text-[#6B7280] transition-colors hover:bg-[#F3F4F6]">
+              <Bell className="size-[18px]" />
             </button>
           </div>
         </header>
-        <div className="relative min-h-0 flex-1 overflow-hidden rounded-tl-2xl bg-white shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
-          <div className="relative z-0 h-full overflow-hidden">{children}</div>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {children}
         </div>
       </SidebarInset>
     </SidebarProvider>

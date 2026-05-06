@@ -324,7 +324,7 @@ function StoreSwitcher() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#999999]">
-            <span className="min-w-0 flex-1 truncate text-[22px] font-bold leading-7 text-[#171717] group-data-[collapsible=icon]:hidden">
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-[#111827] group-data-[collapsible=icon]:hidden">
               {displayName}
             </span>
           </button>
@@ -413,25 +413,23 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0 bg-[#eeeeee] text-[#171717]">
-      <SidebarHeader className="px-6 pb-7 pt-8">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-4">
-            <div className="min-w-0">
-              <StoreSwitcher />
-              <div className="mt-1 truncate text-[17px] leading-5 text-[#5f5f5f] group-data-[collapsible=icon]:hidden">
-                Last scan 1d ago
-              </div>
+    <Sidebar collapsible="icon" className="border-r border-[#E5E7EB] bg-white text-[#374151]">
+      <SidebarHeader className="px-4 pb-3 pt-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <StoreSwitcher />
+            <div className="mt-0.5 truncate text-[11px] leading-4 text-[#9CA3AF] group-data-[collapsible=icon]:hidden">
+              Last scan 1d ago
             </div>
           </div>
-          <ChevronsUpDown className="mt-2 size-5 shrink-0 text-[#606060] group-data-[collapsible=icon]:hidden" />
+          <ChevronsUpDown className="size-3.5 shrink-0 text-[#9CA3AF] group-data-[collapsible=icon]:hidden" />
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-6">
-        <SidebarGroup className="px-0">
+      <SidebarContent className="px-3">
+        <SidebarGroup className="px-0 py-1">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-3">
+            <SidebarMenu className="gap-0.5">
               {mainNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
@@ -439,7 +437,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href, item.tab)}
                     tooltip={item.title}
                     size="default"
-                    className="h-16 rounded-lg px-6 text-[21px] font-medium text-[#1e1e1e] hover:bg-[#dedede] hover:text-[#111111] data-[active=true]:bg-[#dedede] data-[active=true]:font-medium data-[active=true]:text-[#111111] [&>svg]:size-6"
+                    className="h-9 rounded-md px-3 text-[13px] font-medium text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] data-[active=true]:bg-[#F3F4F6] data-[active=true]:text-[#111827] [&>svg]:size-4"
                   >
                     <Link href={item.href}>
                       <item.icon size={16} />
@@ -452,16 +450,16 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="px-0">
+        <SidebarGroup className="px-0 py-1">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-3">
+            <SidebarMenu className="gap-0.5">
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
                   isActive={pathname === "/dashboard/seo"}
                   tooltip="SEO & Marketing"
                   size="default"
-                  className="h-16 rounded-lg px-6 text-[21px] font-medium text-[#1e1e1e] hover:bg-[#dedede] hover:text-[#111111] data-[active=true]:bg-[#dedede] data-[active=true]:font-medium data-[active=true]:text-[#111111] [&>svg]:size-6"
+                  className="h-9 rounded-md px-3 text-[13px] font-medium text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] data-[active=true]:bg-[#F3F4F6] data-[active=true]:text-[#111827] [&>svg]:size-4"
                 >
                   <Link href="/dashboard/seo">
                     <ChartBreakoutSquareIcon size={16} />
@@ -473,9 +471,9 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="px-0">
+        <SidebarGroup className="px-0 py-1">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-3">
+            <SidebarMenu className="gap-0.5">
               {secondaryNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
@@ -483,7 +481,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href, item.tab)}
                     tooltip={item.title}
                     size="default"
-                    className="h-16 rounded-lg px-6 text-[21px] font-medium text-[#1e1e1e] hover:bg-[#dedede] hover:text-[#111111] data-[active=true]:bg-[#dedede] data-[active=true]:font-medium data-[active=true]:text-[#111111] [&>svg]:size-6"
+                    className="h-9 rounded-md px-3 text-[13px] font-medium text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] data-[active=true]:bg-[#F3F4F6] data-[active=true]:text-[#111827] [&>svg]:size-4"
                   >
                     <Link href={item.href}>
                       <item.icon size={16} />
@@ -497,17 +495,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarSeparator className="mx-0" />
-
-      <SidebarFooter className="border-t border-[#dddddd] px-6 py-8">
-        <SidebarMenu className="gap-4">
+      <SidebarFooter className="border-t border-[#E5E7EB] px-3 py-3">
+        <SidebarMenu className="gap-1">
           <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
-            <div className="px-1">
-              <div className="mb-3 flex items-center justify-between text-[17px] text-[#555555]">
+            <div className="px-3 py-1">
+              <div className="mb-1.5 flex items-center justify-between text-[12px] text-[#9CA3AF]">
                 <span>Usage</span>
-                <span className="font-medium text-[#171717]">Upgrade</span>
+                <span className="font-medium text-[#374151]">Upgrade</span>
               </div>
-              <div className="h-2 rounded-full bg-[#c42d3f]" />
+              <div className="h-1.5 rounded-full bg-[#EF4444]" />
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -515,7 +511,7 @@ export function AppSidebar() {
               asChild
               tooltip="Profile"
               size="default"
-              className="h-14 rounded-lg px-4 text-[19px] font-medium text-[#1e1e1e] hover:bg-[#dedede] [&>svg]:size-5"
+              className="h-9 rounded-md px-3 text-[13px] font-medium text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] [&>svg]:size-4"
             >
               <Link href="/dashboard?tab=settings">
                 <UserCircle02Icon size={16} />

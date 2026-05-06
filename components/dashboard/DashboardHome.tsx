@@ -206,125 +206,126 @@ export function DashboardHome() {
   const usagePct = usageLimit > 0 ? Math.min(100, Math.round((user?.usageCount ?? 0) / usageLimit * 100)) : 0;
 
   return (
-    <main className="h-full overflow-y-auto bg-white text-[#171717]">
-      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-10 px-8 py-14 lg:px-12">
+    <main className="h-full overflow-y-auto bg-[#F7F8FA] text-[#111827]">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-8 py-8 lg:px-10">
         <section>
-          <div className="flex flex-col gap-6">
-            <div>
-              <h1 className="font-display text-[44px] font-bold leading-tight tracking-tight sm:text-[52px]">
-                {greeting()}, {firstName}
-              </h1>
-              <p className="mt-5 text-[24px] leading-8 text-[#626262]">
-                {loading ? "Loading your workspace..." : `Current store: ${activeStoreName}`}
-              </p>
-            </div>
+          <div>
+            <h1 className="text-[24px] font-semibold leading-tight tracking-normal">
+              {greeting()}, {firstName}
+            </h1>
+            <p className="mt-1 text-[13px] text-[#9CA3AF]">
+              {loading ? "Loading your workspace..." : `Current store: ${activeStoreName}`}
+            </p>
           </div>
 
-          <div className="mt-9 grid gap-4">
-            <div className="flex min-h-16 items-center justify-between rounded-lg bg-[#f4f4f4] px-8 text-[21px]">
-              <span className="flex min-w-0 items-center gap-5 text-[#626262]">
-                <AlertCircle className="size-6 shrink-0" />
+          <div className="mt-5 grid gap-2">
+            <div className="flex h-10 items-center justify-between rounded-lg border border-[#E5E7EB] bg-white px-4 text-[13px]">
+              <span className="flex min-w-0 items-center gap-3 text-[#6B7280]">
+                <AlertCircle className="size-4 shrink-0" />
                 <span className="truncate">Connect Meta, TikTok, or Shopify to keep charts updated automatically.</span>
               </span>
-              <Button variant="ghost" size="sm" className="h-10 rounded-md px-4 text-[19px] font-semibold text-[#171717]" onClick={() => router.push("/dashboard?tab=integrations")}>
+              <Button variant="ghost" size="sm" className="h-7 rounded-md px-3 text-[13px] font-semibold text-[#374151]" onClick={() => router.push("/dashboard?tab=integrations")}>
                 Set up
               </Button>
             </div>
-            <div className="flex min-h-16 items-center gap-5 rounded-lg bg-[#f4f4f4] px-8 text-[21px] text-[#626262]">
-              <CheckCircle2 className="size-6 shrink-0 text-[#2d8b58]" />
+            <div className="flex h-10 items-center gap-3 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[13px] text-[#6B7280]">
+              <CheckCircle2 className="size-4 shrink-0 text-[#10B981]" />
               <span className="truncate">All caught up. Your latest decisions are ready when new metrics arrive.</span>
             </div>
           </div>
         </section>
 
-        <div className="flex gap-8 text-[21px] font-medium text-[#626262]">
-          <span className="rounded-lg bg-[#171717] px-5 py-3 text-white">7 days</span>
-          <span className="px-2 py-3">30 days</span>
-          <span className="px-2 py-3">90 days</span>
-          <span className="px-2 py-3">All time</span>
+        <div className="flex gap-1 text-[13px] font-medium text-[#6B7280]">
+          <span className="rounded-md bg-[#111827] px-3 py-1.5 text-white">7 days</span>
+          <span className="px-3 py-1.5 hover:text-[#111827] cursor-pointer">30 days</span>
+          <span className="px-3 py-1.5 hover:text-[#111827] cursor-pointer">90 days</span>
+          <span className="px-3 py-1.5 hover:text-[#111827] cursor-pointer">All time</span>
         </div>
 
-        <section className="grid max-w-[980px] gap-6 md:grid-cols-2">
+        <section className="grid gap-4 md:grid-cols-2">
           {[
             { label: "Revenue", value: `$${fmt(totals.revenue)}`, note: "Latest dataset", icon: CircleDollarSign },
             { label: "Purchases", value: fmt(totals.purchases), note: `${fmt(totals.clicks)} clicks`, icon: ShoppingBag },
           ].map(({ label, value, note, icon: Icon }) => (
-            <div key={label} className="min-h-[170px] rounded-xl border border-[#dfdfdf] bg-white p-8">
-              <div className="flex items-center gap-4 text-[22px] text-[#626262]">
-                <Icon className="size-7" />
+            <div key={label} className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+              <div className="flex items-center gap-2 text-[13px] text-[#9CA3AF]">
+                <Icon className="size-4" />
                 {label}
               </div>
-              <div className="mt-8 text-[42px] font-bold tracking-tight">{value}</div>
-              <div className="mt-4 text-[20px] text-[#2d8b58]">{note}</div>
+              <div className="mt-3 text-[32px] font-semibold leading-none tracking-tight text-[#111827]">{value}</div>
+              <div className="mt-2 text-[12px] text-[#10B981]">
+                <ArrowUpRight className="inline size-3.5" />
+                {note}
+              </div>
             </div>
           ))}
         </section>
 
-        <section className="grid gap-6">
-          <div className="rounded-xl border border-[#dfdfdf] bg-white p-8">
-            <div className="mb-8 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-4">
-                <LineChart className="size-7 text-[#626262]" />
-                <h2 className="text-[28px] font-semibold">Revenue over time</h2>
+        <section>
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <LineChart className="size-4 text-[#9CA3AF]" />
+                <h2 className="text-[14px] font-semibold text-[#111827]">Revenue over time</h2>
               </div>
             </div>
-            <div className="h-[390px]">
+            <div className="h-[260px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ left: 0, right: 12, top: 12, bottom: 0 }}>
+                <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="operonRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.55} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.08} />
+                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.65} />
-                  <XAxis dataKey="date" stroke="#626262" tickLine={false} axisLine={false} tick={{ fontSize: 18 }} />
-                  <YAxis stroke="#626262" tickLine={false} axisLine={false} tick={{ fontSize: 18 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" opacity={1} />
+                  <XAxis dataKey="date" stroke="#9CA3AF" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                  <YAxis stroke="#9CA3AF" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
                   <Tooltip
                     contentStyle={{
-                      background: "var(--background)",
-                      border: "1px solid var(--border)",
+                      background: "#fff",
+                      border: "1px solid #E5E7EB",
                       borderRadius: 8,
+                      fontSize: 12,
                     }}
                   />
                   <Area
                     type="monotone"
                     dataKey="revenue"
-                    stroke="#60a5fa"
-                    strokeWidth={3}
+                    stroke="#3B82F6"
+                    strokeWidth={2}
                     fill="url(#operonRevenue)"
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
-
         </section>
 
-        <section className="rounded-xl border border-[#dfdfdf] bg-white p-8">
-          <div className="mb-8 flex items-center gap-3">
-            <Package className="size-6 text-[#626262]" />
-            <h2 className="text-[28px] font-semibold">Product performance</h2>
+        <section className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Package className="size-4 text-[#9CA3AF]" />
+            <h2 className="text-[14px] font-semibold text-[#111827]">Product performance</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-[21px]">
-              <thead className="text-left text-[#626262]">
-                <tr className="border-b border-[#dfdfdf]">
-                  <th className="pb-5 font-normal">Product</th>
-                  <th className="pb-5 font-normal">Revenue</th>
-                  <th className="pb-5 font-normal">Purchases</th>
-                  <th className="pb-5 font-normal">ROAS</th>
-                  <th className="pb-5 font-normal">Status</th>
+            <table className="w-full min-w-[600px] text-[13px]">
+              <thead className="text-left text-[#9CA3AF]">
+                <tr className="border-b border-[#E5E7EB]">
+                  <th className="pb-3 font-medium">Product</th>
+                  <th className="pb-3 font-medium">Revenue</th>
+                  <th className="pb-3 font-medium">Purchases</th>
+                  <th className="pb-3 font-medium">ROAS</th>
+                  <th className="pb-3 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {productRows.map((row) => (
-                  <tr key={`${row.name}-${row.decision}`} className="border-b border-[#eeeeee] last:border-0">
-                    <td className="py-6 font-medium">{row.name || "Unnamed product"}</td>
-                    <td className="py-6 tabular-nums">${fmt(row.revenue)}</td>
-                    <td className="py-6 tabular-nums">{fmt(row.purchases)}</td>
-                    <td className="py-6 tabular-nums">{row.roas.toFixed(2)}x</td>
-                    <td className="py-6">
+                  <tr key={`${row.name}-${row.decision}`} className="border-b border-[#F3F4F6] last:border-0">
+                    <td className="py-3 font-medium text-[#111827]">{row.name || "Unnamed product"}</td>
+                    <td className="py-3 tabular-nums text-[#374151]">${fmt(row.revenue)}</td>
+                    <td className="py-3 tabular-nums text-[#374151]">{fmt(row.purchases)}</td>
+                    <td className="py-3 tabular-nums text-[#374151]">{row.roas.toFixed(2)}x</td>
+                    <td className="py-3">
                       <Badge variant={decisionVariant(row.decision) as "default" | "secondary" | "destructive"}>
                         {row.decision}
                       </Badge>
