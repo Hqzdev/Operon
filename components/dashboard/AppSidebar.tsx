@@ -413,7 +413,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <Sidebar collapsible="icon" className="border-r border-[#c8c8c8] bg-sidebar text-sidebar-foreground shadow-[10px_0_28px_rgba(0,0,0,0.06)] dark:border-[#373737] dark:shadow-[10px_0_28px_rgba(0,0,0,0.22)]">
       <SidebarHeader className="px-4 pb-3 pt-4">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
@@ -495,7 +495,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border px-3 py-2">
+      <SidebarFooter className="border-t border-[#d0d0d0] px-3 py-2 dark:border-[#343434]">
         <SidebarMenu className="gap-0.5">
           <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
             <div className="px-3 py-0.5">

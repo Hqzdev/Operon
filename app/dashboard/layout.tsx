@@ -30,7 +30,7 @@ export default function DashboardLayout({
         <AppSidebar />
       </Suspense>
       <SidebarInset className="flex h-svh min-h-0 flex-col overflow-hidden bg-background">
-        <header className="relative z-20 flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-5">
+        <header className="relative z-20 flex h-12 shrink-0 items-center justify-between border-b border-[#d0d0d0] bg-card px-5 shadow-[0_8px_24px_rgba(0,0,0,0.05)] dark:border-[#343434] dark:shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
           <SidebarTrigger className="-ml-1 text-muted-foreground" />
           <div className="flex items-center gap-2">
             <button className="flex h-8 items-center gap-2 rounded-lg border border-border bg-card px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-accent">
