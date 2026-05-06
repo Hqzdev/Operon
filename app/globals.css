@@ -149,6 +149,11 @@
     background-color: #141414 !important;
   }
 
+  .dashboard-sidebar[data-slot="sidebar-container"] {
+    border-left-width: 0 !important;
+    border-right-width: 0 !important;
+  }
+
   .font-display {
     font-family: var(--font-display);
   }

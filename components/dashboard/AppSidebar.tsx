@@ -413,7 +413,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0 bg-sidebar text-sidebar-foreground shadow-none">
+    <Sidebar collapsible="icon" className="dashboard-sidebar border-r-0 bg-sidebar text-sidebar-foreground shadow-none">
       <SidebarHeader className="px-4 pb-3 pt-4">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
