@@ -141,6 +141,14 @@
     border-color: transparent !important;
   }
 
+  .dashboard-workspace-surface :where(main, [class*="bg-background"]) {
+    background-color: #ffffff !important;
+  }
+
+  .dark .dashboard-workspace-surface :where(main, [class*="bg-background"]) {
+    background-color: #141414 !important;
+  }
+
   .font-display {
     font-family: var(--font-display);
   }
