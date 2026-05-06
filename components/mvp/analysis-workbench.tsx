@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   Cable,
+  Crown,
   KeyRound,
   LoaderCircle,
   LogOut,
@@ -169,6 +170,16 @@ const emptyAdSet = (): AdSetInput => ({
 });
 
 const dashboardTabs = new Set(["analysis", "integrations", "budget", "scenario", "settings"]);
+
+function numberInputValue(value: number) {
+  return value === 0 ? "" : String(value);
+}
+
+function parseNumberInput(value: string, integer = false) {
+  if (value.trim() === "") return 0;
+  const parsed = integer ? Number.parseInt(value, 10) : Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 export function AnalysisWorkbench() {
   const router = useRouter();
@@ -458,6 +469,20 @@ export function AnalysisWorkbench() {
     }
   }
 
+  async function upgradePlan(plan: "PRO" | "SCALE") {
+    const token = getToken();
+    if (!token) return;
+    const res = await fetch(`${apiBaseUrl}/payments/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ plan }),
+    });
+    const data = await res.json() as { confirmationUrl?: string; message?: string };
+    if (res.ok && data.confirmationUrl) {
+      window.location.href = data.confirmationUrl;
+    }
+  }
+
   async function refreshIntegrations() {
     const token = getToken();
     if (!token) return;
@@ -535,7 +560,7 @@ export function AnalysisWorkbench() {
   function updateAdSet(index: number, field: keyof AdSetInput, value: string) {
     setAdSets((prev) => prev.map((s, i) => {
       if (i !== index) return s;
-      return { ...s, [field]: field === "name" ? value : Number(value) };
+      return { ...s, [field]: field === "name" ? value : parseNumberInput(value) };
     }));
   }
 
@@ -766,14 +791,14 @@ export function AnalysisWorkbench() {
                           id={field.key}
                           type="number"
                           step={field.step ?? "0.01"}
-                          value={form[field.key]}
+                          value={numberInputValue(form[field.key] as number)}
                           onChange={(event) =>
                             setForm((current) => ({
                               ...current,
                               [field.key]:
                                 field.step === "1"
-                                  ? Number.parseInt(event.target.value || "0", 10)
-                                  : Number.parseFloat(event.target.value || "0"),
+                                  ? parseNumberInput(event.target.value, true)
+                                  : parseNumberInput(event.target.value),
                             }))
                           }
                           className="h-11 rounded-xl"
@@ -1087,8 +1112,8 @@ export function AnalysisWorkbench() {
                       <Input
                         type="number"
                         step="10"
-                        value={budgetTotal}
-                        onChange={(e) => setBudgetTotal(Number(e.target.value))}
+                        value={numberInputValue(budgetTotal)}
+                        onChange={(e) => setBudgetTotal(parseNumberInput(e.target.value))}
                         className="h-11 rounded-xl"
                       />
                     </div>
@@ -1121,7 +1146,7 @@ export function AnalysisWorkbench() {
                                   <Input
                                     type="number"
                                     step="0.01"
-                                    value={set[field] as number}
+                                    value={numberInputValue(set[field] as number)}
                                     onChange={(e) => updateAdSet(idx, field, e.target.value)}
                                     className="h-8 rounded-xl text-sm"
                                   />
@@ -1237,8 +1262,8 @@ export function AnalysisWorkbench() {
                             <Input
                               type="number"
                               step="0.01"
-                              value={scenarioBase[field]}
-                              onChange={(e) => setScenarioBase((prev) => ({ ...prev, [field]: Number(e.target.value) }))}
+                              value={numberInputValue(scenarioBase[field])}
+                              onChange={(e) => setScenarioBase((prev) => ({ ...prev, [field]: parseNumberInput(e.target.value) }))}
                               className="h-9 rounded-xl text-sm"
                             />
                           </div>
@@ -1262,8 +1287,8 @@ export function AnalysisWorkbench() {
                             <Input
                               type="number"
                               step="1"
-                              value={value}
-                              onChange={(e) => setter(Number(e.target.value))}
+                              value={numberInputValue(value)}
+                              onChange={(e) => setter(parseNumberInput(e.target.value))}
                               className="h-9 rounded-xl text-sm"
                             />
                           </div>
