@@ -125,6 +125,7 @@ export type DerivedMetrics = {
   currentCpa: number | null;
   maxCpcAtCurrentConversion: number;
   profit: number;
+  netProfitMargin: number;
 };
 
 export type AiAnalysisResult = {
@@ -182,6 +183,7 @@ export function deriveMetrics(input: AnalysisPayload): DerivedMetrics {
   const currentCpa = input.purchases > 0 ? spend / input.purchases : null;
   const maxCpcAtCurrentConversion = conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
   const profit = input.revenue - spend - input.purchases * input.cost;
+  const netProfitMargin = input.revenue > 0 ? (profit / input.revenue) * 100 : 0;
   return {
     spend: round(spend),
     roas: round(roas),
@@ -192,6 +194,7 @@ export function deriveMetrics(input: AnalysisPayload): DerivedMetrics {
     currentCpa: currentCpa === null ? null : round(currentCpa),
     maxCpcAtCurrentConversion: round(maxCpcAtCurrentConversion),
     profit: round(profit),
+    netProfitMargin: round(netProfitMargin),
   };
 }
 

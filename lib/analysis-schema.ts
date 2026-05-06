@@ -93,6 +93,7 @@ export type AnalysisOutput = {
     currentCpa: number | null;
     maxCpcAtCurrentConversion: number;
     profit: number;
+    netProfitMargin: number;
   };
   provider: "rules" | "gigachat";
   saved: boolean;

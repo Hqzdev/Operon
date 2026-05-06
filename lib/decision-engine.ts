@@ -21,6 +21,7 @@ export function deriveMetrics(input: AnalysisInput) {
   const maxCpcAtCurrentConversion =
     conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
   const profit = input.revenue - spend - input.purchases * input.cost;
+  const netProfitMargin = input.revenue > 0 ? (profit / input.revenue) * 100 : 0;
 
   return {
     spend: round(spend),
@@ -32,6 +33,7 @@ export function deriveMetrics(input: AnalysisInput) {
     currentCpa: currentCpa === null ? null : round(currentCpa),
     maxCpcAtCurrentConversion: round(maxCpcAtCurrentConversion),
     profit: round(profit),
+    netProfitMargin: round(netProfitMargin),
   };
 }
 

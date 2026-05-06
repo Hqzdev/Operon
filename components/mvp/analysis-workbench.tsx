@@ -1031,6 +1031,7 @@ export function AnalysisWorkbench() {
                         ["Current CPA", result.derived.currentCpa !== null ? `$${result.derived.currentCpa}` : "—"],
                         ["Max CPC", result.derived.maxCpcAtCurrentConversion !== null ? `$${result.derived.maxCpcAtCurrentConversion}` : "—"],
                         ["Profit", `$${result.derived.profit}`],
+                        ["Net profit margin", `${result.derived.netProfitMargin}%`],
                       ].map(([label, value]) => (
                         <div key={label} className="rounded-2xl border border-foreground/10 p-4">
                           <div className="text-sm text-muted-foreground">{label}</div>
