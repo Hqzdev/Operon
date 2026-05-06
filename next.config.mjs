@@ -6,9 +6,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  turbopack: {
-    root: process.cwd(),
-  },
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg", "bcryptjs", "jsonwebtoken"],
 }
 
