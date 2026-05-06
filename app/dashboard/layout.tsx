@@ -1,10 +1,15 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
+
+export const metadata: Metadata = {
+  title: "Home | Operon",
+};
 
 export default function DashboardLayout({
   children,
