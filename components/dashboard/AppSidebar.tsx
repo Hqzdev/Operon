@@ -12,7 +12,6 @@ import {
   Rocket01Icon,
   Settings01Icon,
   UserCircle02Icon,
-  Wallet01Icon,
 } from "hugeicons-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -27,7 +26,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import {
@@ -73,12 +71,6 @@ const mainNav = [
 ] as const;
 
 const secondaryNav = [
-  {
-    title: "Payments",
-    href: "/dashboard?tab=payments",
-    icon: Wallet01Icon,
-    tab: "payments",
-  },
   {
     title: "Settings",
     href: "/dashboard?tab=settings",
@@ -209,7 +201,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarSeparator />
+      <SidebarSeparator className="mx-0" />
 
       <SidebarContent>
         <SidebarGroup>
@@ -236,7 +228,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
+        <SidebarSeparator className="mx-0" />
 
         <SidebarGroup>
           <SidebarGroupLabel>Marketing</SidebarGroupLabel>
@@ -286,7 +278,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarSeparator />
+      <SidebarSeparator className="mx-0" />
 
       <SidebarFooter>
         <SidebarMenu>
@@ -305,8 +297,6 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-
-      <SidebarRail />
     </Sidebar>
   );
 }

@@ -33,15 +33,15 @@ export const marketingPages: MarketingPage[] = [
           "Use the same clear review process for products, ads, offers, and tests so your decisions become faster and more consistent.",
       },
       {
-        title: "Pricing and payments kept simple",
+        title: "Free and ready to use",
         body:
-          "Plans are easy to understand, checkout is straightforward, and access starts quickly after payment.",
+          "No subscription required. Create your account and access all features immediately.",
       },
     ],
     highlights: [
       "Decision guidance",
       "Simple workflow",
-      "Clear pricing",
+      "Free to use",
       "Fast access",
     ],
     ctaLabel: "Explore Features",
@@ -110,73 +110,40 @@ export const marketingPages: MarketingPage[] = [
       "Clear actions",
       "Less confusion",
     ],
-    ctaLabel: "See Pricing",
-    ctaHref: "/pricing",
+    ctaLabel: "Get Started",
+    ctaHref: "/register",
   },
   {
     slug: "pricing",
     label: "Pricing",
     eyebrow: "Product",
-    title: "Simple pricing for sellers who want clarity.",
+    title: "Free to start. No subscription required.",
     intro:
-      "Choose the plan that fits your current stage, start quickly, and upgrade when your store grows.",
+      "Operon is available to all sellers. Create your account, connect your store, and start making clearer decisions today.",
     sections: [
       {
-        title: "Starter — $19/month",
+        title: "Start immediately",
         body:
-          "A simple way to get basic decision insights with manual data input. Best for sellers who want clear direction without overcomplicating their workflow.",
+          "No setup fee, no subscription. Create your account and start using the analysis workbench right away.",
       },
       {
-        title: "Pro — $49/month",
+        title: "All features included",
         body:
-          "Full recommendations, deeper performance analysis, and history tracking for store owners who need stronger guidance every week.",
+          "Every tool — analysis, budget allocation, scenario simulator, and integrations — is available to every user.",
       },
       {
-        title: "Scale — $99/month",
+        title: "Built for sellers at every stage",
         body:
-          "Built for growing operators managing more than one store and needing broader visibility, stronger insights, and faster support.",
+          "Whether you are testing your first product or managing multiple ad sets, Operon gives you the same clear guidance.",
       },
     ],
     highlights: [
-      "Starter: $19/month",
-      "Pro: $49/month",
-      "Scale: $99/month",
-      "Upgrade anytime",
+      "No subscription",
+      "All features included",
+      "Free to start",
+      "No credit card required",
     ],
     ctaLabel: "Get Started",
-    ctaHref: "/register",
-  },
-  {
-    slug: "payments",
-    label: "Payments",
-    eyebrow: "Product",
-    title: "Simple, trusted payments with instant access.",
-    intro:
-      "Pay through YooKassa using bank cards and local payment methods. Checkout is safe, familiar, and easy to complete.",
-    sections: [
-      {
-        title: "Familiar ways to pay",
-        body:
-          "Customers can use bank cards and local payment methods, which makes checkout feel straightforward and trusted.",
-      },
-      {
-        title: "Safe and secure checkout",
-        body:
-          "Payment should not feel risky or confusing. The process is built to feel smooth, reliable, and easy to complete.",
-      },
-      {
-        title: "Instant access after payment",
-        body:
-          "As soon as the payment goes through, access starts right away so there is no delay between checkout and getting to work.",
-      },
-    ],
-    highlights: [
-      "YooKassa checkout",
-      "Bank cards supported",
-      "Local payment methods",
-      "Instant access",
-    ],
-    ctaLabel: "Subscribe Now",
     ctaHref: "/register",
   },
   {
@@ -193,20 +160,20 @@ export const marketingPages: MarketingPage[] = [
           "The FAQ covers the practical questions sellers usually ask before creating an account or choosing a plan.",
       },
       {
-        title: "Help with payments",
+        title: "Help getting started",
         body:
-          "Payment guidance explains how checkout works, which payment flow is used, and when access begins.",
+          "If you need help setting up your account or connecting your store, the FAQ covers the most common setup questions.",
       },
       {
         title: "A direct path to contact",
         body:
-          "If you need help choosing a plan or understanding the fit for your store, the contact page gives you a simple next step.",
+          "If you have a question about the product or how it fits your store, the contact page gives you a simple next step.",
       },
     ],
     highlights: [
       "FAQ",
-      "Payment help",
-      "Plan guidance",
+      "Setup help",
+      "Product guidance",
       "Contact options",
     ],
     ctaLabel: "Read FAQ",
@@ -236,15 +203,15 @@ export const marketingPages: MarketingPage[] = [
           "Many sellers get useful direction on the first day because the value comes from faster decisions, not from waiting weeks for setup.",
       },
       {
-        title: "How do payments work?",
+        title: "How do I get started?",
         body:
-          "Payments go through YooKassa. You can pay with bank cards and local payment methods, and access starts right after payment is completed.",
+          "Just create an account. There is no subscription or payment required. You can start using all features immediately after registration.",
       },
     ],
     highlights: [
       "No experience required",
       "Faster clarity",
-      "Simple payments",
+      "Free to start",
       "Quick start",
     ],
     ctaLabel: "Create Account",
@@ -256,12 +223,12 @@ export const marketingPages: MarketingPage[] = [
     eyebrow: "Support",
     title: "Talk to us about your store and your goals.",
     intro:
-      "If you want help choosing a plan or understanding whether Operon is a fit, we are here to help.",
+      "If you want to understand whether Operon is a fit for your business, we are here to help.",
     sections: [
       {
         title: "For new sellers",
         body:
-          "If you are just getting started, we can help you understand which plan makes the most sense for your current stage.",
+          "If you are just getting started, we can help you understand how Operon fits your current stage and what to focus on first.",
       },
       {
         title: "For growing operators",
@@ -379,8 +346,8 @@ export const marketingPages: MarketingPage[] = [
       "More focused testing",
       "Stronger budget control",
     ],
-    ctaLabel: "Choose a Plan",
-    ctaHref: "/pricing",
+    ctaLabel: "Get Started",
+    ctaHref: "/register",
   },
   {
     slug: "dropshipping-stores",
@@ -445,8 +412,8 @@ export const marketingPages: MarketingPage[] = [
       "More focused execution",
       "Better team clarity",
     ],
-    ctaLabel: "Talk to Us",
-    ctaHref: "/contact",
+    ctaLabel: "Get Started",
+    ctaHref: "/register",
   },
   {
     slug: "trust",
@@ -467,16 +434,16 @@ export const marketingPages: MarketingPage[] = [
           "The experience is built to keep attention on the decision that matters most instead of adding more complexity.",
       },
       {
-        title: "Safe checkout experience",
+        title: "Simple access experience",
         body:
-          "When it is time to pay, the checkout path stays familiar, clear, and easy to complete.",
+          "Getting started is straightforward. The account setup is quick and the tools are ready to use immediately.",
       },
     ],
     highlights: [
       "Practical reasoning",
       "Clear guidance",
       "Less confusion",
-      "Safe checkout",
+      "Simple access",
     ],
     ctaLabel: "Why It Works",
     ctaHref: "/why-it-works",
@@ -549,36 +516,36 @@ export const marketingPages: MarketingPage[] = [
   },
   {
     slug: "safe-checkout",
-    label: "Safe checkout",
+    label: "Safe access",
     eyebrow: "Trust",
-    title: "A checkout flow that feels simple and trustworthy.",
+    title: "A secure, simple way to get started.",
     intro:
-      "When someone is ready to pay, the process should feel clear, safe, and easy to finish. That is the standard we follow.",
+      "Getting into Operon should feel easy and trustworthy. Your account and data are handled securely from day one.",
     sections: [
       {
-        title: "Easy to understand",
+        title: "Easy to get started",
         body:
-          "Confusing payment steps reduce confidence. A simple checkout keeps the experience smooth from start to finish.",
+          "The onboarding flow is clear and quick. You can be up and running in minutes with no complex setup required.",
       },
       {
         title: "Built for trust",
         body:
-          "People are more likely to complete payment when the process feels familiar, reliable, and professionally handled.",
+          "Your store data and analysis history are handled securely, so you can focus on decisions instead of worrying about access.",
       },
       {
-        title: "Quick access after payment",
+        title: "Always available when you need it",
         body:
-          "Once payment is complete, the user should be able to continue immediately without friction or delay.",
+          "Once your account is active, everything is ready. No delays, no waiting — just the tools you need to make better calls.",
       },
     ],
     highlights: [
-      "Trusted checkout",
-      "Simple payment flow",
-      "Fast completion",
-      "Instant access",
+      "Secure access",
+      "Simple onboarding",
+      "Fast setup",
+      "Always available",
     ],
-    ctaLabel: "View Payments",
-    ctaHref: "/payments",
+    ctaLabel: "Create Account",
+    ctaHref: "/register",
   },
 ];
 

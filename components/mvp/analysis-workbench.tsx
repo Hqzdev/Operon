@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   Cable,
-  Crown,
   KeyRound,
   LoaderCircle,
   LogOut,
@@ -169,15 +168,7 @@ const emptyAdSet = (): AdSetInput => ({
   add_to_cart: 0, purchases: 0, revenue: 0, product_price: 0, cost: 0,
 });
 
-const STARTER_LIMIT = 10;
-const dashboardTabs = new Set(["analysis", "integrations", "budget", "scenario", "payments", "settings"]);
-
-function planLabel(plan?: string | null) {
-  if (plan === "PRO") return "Basic";
-  if (plan === "SCALE") return "Pro";
-  if (plan === "STARTER") return "Starter";
-  return "—";
-}
+const dashboardTabs = new Set(["analysis", "integrations", "budget", "scenario", "settings"]);
 
 export function AnalysisWorkbench() {
   const router = useRouter();
@@ -363,27 +354,6 @@ export function AnalysisWorkbench() {
       setPwMsg({ type: "err", text: "Network error" });
     } finally {
       setPwSaving(false);
-    }
-  }
-
-  async function upgradePlan(plan: "PRO" | "SCALE") {
-    const token = getToken();
-    if (!token) return;
-    try {
-      const res = await fetch(`${apiBaseUrl}/payments/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan }),
-      });
-      const data = await res.json() as { confirmationUrl?: string; message?: string };
-      if (!res.ok) { alert(data.message ?? "Payment initialization failed"); return; }
-      if (data.confirmationUrl) {
-        window.location.href = data.confirmationUrl;
-      } else {
-        alert(data.message ?? "YooKassa not configured. Add YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY to .env");
-      }
-    } catch {
-      alert("Network error");
     }
   }
 
@@ -1356,75 +1326,6 @@ export function AnalysisWorkbench() {
                 </Card>
               </div>
             )}
-          </TabsContent>
-          <TabsContent value="payments" className="h-full overflow-hidden">
-            <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.8fr_1.2fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
-              <Card className="border-foreground/10 bg-card/70 py-0">
-                <CardHeader className="border-b border-foreground/10 py-6">
-                  <CardTitle className="font-display text-3xl">Payments</CardTitle>
-                  <CardDescription>Plan, usage, and upgrade controls.</CardDescription>
-                </CardHeader>
-                <CardContent className="px-6 py-6 space-y-5">
-                  <div className="rounded-2xl border border-foreground/10 p-5">
-                    <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                      Current plan
-                    </div>
-                    <div className="mt-2 flex items-center justify-between gap-4">
-                      <div>
-                        <div className="font-display text-3xl">{planLabel(user?.plan)}</div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {user?.subscriptionStatus ?? "Active"} subscription
-                        </p>
-                      </div>
-                      <Badge variant="secondary" className="rounded-full">
-                        {user?.plan ?? "STARTER"}
-                      </Badge>
-                    </div>
-                    {user?.subscriptionEndDate ? (
-                      <p className="mt-4 text-xs text-muted-foreground">
-                        Renews {new Date(user.subscriptionEndDate).toLocaleDateString()}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-2xl border border-foreground/10 p-5">
-                    <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                      Usage
-                    </div>
-                    <div className="mt-3 flex items-end justify-between gap-4">
-                      <div>
-                        <div className="font-display text-3xl">{user?.usageCount ?? 0}</div>
-                        <p className="mt-1 text-sm text-muted-foreground">Analyses used this period</p>
-                      </div>
-                      {user?.usageResetAt ? (
-                        <p className="text-xs text-muted-foreground">
-                          Resets {new Date(user.usageResetAt).toLocaleDateString()}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-foreground/10 bg-card/70 py-0">
-                <CardHeader className="border-b border-foreground/10 py-6">
-                  <CardTitle className="font-display text-3xl">Upgrade</CardTitle>
-                  <CardDescription>Move to a higher tier when analysis volume grows.</CardDescription>
-                </CardHeader>
-                <CardContent className="px-6 py-6">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Button className="h-11 rounded-full gap-2" onClick={() => upgradePlan("PRO")}>
-                      <Crown className="size-4" />
-                      Upgrade to Basic
-                    </Button>
-                    <Button variant="outline" className="h-11 rounded-full gap-2" onClick={() => upgradePlan("SCALE")}>
-                      <Crown className="size-4" />
-                      Upgrade to Pro
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
           </TabsContent>
           <TabsContent value="settings" className="h-full overflow-hidden">
             <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.8fr_1.2fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
