@@ -140,7 +140,7 @@ function NotificationBell() {
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="relative flex items-center justify-center rounded-md p-1.5 text-[#606060] transition-colors hover:bg-[#dddddd] hover:text-[#151515] focus:outline-none"
+          className="relative flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none"
           aria-label="Notifications"
         >
           <Notification01Icon size={18} strokeWidth={1.5} />
@@ -324,7 +324,7 @@ function StoreSwitcher() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#999999]">
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-[#111827] group-data-[collapsible=icon]:hidden">
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-sidebar-foreground group-data-[collapsible=icon]:hidden">
               {displayName}
             </span>
           </button>
@@ -413,12 +413,12 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-[#E5E7EB] bg-white text-[#374151]">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <SidebarHeader className="px-4 pb-3 pt-4">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <StoreSwitcher />
-            <div className="mt-0.5 truncate text-[11px] leading-4 text-[#9CA3AF] group-data-[collapsible=icon]:hidden">
+            <div className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground group-data-[collapsible=icon]:hidden">
               Last scan 1d ago
             </div>
           </div>
@@ -437,7 +437,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href, item.tab)}
                     tooltip={item.title}
                     size="default"
-                    className="h-9 rounded-md px-3 text-[13px] font-medium text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] data-[active=true]:bg-[#F3F4F6] data-[active=true]:text-[#111827] [&>svg]:size-4"
+                    className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4"
                   >
                     <Link href={item.href}>
                       <item.icon size={16} />
@@ -459,7 +459,7 @@ export function AppSidebar() {
                   isActive={pathname === "/dashboard/seo"}
                   tooltip="SEO & Marketing"
                   size="default"
-                  className="h-9 rounded-md px-3 text-[13px] font-medium text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] data-[active=true]:bg-[#F3F4F6] data-[active=true]:text-[#111827] [&>svg]:size-4"
+                  className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4"
                 >
                   <Link href="/dashboard/seo">
                     <ChartBreakoutSquareIcon size={16} />
@@ -481,7 +481,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href, item.tab)}
                     tooltip={item.title}
                     size="default"
-                    className="h-9 rounded-md px-3 text-[13px] font-medium text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] data-[active=true]:bg-[#F3F4F6] data-[active=true]:text-[#111827] [&>svg]:size-4"
+                    className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4"
                   >
                     <Link href={item.href}>
                       <item.icon size={16} />
@@ -495,15 +495,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-[#E5E7EB] px-3 py-3">
-        <SidebarMenu className="gap-1">
+      <SidebarFooter className="border-t border-sidebar-border px-3 py-2">
+        <SidebarMenu className="gap-0.5">
           <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
-            <div className="px-3 py-1">
-              <div className="mb-1.5 flex items-center justify-between text-[12px] text-[#9CA3AF]">
+            <div className="px-3 py-0.5">
+              <div className="mb-1 flex items-center justify-between text-[12px] text-muted-foreground">
                 <span>Usage</span>
-                <span className="font-medium text-[#374151]">Upgrade</span>
+                <span className="font-medium text-foreground">Upgrade</span>
               </div>
-              <div className="h-1.5 rounded-full bg-[#EF4444]" />
+              <div className="h-1 rounded-full bg-destructive" />
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -511,7 +511,7 @@ export function AppSidebar() {
               asChild
               tooltip="Profile"
               size="default"
-              className="h-9 rounded-md px-3 text-[13px] font-medium text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827] [&>svg]:size-4"
+              className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4"
             >
               <Link href="/dashboard?tab=settings">
                 <UserCircle02Icon size={16} />

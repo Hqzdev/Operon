@@ -206,40 +206,40 @@ export function DashboardHome() {
   const usagePct = usageLimit > 0 ? Math.min(100, Math.round((user?.usageCount ?? 0) / usageLimit * 100)) : 0;
 
   return (
-    <main className="h-full overflow-y-auto bg-[#F7F8FA] text-[#111827]">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-8 py-8 lg:px-10">
+    <main className="h-full overflow-y-auto bg-background text-foreground">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8 lg:px-10">
         <section>
           <div>
-            <h1 className="text-[24px] font-semibold leading-tight tracking-normal">
+            <h1 className="text-[20px] font-semibold leading-tight tracking-normal sm:text-[24px]">
               {greeting()}, {firstName}
             </h1>
-            <p className="mt-1 text-[13px] text-[#9CA3AF]">
+            <p className="mt-1 text-[13px] text-muted-foreground">
               {loading ? "Loading your workspace..." : `Current store: ${activeStoreName}`}
             </p>
           </div>
 
           <div className="mt-5 grid gap-2">
-            <div className="flex h-10 items-center justify-between rounded-lg border border-[#E5E7EB] bg-white px-4 text-[13px]">
-              <span className="flex min-w-0 items-center gap-3 text-[#6B7280]">
+            <div className="flex h-10 items-center justify-between rounded-lg border border-border bg-card px-4 text-[13px]">
+              <span className="flex min-w-0 items-center gap-3 text-muted-foreground">
                 <AlertCircle className="size-4 shrink-0" />
                 <span className="truncate">Connect Meta, TikTok, or Shopify to keep charts updated automatically.</span>
               </span>
-              <Button variant="ghost" size="sm" className="h-7 rounded-md px-3 text-[13px] font-semibold text-[#374151]" onClick={() => router.push("/dashboard?tab=integrations")}>
+              <Button variant="ghost" size="sm" className="h-7 rounded-md px-3 text-[13px] font-semibold" onClick={() => router.push("/dashboard?tab=integrations")}>
                 Set up
               </Button>
             </div>
-            <div className="flex h-10 items-center gap-3 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[13px] text-[#6B7280]">
+            <div className="flex h-10 items-center gap-3 rounded-lg border border-border bg-card px-4 text-[13px] text-muted-foreground">
               <CheckCircle2 className="size-4 shrink-0 text-[#10B981]" />
               <span className="truncate">All caught up. Your latest decisions are ready when new metrics arrive.</span>
             </div>
           </div>
         </section>
 
-        <div className="flex gap-1 text-[13px] font-medium text-[#6B7280]">
-          <span className="rounded-md bg-[#111827] px-3 py-1.5 text-white">7 days</span>
-          <span className="px-3 py-1.5 hover:text-[#111827] cursor-pointer">30 days</span>
-          <span className="px-3 py-1.5 hover:text-[#111827] cursor-pointer">90 days</span>
-          <span className="px-3 py-1.5 hover:text-[#111827] cursor-pointer">All time</span>
+        <div className="flex gap-1 text-[13px] font-medium text-muted-foreground">
+          <span className="rounded-md bg-foreground px-3 py-1.5 text-background">7 days</span>
+          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">30 days</span>
+          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">90 days</span>
+          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">All time</span>
         </div>
 
         <section className="grid gap-4 md:grid-cols-2">
@@ -247,12 +247,12 @@ export function DashboardHome() {
             { label: "Revenue", value: `$${fmt(totals.revenue)}`, note: "Latest dataset", icon: CircleDollarSign },
             { label: "Purchases", value: fmt(totals.purchases), note: `${fmt(totals.clicks)} clicks`, icon: ShoppingBag },
           ].map(({ label, value, note, icon: Icon }) => (
-            <div key={label} className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-              <div className="flex items-center gap-2 text-[13px] text-[#9CA3AF]">
+            <div key={label} className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
                 <Icon className="size-4" />
                 {label}
               </div>
-              <div className="mt-3 text-[32px] font-semibold leading-none tracking-tight text-[#111827]">{value}</div>
+              <div className="mt-3 text-[32px] font-semibold leading-none tracking-tight text-foreground">{value}</div>
               <div className="mt-2 text-[12px] text-[#10B981]">
                 <ArrowUpRight className="inline size-3.5" />
                 {note}
@@ -262,14 +262,14 @@ export function DashboardHome() {
         </section>
 
         <section>
-          <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+          <div className="rounded-xl border border-border bg-card p-5">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <LineChart className="size-4 text-[#9CA3AF]" />
-                <h2 className="text-[14px] font-semibold text-[#111827]">Revenue over time</h2>
+                <LineChart className="size-4 text-muted-foreground" />
+                <h2 className="text-[14px] font-semibold text-foreground">Revenue over time</h2>
               </div>
             </div>
-            <div className="h-[260px]">
+            <div className="h-[220px] sm:h-[260px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
                   <defs>
@@ -278,15 +278,16 @@ export function DashboardHome() {
                       <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" opacity={1} />
-                  <XAxis dataKey="date" stroke="#9CA3AF" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                  <YAxis stroke="#9CA3AF" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={1} />
+                  <XAxis dataKey="date" stroke="var(--color-muted-foreground)" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                  <YAxis stroke="var(--color-muted-foreground)" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
                   <Tooltip
                     contentStyle={{
-                      background: "#fff",
-                      border: "1px solid #E5E7EB",
+                      background: "var(--color-card)",
+                      border: "1px solid var(--color-border)",
                       borderRadius: 8,
                       fontSize: 12,
+                      color: "var(--color-foreground)",
                     }}
                   />
                   <Area
@@ -302,15 +303,15 @@ export function DashboardHome() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+        <section className="rounded-xl border border-border bg-card p-5">
           <div className="mb-4 flex items-center gap-2">
-            <Package className="size-4 text-[#9CA3AF]" />
-            <h2 className="text-[14px] font-semibold text-[#111827]">Product performance</h2>
+            <Package className="size-4 text-muted-foreground" />
+            <h2 className="text-[14px] font-semibold text-foreground">Product performance</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px] text-[13px]">
-              <thead className="text-left text-[#9CA3AF]">
-                <tr className="border-b border-[#E5E7EB]">
+            <table className="w-full min-w-[500px] text-[13px]">
+              <thead className="text-left text-muted-foreground">
+                <tr className="border-b border-border">
                   <th className="pb-3 font-medium">Product</th>
                   <th className="pb-3 font-medium">Revenue</th>
                   <th className="pb-3 font-medium">Purchases</th>
@@ -320,11 +321,11 @@ export function DashboardHome() {
               </thead>
               <tbody>
                 {productRows.map((row) => (
-                  <tr key={`${row.name}-${row.decision}`} className="border-b border-[#F3F4F6] last:border-0">
-                    <td className="py-3 font-medium text-[#111827]">{row.name || "Unnamed product"}</td>
-                    <td className="py-3 tabular-nums text-[#374151]">${fmt(row.revenue)}</td>
-                    <td className="py-3 tabular-nums text-[#374151]">{fmt(row.purchases)}</td>
-                    <td className="py-3 tabular-nums text-[#374151]">{row.roas.toFixed(2)}x</td>
+                  <tr key={`${row.name}-${row.decision}`} className="border-b border-border/50 last:border-0">
+                    <td className="py-3 font-medium text-foreground">{row.name || "Unnamed product"}</td>
+                    <td className="py-3 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
+                    <td className="py-3 tabular-nums text-foreground/80">{fmt(row.purchases)}</td>
+                    <td className="py-3 tabular-nums text-foreground/80">{row.roas.toFixed(2)}x</td>
                     <td className="py-3">
                       <Badge variant={decisionVariant(row.decision) as "default" | "secondary" | "destructive"}>
                         {row.decision}
