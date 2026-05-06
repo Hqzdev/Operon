@@ -132,8 +132,8 @@ export function DashboardHome() {
     };
   }, [apiBaseUrl, router]);
 
-  const activeStoreName = user?.activeStore?.name || user?.storeName || user?.storeUrl || "your store";
-  const firstName = user?.name?.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || "there";
+  const activeStoreName = user?.activeStore?.name || user?.storeName || user?.storeUrl || null;
+  const firstName = user?.name?.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || null;
   const latestHistory = history[0];
 
   const totals = useMemo(() => {
@@ -211,10 +211,20 @@ export function DashboardHome() {
         <section>
           <div>
             <h1 className="text-[20px] font-semibold leading-tight tracking-normal sm:text-[24px]">
-              {greeting()}, {firstName}
+              {greeting()}{loading ? (
+                <span className="ml-1 inline-block h-5 w-24 animate-pulse rounded bg-muted align-middle" />
+              ) : firstName ? (
+                `, ${firstName}`
+              ) : null}
             </h1>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              {loading ? "Loading your workspace..." : `Current store: ${activeStoreName}`}
+              {loading ? (
+                <span className="inline-block h-3.5 w-36 animate-pulse rounded bg-muted" />
+              ) : activeStoreName ? (
+                `Current store: ${activeStoreName}`
+              ) : (
+                "No store connected yet"
+              )}
             </p>
           </div>
 
@@ -308,25 +318,25 @@ export function DashboardHome() {
             <Package className="size-4 text-muted-foreground" />
             <h2 className="text-[14px] font-semibold text-foreground">Product performance</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[500px] text-[13px]">
-              <thead className="text-left text-muted-foreground">
+          <div className="max-h-[360px] max-w-full overflow-auto overscroll-contain rounded-lg">
+            <table className="w-full min-w-[720px] text-[13px]">
+              <thead className="sticky top-0 z-10 bg-card text-left text-muted-foreground">
                 <tr className="border-b border-border">
-                  <th className="pb-3 font-medium">Product</th>
-                  <th className="pb-3 font-medium">Revenue</th>
-                  <th className="pb-3 font-medium">Purchases</th>
-                  <th className="pb-3 font-medium">ROAS</th>
-                  <th className="pb-3 font-medium">Status</th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">Product</th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">Revenue</th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">Purchases</th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">ROAS</th>
+                  <th className="whitespace-nowrap pb-3 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {productRows.map((row) => (
                   <tr key={`${row.name}-${row.decision}`} className="border-b border-border/50 last:border-0">
-                    <td className="py-3 font-medium text-foreground">{row.name || "Unnamed product"}</td>
-                    <td className="py-3 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
-                    <td className="py-3 tabular-nums text-foreground/80">{fmt(row.purchases)}</td>
-                    <td className="py-3 tabular-nums text-foreground/80">{row.roas.toFixed(2)}x</td>
-                    <td className="py-3">
+                    <td className="max-w-[320px] truncate py-3 pr-6 font-medium text-foreground">{row.name || "Unnamed product"}</td>
+                    <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
+                    <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-foreground/80">{fmt(row.purchases)}</td>
+                    <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-foreground/80">{row.roas.toFixed(2)}x</td>
+                    <td className="whitespace-nowrap py-3">
                       <Badge variant={decisionVariant(row.decision) as "default" | "secondary" | "destructive"}>
                         {row.decision}
                       </Badge>
