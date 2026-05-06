@@ -41,7 +41,7 @@ export default function DashboardLayout({
             <ThemeToggle />
           </div>
         </header>
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="dashboard-workspace min-h-0 flex-1 overflow-auto">
           {children}
         </div>
       </SidebarInset>
