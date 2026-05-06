@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getAuthUserId, errorResponse, ApiError } from "@/lib/api-auth";
 import { analyzeStore } from "@/src/services/storeAnalysisService";
-import { prisma } from "@/src/models/prisma";
+import { upsertStore } from "@/src/services/storeService";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +29,12 @@ export async function POST(request: Request) {
 
     const analysis = await analyzeStore(storeUrl);
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        storeUrl,
-        onboardingCompleted: true,
-      },
+    await upsertStore(userId, {
+      url: storeUrl,
+      name: analysis.storeName,
+      platform: analysis.platform,
+      description: analysis.storeDescription,
+      analysis: JSON.parse(JSON.stringify(analysis)) as Prisma.InputJsonValue,
     });
 
     return NextResponse.json({ analysis });

@@ -83,7 +83,15 @@ export default function OnboardingPage() {
       if (raw) {
         try {
           const user = JSON.parse(raw);
-          localStorage.setItem("operon_user", JSON.stringify({ ...user, onboardingCompleted: true, storeUrl: url }));
+          localStorage.setItem(
+            "operon_user",
+            JSON.stringify({
+              ...user,
+              onboardingCompleted: true,
+              storeName: (data.analysis as StoreAnalysis).storeName,
+              storeUrl: url,
+            }),
+          );
         } catch {
           // ignore
         }

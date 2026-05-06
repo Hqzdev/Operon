@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Analytics01Icon,
   ChartBreakoutSquareIcon,
@@ -14,6 +15,7 @@ import {
   UserCircle02Icon,
 } from "hugeicons-react";
 import { formatDistanceToNow } from "date-fns";
+import { Check, ChevronsUpDown, Plus, Store } from "lucide-react";
 
 import {
   Sidebar,
@@ -34,7 +36,26 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { getApiBaseUrl } from "@/lib/api-base-url";
 import { useNotifications } from "@/hooks/use-notifications";
 
 const mainNav = [
@@ -78,6 +99,21 @@ const secondaryNav = [
     tab: "settings",
   },
 ] as const;
+
+type StoreSummary = {
+  id: string;
+  name: string;
+  url: string;
+  platform?: string | null;
+};
+
+type SidebarProfile = {
+  storeName?: string | null;
+  storeUrl?: string | null;
+  activeStoreId?: string | null;
+  activeStore?: StoreSummary | null;
+  stores?: StoreSummary[];
+};
 
 function NotificationBell() {
   const { notifications, unreadCount, markOneRead, markAllRead } = useNotifications();
@@ -168,6 +204,189 @@ function NotificationBell() {
   );
 }
 
+function StoreSwitcher() {
+  const [profile, setProfile] = useState<SidebarProfile | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [storeName, setStoreName] = useState("");
+  const [storeUrl, setStoreUrl] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("operon_token") : null;
+  const apiBaseUrl = getApiBaseUrl();
+
+  const stores = useMemo(() => {
+    const list = profile?.stores ?? [];
+    if (list.length > 0) return list;
+    if (profile?.storeName || profile?.storeUrl) {
+      return [{
+        id: profile.activeStoreId ?? "legacy-store",
+        name: profile.storeName || profile.storeUrl || "Store",
+        url: profile.storeUrl || "",
+      }];
+    }
+    return [];
+  }, [profile]);
+
+  const activeStore = profile?.activeStore
+    ?? stores.find((store) => store.id === profile?.activeStoreId)
+    ?? stores[0];
+  const displayName = activeStore?.name || "Add store";
+  const initial = displayName.trim().charAt(0).toUpperCase() || "S";
+
+  async function loadProfile() {
+    if (!token) return;
+    const response = await fetch(`${apiBaseUrl}/users/me`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return;
+    const nextProfile = await response.json();
+    setProfile(nextProfile);
+    localStorage.setItem("operon_user", JSON.stringify(nextProfile));
+  }
+
+  useEffect(() => {
+    const raw = localStorage.getItem("operon_user");
+    if (raw) {
+      try {
+        setProfile(JSON.parse(raw) as SidebarProfile);
+      } catch {
+        // ignore stale local profile
+      }
+    }
+    void loadProfile();
+  }, []);
+
+  async function selectStore(storeId: string) {
+    if (!token || storeId === profile?.activeStoreId || storeId === "legacy-store") return;
+    const response = await fetch(`${apiBaseUrl}/stores/${storeId}/select`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok) {
+      await loadProfile();
+    }
+  }
+
+  async function addStore(event: FormEvent) {
+    event.preventDefault();
+    if (!token || !storeUrl.trim()) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`${apiBaseUrl}/stores`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: storeName.trim() || undefined,
+          url: storeUrl.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.message ?? "Unable to add store.");
+        return;
+      }
+      setStoreName("");
+      setStoreUrl("");
+      setIsAddOpen(false);
+      await loadProfile();
+    } catch {
+      setError("Unable to reach the server.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left transition-colors hover:bg-sidebar-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-none bg-foreground text-xs font-bold text-background">
+              {initial}
+            </div>
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold group-data-[collapsible=icon]:hidden">
+              {displayName}
+            </span>
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-64">
+          <DropdownMenuLabel>Stores</DropdownMenuLabel>
+          {stores.length === 0 ? (
+            <DropdownMenuItem onSelect={() => setIsAddOpen(true)}>
+              <Store className="size-4" />
+              Add your first store
+            </DropdownMenuItem>
+          ) : (
+            stores.map((store) => (
+              <DropdownMenuItem key={store.id} onSelect={() => void selectStore(store.id)}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm">{store.name}</div>
+                  {store.url && (
+                    <div className="truncate text-xs text-muted-foreground">{store.url}</div>
+                  )}
+                </div>
+                {store.id === activeStore?.id && <Check className="size-4" />}
+              </DropdownMenuItem>
+            ))
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setIsAddOpen(true)}>
+            <Plus className="size-4" />
+            Add store
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={addStore} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Add store</DialogTitle>
+              <DialogDescription>
+                Add another storefront and make it active in this workspace.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="sidebar-store-name">Store name</Label>
+              <Input
+                id="sidebar-store-name"
+                value={storeName}
+                onChange={(event) => setStoreName(event.target.value)}
+                placeholder="My Shopify store"
+                disabled={isSaving}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sidebar-store-url">Store URL</Label>
+              <Input
+                id="sidebar-store-url"
+                value={storeUrl}
+                onChange={(event) => setStoreUrl(event.target.value)}
+                placeholder="https://yourstore.com"
+                disabled={isSaving}
+                required
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <DialogFooter>
+              <Button type="submit" disabled={isSaving || !storeUrl.trim()}>
+                {isSaving ? "Saving..." : "Save store"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -187,14 +406,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader>
         <div className="flex items-center justify-between gap-2 px-2 py-1">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-none bg-foreground text-xs font-bold text-background">
-              O
-            </div>
-            <span className="font-semibold text-sm truncate group-data-[collapsible=icon]:hidden">
-              Operon
-            </span>
-          </div>
+          <StoreSwitcher />
           <div className="group-data-[collapsible=icon]:hidden">
             <NotificationBell />
           </div>

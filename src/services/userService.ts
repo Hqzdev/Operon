@@ -9,6 +9,7 @@ const profileSelect = {
   name: true,
   storeName: true,
   storeUrl: true,
+  activeStoreId: true,
   onboardingCompleted: true,
   plan: true,
   subscriptionStatus: true,
@@ -16,6 +17,29 @@ const profileSelect = {
   usageCount: true,
   usageResetAt: true,
   createdAt: true,
+  stores: {
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      name: true,
+      url: true,
+      platform: true,
+      description: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+  activeStore: {
+    select: {
+      id: true,
+      name: true,
+      url: true,
+      platform: true,
+      description: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
 } as const;
 
 export async function getUserProfile(userId: string) {
