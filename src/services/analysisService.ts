@@ -30,6 +30,195 @@ type AnalysisResult = Omit<AiAnalysisResult, "provider"> & {
   ltvAdjustment?: LtvComputeResult & { shopifyConnected: boolean };
 };
 
+type ConfidenceSignal = NonNullable<AiAnalysisResult["decision"]["confidenceSignals"]>[number];
+
+type ConfidencePoint = {
+  spend: number;
+  cpa: number | null;
+  ctr: number;
+  cpm: number;
+  roas: number;
+  breakEvenRoas: number;
+};
+
+function confidenceLevel(score: number): "low" | "medium" | "high" {
+  if (score >= 75) return "high";
+  if (score >= 50) return "medium";
+  return "low";
+}
+
+function round(value: number, precision = 0) {
+  return Number(value.toFixed(precision));
+}
+
+function toConfidencePoint(input: AnalysisPayload): ConfidencePoint {
+  const derived = deriveMetrics(input);
+  return {
+    spend: derived.spend,
+    cpa: derived.currentCpa,
+    ctr: input.ctr,
+    cpm: input.cpm,
+    roas: derived.roas,
+    breakEvenRoas: derived.breakEvenRoas,
+  };
+}
+
+function scoreDirection(current: number, previous: number, higherIsBetter: boolean) {
+  if (current <= 0) return { score: 20, deltaPct: -100 };
+  if (previous <= 0) return { score: 45, deltaPct: 0 };
+  const deltaPct = ((current - previous) / previous) * 100;
+  const favorable = higherIsBetter ? deltaPct : -deltaPct;
+  const score =
+    favorable >= 15 ? 95 :
+    favorable >= 5 ? 80 :
+    favorable >= -10 ? 60 :
+    favorable >= -25 ? 40 :
+    20;
+  return { score, deltaPct };
+}
+
+function computeRecommendationConfidence(
+  input: AnalysisPayload,
+  historyInputs: AnalysisPayload[],
+): { score: number; level: "low" | "medium" | "high"; signals: ConfidenceSignal[] } {
+  const points = [...historyInputs, input].slice(-4).map(toConfidencePoint);
+  const current = points[points.length - 1];
+  const previous = points.slice(0, -1);
+  const previousAvg = (values: number[]) =>
+    values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+
+  const signals: ConfidenceSignal[] = [];
+
+  const cpaValues = points.map((point) => point.cpa).filter((value): value is number => value !== null && value > 0);
+  if (cpaValues.length >= 3) {
+    const changes = cpaValues.slice(1).map((value, index) =>
+      Math.abs((value - cpaValues[index]) / cpaValues[index]) * 100,
+    );
+    const avgChange = previousAvg(changes);
+    const score =
+      avgChange <= 10 ? 95 :
+      avgChange <= 20 ? 78 :
+      avgChange <= 35 ? 55 :
+      25;
+    signals.push({
+      label: avgChange <= 20 ? "CPA stable" : "CPA unstable",
+      detail: `CPA changed ${round(avgChange)}% on average across recent checks`,
+      score,
+      weight: 30,
+    });
+  } else {
+    signals.push({
+      label: "CPA stability has limited data",
+      detail: "Need at least 3 purchase-bearing checks for a stronger CPA stability signal",
+      score: current.cpa && current.cpa > 0 ? 45 : 25,
+      weight: 30,
+    });
+  }
+
+  const previousCtr = previousAvg(previous.map((point) => point.ctr).filter((value) => value > 0));
+  if (previousCtr > 0) {
+    const { score, deltaPct } = scoreDirection(current.ctr, previousCtr, true);
+    signals.push({
+      label: deltaPct >= 0 ? "CTR trending up" : "CTR trending down",
+      detail: `CTR is ${round(Math.abs(deltaPct))}% ${deltaPct >= 0 ? "above" : "below"} recent average`,
+      score,
+      weight: 25,
+    });
+  } else {
+    const score = current.ctr >= 2 ? 80 : current.ctr >= 1.2 ? 60 : current.ctr > 0 ? 35 : 20;
+    signals.push({
+      label: current.ctr >= 1.2 ? "CTR has initial signal" : "CTR signal is weak",
+      detail: `Current CTR is ${current.ctr}%`,
+      score,
+      weight: 25,
+    });
+  }
+
+  const previousCpm = previousAvg(previous.map((point) => point.cpm).filter((value) => value > 0));
+  if (current.cpm <= 0) {
+    signals.push({
+      label: "CPM direction unavailable",
+      detail: "No CPM value yet",
+      score: 25,
+      weight: 20,
+    });
+  } else if (previousCpm > 0) {
+    const { score, deltaPct } = scoreDirection(current.cpm, previousCpm, false);
+    signals.push({
+      label: deltaPct <= 0 ? "CPM decreasing" : "CPM increasing",
+      detail: `CPM is ${round(Math.abs(deltaPct))}% ${deltaPct <= 0 ? "below" : "above"} recent average`,
+      score,
+      weight: 20,
+    });
+  } else {
+    signals.push({
+      label: "CPM direction unavailable",
+      detail: `Current CPM is ${current.cpm}`,
+      score: 50,
+      weight: 20,
+    });
+  }
+
+  const previousSpend = previousAvg(previous.map((point) => point.spend).filter((value) => value > 0));
+  if (previousSpend > 0) {
+    const velocity = ((current.spend - previousSpend) / previousSpend) * 100;
+    const profitable = current.roas >= current.breakEvenRoas;
+    const score =
+      Math.abs(velocity) <= 30 && profitable ? 90 :
+      Math.abs(velocity) <= 30 ? 68 :
+      velocity > 30 && profitable ? 58 :
+      velocity > 30 ? 30 :
+      50;
+    signals.push({
+      label: Math.abs(velocity) <= 30 ? "Spend scaling safely" : "Spend velocity needs caution",
+      detail: `Spend changed ${round(Math.abs(velocity))}% vs recent average`,
+      score,
+      weight: 25,
+    });
+  } else {
+    const enoughSpend = current.spend >= Math.max(current.breakEvenRoas, 1) * 50 || input.clicks >= 80;
+    signals.push({
+      label: enoughSpend ? "Spend has enough sample" : "Spend sample is thin",
+      detail: `Current spend is ${round(current.spend, 2)} from ${input.clicks} clicks`,
+      score: enoughSpend ? 55 : 30,
+      weight: 25,
+    });
+  }
+
+  const score = Math.max(
+    0,
+    Math.min(100, Math.round(signals.reduce((sum, signal) => sum + signal.score * signal.weight, 0) / 100)),
+  );
+
+  return {
+    score,
+    level: confidenceLevel(score),
+    signals: signals.sort((a, b) => (b.score * b.weight) - (a.score * a.weight)).slice(0, 4),
+  };
+}
+
+async function getRecentComparableInputs(userId: string, payload: AnalysisPayload) {
+  const recent = await prisma.analysis.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: 12,
+    select: { inputData: true },
+  });
+
+  const productName = payload.product_name?.trim().toLowerCase();
+  return recent
+    .map((item) => analysisInputSchema.safeParse(item.inputData).success
+      ? analysisInputSchema.parse(item.inputData)
+      : null)
+    .filter((input): input is AnalysisPayload => Boolean(input))
+    .filter((input) => {
+      if (!productName) return true;
+      return input.product_name?.trim().toLowerCase() === productName;
+    })
+    .reverse()
+    .slice(-3);
+}
+
 function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" | "savedId"> {
   const derived = deriveMetrics(input);
 
@@ -277,6 +466,26 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
     console.error("[analysis] GigaChat failed, using fallback logic", error);
     partialResult = fallbackAnalysis(payload);
   }
+
+  const confidence = computeRecommendationConfidence(
+    payload,
+    await getRecentComparableInputs(userId, payload),
+  );
+
+  partialResult = {
+    ...partialResult,
+    decision: {
+      ...partialResult.decision,
+      finalDecision: confidence.score < 50 ? "TEST AGAIN" : partialResult.decision.finalDecision,
+      shortReason:
+        confidence.score < 50
+          ? `Confidence is below 50%, so this is surfaced as Watch until more signal is available. ${partialResult.decision.shortReason}`
+          : partialResult.decision.shortReason,
+      confidence: confidence.level,
+      confidenceScore: confidence.score,
+      confidenceSignals: confidence.signals,
+    },
+  };
 
   let ltvAdjustment: (LtvComputeResult & { shopifyConnected: boolean }) | undefined;
   try {

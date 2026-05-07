@@ -3,6 +3,7 @@ import {
   type AnalysisInput,
   type AnalysisOutput,
   type ConfidenceLevel,
+  type ConfidenceSignal,
 } from "@/lib/analysis-schema";
 
 function round(value: number, precision = 2) {
@@ -80,6 +81,40 @@ function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>)
   }
 
   return { finalDecision, shortReason, confidence };
+}
+
+function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
+  const signals: ConfidenceSignal[] = [
+    {
+      label: derived.currentCpa ? "CPA has purchase signal" : "CPA stability has limited data",
+      detail: derived.currentCpa
+        ? `Current CPA is $${derived.currentCpa}`
+        : "Need purchase-bearing checks for a stronger CPA stability signal",
+      score: derived.currentCpa ? 45 : 25,
+      weight: 30,
+    },
+    {
+      label: input.ctr >= 1.5 ? "CTR has initial signal" : "CTR signal is weak",
+      detail: `Current CTR is ${input.ctr}%`,
+      score: input.ctr >= 2 ? 80 : input.ctr >= 1.2 ? 60 : input.ctr > 0 ? 35 : 20,
+      weight: 25,
+    },
+    {
+      label: "CPM direction unavailable",
+      detail: input.cpm > 0 ? `Current CPM is ${input.cpm}` : "No CPM value yet",
+      score: input.cpm > 0 ? 50 : 25,
+      weight: 20,
+    },
+    {
+      label: input.clicks >= 80 ? "Spend has enough sample" : "Spend sample is thin",
+      detail: `Current spend is $${derived.spend} from ${input.clicks} clicks`,
+      score: input.clicks >= 80 ? 55 : 30,
+      weight: 25,
+    },
+  ];
+  const confidenceScore = Math.round(signals.reduce((sum, signal) => sum + signal.score * signal.weight, 0) / 100);
+  const confidence: ConfidenceLevel = confidenceScore >= 75 ? "high" : confidenceScore >= 50 ? "medium" : "low";
+  return { confidenceScore, confidence, confidenceSignals: signals };
 }
 
 function diagnose(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
@@ -316,7 +351,19 @@ function decideContinueOrStop(
 
 export function runRuleAnalysis(input: AnalysisInput): Omit<AnalysisOutput, "saved" | "savedId"> {
   const derived = deriveMetrics(input);
-  const decision = decide(input, derived);
+  const baseDecision = decide(input, derived);
+  const confidence = confidenceFromSingleInput(input, derived);
+  const decision = {
+    ...baseDecision,
+    finalDecision: confidence.confidenceScore < 50 ? "TEST AGAIN" as const : baseDecision.finalDecision,
+    shortReason:
+      confidence.confidenceScore < 50
+        ? `Confidence is below 50%, so this is surfaced as Watch until more signal is available. ${baseDecision.shortReason}`
+        : baseDecision.shortReason,
+    confidence: confidence.confidence,
+    confidenceScore: confidence.confidenceScore,
+    confidenceSignals: confidence.confidenceSignals,
+  };
   const diagnosis = diagnose(input, derived);
   const actionPlan = planActions(diagnosis);
   const validation = validatePotential(input, derived, diagnosis);

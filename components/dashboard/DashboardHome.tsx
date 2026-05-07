@@ -77,6 +77,8 @@ const COLUMN_HINTS: Record<string, string> = {
 const STATUS_META: Record<string, { label: string; hint: string; cls: string }> = {
   SCALE: { label: "Scale up",    hint: "Ads are working well — increase your budget while it lasts",          cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900" },
   KILL:  { label: "Stop",        hint: "Ads aren't paying off — better to pause and stop wasting money",      cls: "text-red-700 bg-red-50 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900" },
+  FIX:   { label: "Watch",       hint: "Fix the weak signal before spending more",                            cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
+  "TEST AGAIN": { label: "Watch", hint: "Confidence is not high enough for a scale or stop call yet",          cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
   WATCH: { label: "Keep an eye", hint: "Results are mixed — give it a little more time and see how it goes",  cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
   WAIT:  { label: "Wait",        hint: "Not enough data yet to make a recommendation",                        cls: "text-muted-foreground bg-muted border-border" },
 };
@@ -119,17 +121,42 @@ function RoasCell({ value }: { value: number }) {
   );
 }
 
-function StatusCell({ decision }: { decision: string }) {
-  const meta = STATUS_META[decision] ?? STATUS_META.WAIT;
+function confidencePercent(result?: AnalysisOutput | null) {
+  if (!result) return 0;
+  if (typeof result.decision?.confidenceScore === "number") return result.decision.confidenceScore;
+  return result.decision?.confidence === "high" ? 85 : result.decision?.confidence === "medium" ? 65 : 35;
+}
+
+function StatusCell({
+  decision,
+  confidence,
+  signals,
+}: {
+  decision: string;
+  confidence?: number;
+  signals?: NonNullable<AnalysisOutput["decision"]["confidenceSignals"]>;
+}) {
+  const displayDecision = typeof confidence === "number" && confidence < 50 ? "TEST AGAIN" : decision;
+  const meta = STATUS_META[displayDecision] ?? STATUS_META.WAIT;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span className={`inline-flex cursor-help items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${meta.cls}`}>
           {meta.label}
+          {typeof confidence === "number" ? <span className="ml-1.5 font-semibold">{confidence}%</span> : null}
         </span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-[200px] text-center text-[12px] leading-relaxed">
-        {meta.hint}
+      <TooltipContent className="max-w-[280px] text-left text-[12px] leading-relaxed">
+        <div>{meta.hint}</div>
+        {signals?.length ? (
+          <ul className="mt-2 space-y-1 text-[11px]">
+            {signals.slice(0, 4).map((signal) => (
+              <li key={`${signal.label}-${signal.score}`}>
+                <span className="font-medium">{signal.label}</span>: {signal.detail}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </TooltipContent>
     </Tooltip>
   );
@@ -305,6 +332,8 @@ export function DashboardHome() {
         ? item.inputData.revenue / (item.inputData.cpc * item.inputData.clicks)
         : 0,
       decision: item.result.decision?.finalDecision ?? "WAIT",
+      confidence: confidencePercent(item.result),
+      signals: item.result.decision?.confidenceSignals,
     }));
 
     if (rows.length > 0) return rows;
@@ -315,6 +344,8 @@ export function DashboardHome() {
       purchases: totals.purchases,
       roas: totals.roas,
       decision: totals.revenue > 0 ? "WATCH" : "WAIT",
+      confidence: undefined,
+      signals: undefined,
     }];
   }, [activeStoreName, filteredHistory, totals]);
 
@@ -483,7 +514,7 @@ export function DashboardHome() {
                     <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
                     <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">{fmt(row.purchases)}</td>
                     <td className="whitespace-nowrap py-3.5 pr-6"><RoasCell value={row.roas} /></td>
-                    <td className="whitespace-nowrap py-3.5"><StatusCell decision={row.decision} /></td>
+                    <td className="whitespace-nowrap py-3.5"><StatusCell decision={row.decision} confidence={row.confidence} signals={row.signals} /></td>
                   </tr>
                 ))}
               </tbody>

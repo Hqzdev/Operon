@@ -39,6 +39,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const initialForm: AnalysisInput = {
   product_name: "",
@@ -71,14 +72,62 @@ const fields: Array<{ key: keyof AnalysisInput; label: string; step?: string }> 
 
 function badgeVariant(decision: string) {
   if (decision === "SCALE") return "default";
-  if (decision === "KILL") return "destructive";
+  if (decision === "KILL" || decision === "STOP") return "destructive";
   return "secondary";
+}
+
+function recommendationLabel(decision?: string) {
+  if (decision === "SCALE") return "SCALE";
+  if (decision === "KILL") return "STOP";
+  if (decision === "FIX" || decision === "TEST AGAIN") return "WATCH";
+  return decision ?? "WATCH";
+}
+
+function displayedRecommendation(result: AnalysisOutput) {
+  return confidencePercent(result) < 50 ? "WATCH" : recommendationLabel(result.decision.finalDecision);
 }
 
 function recBadgeVariant(rec: string) {
   if (rec === "SCALE") return "default";
   if (rec === "CUT") return "destructive";
   return "secondary";
+}
+
+function confidencePercent(result?: AnalysisOutput | null) {
+  if (!result) return 0;
+  if (typeof result.decision.confidenceScore === "number") return result.decision.confidenceScore;
+  return result.decision.confidence === "high" ? 85 : result.decision.confidence === "medium" ? 65 : 35;
+}
+
+function ConfidenceBadge({ result }: { result: AnalysisOutput }) {
+  const score = confidencePercent(result);
+  const signals = result.decision.confidenceSignals ?? [];
+  const cls =
+    score >= 75 ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300" :
+    score >= 50 ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300" :
+                  "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`inline-flex cursor-help items-center rounded-full border px-2.5 py-0.5 text-[12px] font-semibold ${cls}`}>
+          Confidence: {score}%
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[280px] text-left">
+        <div className="text-[12px] font-semibold">Signal breakdown</div>
+        <ul className="mt-2 space-y-1 text-[11px] leading-relaxed">
+          {signals.length ? signals.map((signal) => (
+            <li key={`${signal.label}-${signal.score}`}>
+              <span className="font-medium">{signal.label}</span>: {signal.detail}
+            </li>
+          )) : (
+            <li>Confidence was estimated from the available campaign metrics.</li>
+          )}
+        </ul>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 type UserProfile = {
@@ -570,8 +619,8 @@ export function AnalysisWorkbench() {
   const hasProFeatures = true;
 
   return (
-    <main className="relative h-full overflow-hidden bg-background text-foreground">
-      <div className="flex h-full min-h-0 flex-col px-6 py-5 sm:px-8 lg:px-8">
+    <main className="relative h-full overflow-y-auto bg-background text-foreground">
+      <div className="flex min-h-full flex-col px-6 py-5 sm:px-8 lg:px-8">
           <header className="mb-4 shrink-0">
             <div className="text-[20px] font-semibold text-foreground">Operon Analysis Workbench</div>
             <div className="mt-0.5 text-[13px] text-muted-foreground">
@@ -579,10 +628,10 @@ export function AnalysisWorkbench() {
             </div>
           </header>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-0 flex-1 overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
           {/* ── Integrations tab ── */}
-          <TabsContent value="integrations" className="h-full overflow-hidden">
-            <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.85fr_1.15fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
+          <TabsContent value="integrations">
+            <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
               <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Connections</CardTitle>
@@ -773,8 +822,8 @@ export function AnalysisWorkbench() {
           </TabsContent>
 
           {/* ── Analysis tab ── */}
-          <TabsContent value="analysis" className="h-full overflow-hidden">
-            <section className="grid h-[60%] min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.95fr_1.05fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
+          <TabsContent value="analysis">
+            <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
               <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Input</CardTitle>
@@ -885,12 +934,10 @@ export function AnalysisWorkbench() {
                   {result ? (
                     <div className="space-y-6">
                       <div className="flex flex-wrap items-center gap-3">
-                        <Badge variant={badgeVariant(result.decision.finalDecision) as "default" | "secondary" | "destructive"}>
-                          {result.decision.finalDecision}
+                        <Badge variant={badgeVariant(displayedRecommendation(result)) as "default" | "secondary" | "destructive"}>
+                          {displayedRecommendation(result)}
                         </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          Confidence: {result.decision.confidence}
-                        </span>
+                        <ConfidenceBadge result={result} />
                         <span className="text-sm text-muted-foreground">
                           Provider: {result.provider}
                         </span>
@@ -996,13 +1043,17 @@ export function AnalysisWorkbench() {
                       <div>
                         <div className="mb-2 flex items-center justify-between text-xs font-mono uppercase tracking-wide text-muted-foreground">
                           <span>Decision confidence</span>
-                          <span>
-                            {result.decision.confidence === "high" ? "85" : result.decision.confidence === "medium" ? "65" : "35"}%
-                          </span>
+                          <span>{confidencePercent(result)}%</span>
                         </div>
-                        <Progress
-                          value={result.decision.confidence === "high" ? 85 : result.decision.confidence === "medium" ? 65 : 35}
-                        />
+                        <Progress value={confidencePercent(result)} />
+                        <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                          {(result.decision.confidenceSignals ?? []).slice(0, 4).map((signal) => (
+                            <li key={`${signal.label}-${signal.score}`} className="flex gap-2">
+                              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                              <span>{signal.label}: {signal.detail}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
 
                       <div>
@@ -1050,7 +1101,7 @@ export function AnalysisWorkbench() {
               </Card>
             </section>
 
-            <section className="mt-6 grid h-[calc(40%-1.5rem)] min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.95fr_1.05fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
+            <section className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
               <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Derived metrics</CardTitle>
@@ -1099,12 +1150,15 @@ export function AnalysisWorkbench() {
                                 ${item.input.product_price} product at {item.createdAt.slice(0, 10)}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                {item.output.decision?.finalDecision} · {item.output.diagnosis?.mainProblem} · {item.output.continueDecision?.decision}
+                                {displayedRecommendation(item.output)} · {confidencePercent(item.output)}% confidence · {item.output.diagnosis?.mainProblem}
                               </div>
                             </div>
-                            <Badge variant={badgeVariant(item.output.decision?.finalDecision ?? "") as "default" | "secondary" | "destructive"}>
-                              {item.output.decision?.finalDecision}
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={badgeVariant(displayedRecommendation(item.output)) as "default" | "secondary" | "destructive"}>
+                                {displayedRecommendation(item.output)}
+                              </Badge>
+                              <ConfidenceBadge result={item.output} />
+                            </div>
                           </div>
                           {index < history.length - 1 ? <Separator className="mt-4" /> : null}
                         </div>
@@ -1121,7 +1175,7 @@ export function AnalysisWorkbench() {
           </TabsContent>
 
           {/* ── Budget Allocation tab ── */}
-          <TabsContent value="budget" className="h-full overflow-hidden">
+          <TabsContent value="budget">
             {!hasProFeatures ? (
               <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-border">
                 <div className="max-w-sm text-center">
@@ -1137,7 +1191,7 @@ export function AnalysisWorkbench() {
                 </div>
               </div>
             ) : (
-              <div className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[1fr_1fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
+              <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
                 <Card className="border-border bg-card py-0 shadow-none">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="text-[15px] font-semibold tracking-normal">Budget Allocation</CardTitle>
@@ -1267,7 +1321,7 @@ export function AnalysisWorkbench() {
           </TabsContent>
 
           {/* ── Scenario Simulator tab ── */}
-          <TabsContent value="scenario" className="h-full overflow-hidden">
+          <TabsContent value="scenario">
             {!hasProFeatures ? (
               <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-border">
                 <div className="max-w-sm text-center">
@@ -1283,7 +1337,7 @@ export function AnalysisWorkbench() {
                 </div>
               </div>
             ) : (
-              <div className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[1fr_1fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
+              <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
                 <Card className="border-border bg-card py-0 shadow-none">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="text-[15px] font-semibold tracking-normal">Scenario Setup</CardTitle>
@@ -1426,8 +1480,8 @@ export function AnalysisWorkbench() {
               </div>
             )}
           </TabsContent>
-          <TabsContent value="settings" className="h-full overflow-hidden">
-            <section className="grid h-full min-h-0 gap-6 overflow-hidden xl:grid-cols-[0.8fr_1.2fr] [&>[data-slot=card]]:h-full [&>[data-slot=card]]:min-h-0 [&>[data-slot=card]]:overflow-hidden [&_[data-slot=card-content]]:min-h-0 [&_[data-slot=card-content]]:overflow-hidden">
+          <TabsContent value="settings">
+            <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
               <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Settings</CardTitle>
