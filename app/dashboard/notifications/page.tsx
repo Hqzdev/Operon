@@ -44,7 +44,7 @@ function NotificationItem({
               e.stopPropagation();
               onRead(notification.id);
             }}
-            className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
+            className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-accent hover:text-foreground"
             aria-label="Mark as read"
           >
             <CheckmarkCircle01Icon size={14} />
@@ -119,7 +119,7 @@ export default function NotificationsPage() {
                 "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors capitalize",
                 filter === f
                   ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
               {f}

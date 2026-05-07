@@ -78,7 +78,7 @@ export function AutopilotPanel() {
         </div>
 
         <div className="border-t border-border px-4 py-3.5">
-          <button className="mb-3 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <button className="mb-3 flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
             <Info className="size-3" />
             Как работает Autopilot
           </button>

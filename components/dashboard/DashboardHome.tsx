@@ -311,9 +311,9 @@ export function DashboardHome() {
 
         <div className="flex gap-1 text-[13px] font-medium text-muted-foreground">
           <span className="rounded-md bg-foreground px-3 py-1.5 text-background">7 days</span>
-          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">30 days</span>
-          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">90 days</span>
-          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">All time</span>
+          <span className="rounded-md px-3 py-1.5 cursor-pointer transition-colors hover:bg-accent hover:text-foreground">30 days</span>
+          <span className="rounded-md px-3 py-1.5 cursor-pointer transition-colors hover:bg-accent hover:text-foreground">90 days</span>
+          <span className="rounded-md px-3 py-1.5 cursor-pointer transition-colors hover:bg-accent hover:text-foreground">All time</span>
         </div>
 
         <section className="grid gap-4 md:grid-cols-2">
