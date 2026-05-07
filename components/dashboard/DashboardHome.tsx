@@ -331,7 +331,7 @@ export function DashboardHome() {
               </thead>
               <tbody>
                 {productRows.map((row) => (
-                  <tr key={`${row.name}-${row.decision}`} className="border-b border-border/50 last:border-0">
+                  <tr key={`${row.name}-${row.decision}`} className="border-b border-border last:border-0">
                     <td className="max-w-[320px] truncate py-3 pr-6 font-medium text-foreground">{row.name || "Unnamed product"}</td>
                     <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
                     <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-foreground/80">{fmt(row.purchases)}</td>
