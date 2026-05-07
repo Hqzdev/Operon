@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Notification01Icon, MailOpen01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { cn } from "@/lib/utils";
@@ -59,6 +59,7 @@ function NotificationItem({
 }
 
 export default function NotificationsPage() {
+  useEffect(() => { document.title = "Notifications | Operon"; }, []);
   const [filter, setFilter] = useState<Filter>("all");
   const { notifications, unreadCount, loading, markOneRead, markAllRead, triggerDigest } =
     useNotifications();

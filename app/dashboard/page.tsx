@@ -1,8 +1,27 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { AnalysisWorkbench } from "@/components/mvp/analysis-workbench";
 import { DashboardHome } from "@/components/dashboard/DashboardHome";
 
-const workspaceTabs = new Set(["analysis", "integrations", "budget", "scenarios", "settings"]);
+const TAB_TITLES: Record<string, string> = {
+  analysis:     "Analytics",
+  integrations: "Integrations",
+  budget:       "Budget Allocation",
+  scenarios:    "Scenario Simulator",
+  settings:     "Settings",
+};
+
+const workspaceTabs = new Set(Object.keys(TAB_TITLES));
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}): Promise<Metadata> {
+  const { tab } = await searchParams;
+  const label = tab ? (TAB_TITLES[tab] ?? "Home") : "Home";
+  return { title: `${label} | Operon` };
+}
 
 export default async function DashboardPage({
   searchParams,

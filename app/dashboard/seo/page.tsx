@@ -355,6 +355,8 @@ export default function SeoPage() {
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => { document.title = "SEO & Marketing | Operon"; }, []);
+
   const authFetch = useCallback(async (url: string, options?: RequestInit) => {
     const token = getToken();
     if (!token) {
