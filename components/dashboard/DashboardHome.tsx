@@ -26,8 +26,8 @@ import {
 
 import { type AnalysisInput, type AnalysisOutput } from "@/lib/analysis-schema";
 import { getApiBaseUrl } from "@/lib/api-base-url";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type UserProfile = {
   name: string | null;
@@ -61,6 +61,75 @@ type MetricsResponse = {
   latestInput: AnalysisInput | null;
 };
 
+const COLUMN_HINTS: Record<string, string> = {
+  product:   "Название рекламируемого товара или кампании",
+  revenue:   "Общая выручка с продаж этого товара за выбранный период",
+  purchases: "Количество успешно оформленных заказов",
+  roas:      "Окупаемость рекламы: сколько рублей дохода приносит каждый вложенный рубль в рекламу. Например, 3x = на 100₽ расходов — 300₽ дохода",
+  status:    "Рекомендация ИИ: что делать с этой кампанией прямо сейчас",
+};
+
+const STATUS_META: Record<string, { label: string; hint: string; cls: string }> = {
+  SCALE: { label: "Масштабировать", hint: "Кампания прибыльна — увеличьте бюджет",              cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900" },
+  KILL:  { label: "Остановить",     hint: "Кампания убыточна — отключите рекламу",              cls: "text-red-700 bg-red-50 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900" },
+  WATCH: { label: "Наблюдать",      hint: "Результаты нестабильны — следите за динамикой",      cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
+  WAIT:  { label: "Подождать",      hint: "Недостаточно данных для принятия решения",           cls: "text-muted-foreground bg-muted border-border" },
+};
+
+function InfoDot({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="ml-1.5 inline-flex size-[15px] shrink-0 cursor-help select-none items-center justify-center rounded-full border border-border bg-muted text-[9px] font-bold text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-accent hover:text-foreground">
+          ?
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[210px] text-center text-[12px] leading-relaxed">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function RoasCell({ value }: { value: number }) {
+  const cls =
+    value >= 3 ? "text-emerald-700 dark:text-emerald-400" :
+    value >= 1 ? "text-amber-700 dark:text-amber-400" :
+                 "text-red-700 dark:text-red-400";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`cursor-help tabular-nums font-semibold ${cls}`}>
+          {value.toFixed(2)}x
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[200px] text-center text-[12px] leading-relaxed">
+        {value >= 3
+          ? "Отличный результат — реклама хорошо окупается"
+          : value >= 1
+          ? "Реклама окупается, но есть куда расти"
+          : "Реклама не окупается — вы тратите больше, чем зарабатываете"}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function StatusCell({ decision }: { decision: string }) {
+  const meta = STATUS_META[decision] ?? STATUS_META.WAIT;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`inline-flex cursor-help items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${meta.cls}`}>
+          {meta.label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[200px] text-center text-[12px] leading-relaxed">
+        {meta.hint}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function greeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -72,11 +141,6 @@ function fmt(value: number, options?: Intl.NumberFormatOptions) {
   return new Intl.NumberFormat("en-US", options).format(value);
 }
 
-function decisionVariant(decision?: string) {
-  if (decision === "SCALE") return "default";
-  if (decision === "KILL") return "destructive";
-  return "secondary";
-}
 
 export function DashboardHome() {
   const router = useRouter();
@@ -314,37 +378,59 @@ export function DashboardHome() {
         </section>
 
         <section className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <Package className="size-4 text-muted-foreground" />
             <h2 className="text-[14px] font-semibold text-foreground">Product performance</h2>
           </div>
+          <p className="mb-4 text-[12px] text-muted-foreground">
+            Результаты по каждому товару. Наведите <span className="inline-flex size-[14px] items-center justify-center rounded-full border border-border bg-muted text-[9px] font-bold">?</span> на любой заголовок или статус, чтобы узнать что это значит.
+          </p>
           <div className="max-h-[360px] max-w-full overflow-auto overscroll-contain rounded-lg">
-            <table className="w-full min-w-[720px] text-[13px]">
+            <table className="w-full min-w-[640px] text-[13px]">
               <thead className="sticky top-0 z-10 bg-card text-left text-muted-foreground">
                 <tr className="border-b border-border">
-                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">Product</th>
-                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">Revenue</th>
-                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">Purchases</th>
-                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">ROAS</th>
-                  <th className="whitespace-nowrap pb-3 font-medium">Status</th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
+                    <span className="inline-flex items-center">Товар <InfoDot text={COLUMN_HINTS.product} /></span>
+                  </th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
+                    <span className="inline-flex items-center">Выручка <InfoDot text={COLUMN_HINTS.revenue} /></span>
+                  </th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
+                    <span className="inline-flex items-center">Покупки <InfoDot text={COLUMN_HINTS.purchases} /></span>
+                  </th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
+                    <span className="inline-flex items-center">ROAS <InfoDot text={COLUMN_HINTS.roas} /></span>
+                  </th>
+                  <th className="whitespace-nowrap pb-3 font-medium">
+                    <span className="inline-flex items-center">Статус <InfoDot text={COLUMN_HINTS.status} /></span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {productRows.map((row) => (
-                  <tr key={`${row.name}-${row.decision}`} className="border-b border-border last:border-0">
-                    <td className="max-w-[320px] truncate py-3 pr-6 font-medium text-foreground">{row.name || "Unnamed product"}</td>
-                    <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
-                    <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-foreground/80">{fmt(row.purchases)}</td>
-                    <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-foreground/80">{row.roas.toFixed(2)}x</td>
-                    <td className="whitespace-nowrap py-3">
-                      <Badge variant={decisionVariant(row.decision) as "default" | "secondary" | "destructive"}>
-                        {row.decision}
-                      </Badge>
-                    </td>
+                  <tr key={`${row.name}-${row.decision}`} className="border-b border-border transition-colors last:border-0 hover:bg-muted/40">
+                    <td className="max-w-[280px] truncate py-3.5 pr-6 font-medium text-foreground">{row.name || "Без названия"}</td>
+                    <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
+                    <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">{fmt(row.purchases)} шт.</td>
+                    <td className="whitespace-nowrap py-3.5 pr-6"><RoasCell value={row.roas} /></td>
+                    <td className="whitespace-nowrap py-3.5"><StatusCell decision={row.decision} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3 border-t border-border pt-3">
+            {Object.entries(STATUS_META).map(([key, { label, hint, cls }]) => (
+              <Tooltip key={key}>
+                <TooltipTrigger asChild>
+                  <span className={`inline-flex cursor-help items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${cls}`}>
+                    {label}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[200px] text-center text-[12px] leading-relaxed">{hint}</TooltipContent>
+              </Tooltip>
+            ))}
+            <span className="ml-auto text-[11px] text-muted-foreground self-center">← наведите для подсказки</span>
           </div>
         </section>
       </div>
