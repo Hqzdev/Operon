@@ -43,7 +43,7 @@ export default function DashboardLayout({
             <ThemeToggle />
           </div>
         </header>
-        <div className="dashboard-workspace min-h-0 flex-1 overflow-hidden bg-sidebar px-2 pb-3">
+        <div className="dashboard-workspace min-h-0 flex-1 overflow-hidden bg-sidebar pl-2 pr-3 pb-3">
           <div className="dashboard-workspace-surface h-full overflow-auto rounded-tl-xl rounded-tr-xl bg-white text-foreground dark:bg-[#141414]">
             {children}
           </div>

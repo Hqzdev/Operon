@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Zap, RefreshCw, Bell, TrendingUp } from "lucide-react";
+import { Bot, Zap, RefreshCw, Bell, TrendingUp, Puzzle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -90,6 +90,24 @@ export function AutopilotPanel() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Chrome Extension block */}
+        <div className="group mx-3 mb-3 flex cursor-default items-start gap-3 rounded-lg border border-border bg-card px-3 py-3 transition-colors hover:bg-accent">
+          <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors group-hover:border-foreground/20 group-hover:bg-card">
+            <Puzzle className="size-3 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[12px] font-semibold text-foreground">Chrome Extension</span>
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                Required
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+              Install the extension to let Autopilot scrape Meta & TikTok Ads Manager directly from your browser — no API keys needed.
+            </p>
+          </div>
         </div>
 
         {/* Footer */}
