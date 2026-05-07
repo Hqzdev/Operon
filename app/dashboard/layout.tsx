@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { Bot } from "lucide-react";
 import {
   SidebarInset,
   SidebarProvider,
@@ -8,6 +7,7 @@ import {
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DigestCard } from "@/components/dashboard/DigestCard";
+import { AutopilotPanel } from "@/components/dashboard/AutopilotPanel";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
@@ -39,11 +39,7 @@ export default function DashboardLayout({
             </Suspense>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex h-8 items-center gap-2 rounded-lg border border-border bg-card px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-accent">
-              <Bot className="size-3.5 text-muted-foreground" />
-              Autopilot
-              <span className="size-2 rounded-full bg-muted" />
-            </button>
+            <AutopilotPanel />
             <ThemeToggle />
           </div>
         </header>
