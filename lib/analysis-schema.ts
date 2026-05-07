@@ -22,11 +22,20 @@ export type AnalysisDecision = "SCALE" | "KILL" | "TEST AGAIN" | "FIX";
 
 export type ConfidenceLevel = "low" | "medium" | "high";
 
+export type ConfidenceSignal = {
+  label: string;
+  detail: string;
+  score: number;
+  weight: number;
+};
+
 export type AnalysisOutput = {
   decision: {
     finalDecision: AnalysisDecision;
     shortReason: string;
     confidence: ConfidenceLevel;
+    confidenceScore?: number;
+    confidenceSignals?: ConfidenceSignal[];
   };
   diagnosis: {
     mainProblem:

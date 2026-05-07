@@ -133,6 +133,13 @@ export type AiAnalysisResult = {
     finalDecision: "SCALE" | "KILL" | "TEST AGAIN" | "FIX";
     shortReason: string;
     confidence: "low" | "medium" | "high";
+    confidenceScore?: number;
+    confidenceSignals?: Array<{
+      label: string;
+      detail: string;
+      score: number;
+      weight: number;
+    }>;
   };
   diagnosis: {
     mainProblem: "Creative problem" | "Targeting problem" | "Offer problem" | "Product problem" | "Funnel problem";
