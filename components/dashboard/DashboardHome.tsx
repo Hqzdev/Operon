@@ -62,18 +62,18 @@ type MetricsResponse = {
 };
 
 const COLUMN_HINTS: Record<string, string> = {
-  product:   "Что именно вы рекламировали — название товара или объявления",
-  revenue:   "Сколько денег пришло от продаж этого товара за выбранный период",
-  purchases: "Сколько человек купили этот товар",
-  roas:      "Показывает, сколько рублей вы зарабатываете на каждый вложенный рубль в рекламу. Например, 3x = вложили 100₽ — получили 300₽",
-  status:    "Совет: стоит ли продолжать вкладывать деньги в рекламу этого товара прямо сейчас",
+  product:   "The name of the product or ad campaign you were running",
+  revenue:   "Total money earned from sales of this product in the selected period",
+  purchases: "Number of completed orders for this product",
+  roas:      "Return on ad spend — how much you earn for every dollar put into ads. For example, 3x means you spent $100 and got $300 back",
+  status:    "AI recommendation: whether you should keep spending money on this product's ads right now",
 };
 
 const STATUS_META: Record<string, { label: string; hint: string; cls: string }> = {
-  SCALE: { label: "Вкладывать больше", hint: "Реклама работает хорошо — увеличьте бюджет, пока идёт",            cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900" },
-  KILL:  { label: "Остановить",        hint: "Реклама не окупается — лучше остановить и не тратить деньги зря",  cls: "text-red-700 bg-red-50 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900" },
-  WATCH: { label: "Понаблюдать",       hint: "Пока непонятно — подождите немного и посмотрите как пойдёт",       cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
-  WAIT:  { label: "Пока подождать",    hint: "Данных ещё мало, чтобы что-то советовать",                         cls: "text-muted-foreground bg-muted border-border" },
+  SCALE: { label: "Scale up",    hint: "Ads are working well — increase your budget while it lasts",          cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900" },
+  KILL:  { label: "Stop",        hint: "Ads aren't paying off — better to pause and stop wasting money",      cls: "text-red-700 bg-red-50 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900" },
+  WATCH: { label: "Keep an eye", hint: "Results are mixed — give it a little more time and see how it goes",  cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
+  WAIT:  { label: "Wait",        hint: "Not enough data yet to make a recommendation",                        cls: "text-muted-foreground bg-muted border-border" },
 };
 
 function InfoDot({ text }: { text: string }) {
@@ -105,10 +105,10 @@ function RoasCell({ value }: { value: number }) {
       </TooltipTrigger>
       <TooltipContent className="max-w-[200px] text-center text-[12px] leading-relaxed">
         {value >= 3
-          ? "Реклама отлично работает — вы зарабатываете намного больше, чем тратите"
+          ? "Great result — you're earning much more than you're spending on ads"
           : value >= 1
-          ? "Реклама пока в плюсе, но есть куда расти"
-          : "Реклама не окупается — вы тратите больше, чем зарабатываете"}
+          ? "Ads are profitable, but there's room to improve"
+          : "Ads aren't paying off — you're spending more than you're earning"}
       </TooltipContent>
     </Tooltip>
   );
@@ -132,9 +132,9 @@ function StatusCell({ decision }: { decision: string }) {
 
 function greeting() {
   const hour = new Date().getHours();
-  if (hour < 12) return "Доброе утро";
-  if (hour < 18) return "Добрый день";
-  return "Добрый вечер";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
 function fmt(value: number, options?: Intl.NumberFormatOptions) {
@@ -285,9 +285,9 @@ export function DashboardHome() {
               {loading ? (
                 <span className="inline-block h-3.5 w-36 animate-pulse rounded bg-muted" />
               ) : activeStoreName ? (
-                `Ваш магазин: ${activeStoreName}`
+                `Your store: ${activeStoreName}`
               ) : (
-                "Магазин ещё не подключён"
+                "No store connected yet"
               )}
             </p>
           </div>
@@ -296,30 +296,30 @@ export function DashboardHome() {
             <div className="flex h-10 items-center justify-between rounded-lg border border-border bg-card px-4 text-[13px]">
               <span className="flex min-w-0 items-center gap-3 text-muted-foreground">
                 <AlertCircle className="size-4 shrink-0" />
-                <span className="truncate">Подключите рекламный кабинет — и данные будут обновляться сами.</span>
+                <span className="truncate">Connect your ad accounts to keep everything updated automatically.</span>
               </span>
               <Button variant="ghost" size="sm" className="h-7 rounded-md px-3 text-[13px] font-semibold" onClick={() => router.push("/dashboard?tab=integrations")}>
-                Подключить
+                Connect
               </Button>
             </div>
             <div className="flex h-10 items-center gap-3 rounded-lg border border-border bg-card px-4 text-[13px] text-muted-foreground">
               <CheckCircle2 className="size-4 shrink-0 text-[#10B981]" />
-              <span className="truncate">Всё в порядке. Новые советы появятся, как только придут свежие данные.</span>
+              <span className="truncate">All caught up. New recommendations will appear as soon as fresh data arrives.</span>
             </div>
           </div>
         </section>
 
         <div className="flex gap-1 text-[13px] font-medium text-muted-foreground">
-          <span className="rounded-md bg-foreground px-3 py-1.5 text-background">7 дней</span>
-          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">30 дней</span>
-          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">3 месяца</span>
-          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">За всё время</span>
+          <span className="rounded-md bg-foreground px-3 py-1.5 text-background">7 days</span>
+          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">30 days</span>
+          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">90 days</span>
+          <span className="px-3 py-1.5 hover:text-foreground cursor-pointer">All time</span>
         </div>
 
         <section className="grid gap-4 md:grid-cols-2">
           {[
-            { label: "Выручка", value: `$${fmt(totals.revenue)}`, note: "Последние данные", icon: CircleDollarSign },
-            { label: "Заказы", value: fmt(totals.purchases), note: `${fmt(totals.clicks)} переходов по рекламе`, icon: ShoppingBag },
+            { label: "Revenue", value: `$${fmt(totals.revenue)}`, note: "Latest data", icon: CircleDollarSign },
+            { label: "Orders", value: fmt(totals.purchases), note: `${fmt(totals.clicks)} ad clicks`, icon: ShoppingBag },
           ].map(({ label, value, note, icon: Icon }) => (
             <div key={label} className="rounded-xl border border-border bg-card p-5">
               <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -340,7 +340,7 @@ export function DashboardHome() {
             <div className="mb-5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <LineChart className="size-4 text-muted-foreground" />
-                <h2 className="text-[14px] font-semibold text-foreground">Как менялась выручка</h2>
+                <h2 className="text-[14px] font-semibold text-foreground">Revenue over time</h2>
               </div>
             </div>
             <div className="h-[220px] sm:h-[260px]">
@@ -380,38 +380,38 @@ export function DashboardHome() {
         <section className="rounded-xl border border-border bg-card p-5">
           <div className="mb-1 flex items-center gap-2">
             <Package className="size-4 text-muted-foreground" />
-            <h2 className="text-[14px] font-semibold text-foreground">Что происходит с вашими товарами</h2>
+            <h2 className="text-[14px] font-semibold text-foreground">Product performance</h2>
           </div>
           <p className="mb-4 text-[12px] text-muted-foreground">
-            Сводка по каждому товару. Наведите <span className="inline-flex size-[14px] items-center justify-center rounded-full border border-border bg-muted text-[9px] font-bold">?</span> на любой заголовок или статус — появится объяснение простыми словами.
+            A summary of each product. Hover the <span className="inline-flex size-[14px] items-center justify-center rounded-full border border-border bg-muted text-[9px] font-bold">?</span> next to any column or status to see a plain-language explanation.
           </p>
           <div className="max-h-[360px] max-w-full overflow-auto overscroll-contain rounded-lg">
             <table className="w-full min-w-[640px] text-[13px]">
               <thead className="sticky top-0 z-10 bg-card text-left text-muted-foreground">
                 <tr className="border-b border-border">
                   <th className="whitespace-nowrap pb-3 pr-6 font-medium">
-                    <span className="inline-flex items-center">Товар <InfoDot text={COLUMN_HINTS.product} /></span>
+                    <span className="inline-flex items-center">Product <InfoDot text={COLUMN_HINTS.product} /></span>
                   </th>
                   <th className="whitespace-nowrap pb-3 pr-6 font-medium">
-                    <span className="inline-flex items-center">Выручка <InfoDot text={COLUMN_HINTS.revenue} /></span>
+                    <span className="inline-flex items-center">Revenue <InfoDot text={COLUMN_HINTS.revenue} /></span>
                   </th>
                   <th className="whitespace-nowrap pb-3 pr-6 font-medium">
-                    <span className="inline-flex items-center">Покупки <InfoDot text={COLUMN_HINTS.purchases} /></span>
+                    <span className="inline-flex items-center">Orders <InfoDot text={COLUMN_HINTS.purchases} /></span>
                   </th>
                   <th className="whitespace-nowrap pb-3 pr-6 font-medium">
-                    <span className="inline-flex items-center">Отдача <InfoDot text={COLUMN_HINTS.roas} /></span>
+                    <span className="inline-flex items-center">Return <InfoDot text={COLUMN_HINTS.roas} /></span>
                   </th>
                   <th className="whitespace-nowrap pb-3 font-medium">
-                    <span className="inline-flex items-center">Что делать <InfoDot text={COLUMN_HINTS.status} /></span>
+                    <span className="inline-flex items-center">Action <InfoDot text={COLUMN_HINTS.status} /></span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {productRows.map((row) => (
                   <tr key={`${row.name}-${row.decision}`} className="border-b border-border transition-colors last:border-0 hover:bg-muted/40">
-                    <td className="max-w-[280px] truncate py-3.5 pr-6 font-medium text-foreground">{row.name || "Без названия"}</td>
+                    <td className="max-w-[280px] truncate py-3.5 pr-6 font-medium text-foreground">{row.name || "Unnamed"}</td>
                     <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
-                    <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">{fmt(row.purchases)} шт.</td>
+                    <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">{fmt(row.purchases)}</td>
                     <td className="whitespace-nowrap py-3.5 pr-6"><RoasCell value={row.roas} /></td>
                     <td className="whitespace-nowrap py-3.5"><StatusCell decision={row.decision} /></td>
                   </tr>
@@ -430,7 +430,7 @@ export function DashboardHome() {
                 <TooltipContent className="max-w-[200px] text-center text-[12px] leading-relaxed">{hint}</TooltipContent>
               </Tooltip>
             ))}
-            <span className="ml-auto text-[11px] text-muted-foreground self-center">← наведите мышкой</span>
+            <span className="ml-auto text-[11px] text-muted-foreground self-center">← hover for details</span>
           </div>
         </section>
       </div>
