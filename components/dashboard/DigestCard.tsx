@@ -52,7 +52,7 @@ export function DigestCard() {
       <button
         onClick={handleTrigger}
         disabled={triggering}
-        className="shrink-0 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        className="shrink-0 rounded-md px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
       >
         {triggering ? "Generating…" : "Refresh"}
       </button>

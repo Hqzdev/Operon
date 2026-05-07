@@ -162,7 +162,7 @@ function NotificationBell() {
           {unreadCount > 0 && (
             <button
               onClick={markAllRead}
-              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              className="rounded-md px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               Mark all read
             </button>
@@ -212,7 +212,7 @@ function NotificationBell() {
         <div className="border-t px-4 py-2">
           <Link
             href="/dashboard/notifications"
-            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            className="rounded-md px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             View all notifications →
           </Link>
@@ -323,7 +323,7 @@ function StoreSwitcher() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#999999]">
+          <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left transition-colors hover:bg-sidebar-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#999999]">
             <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-sidebar-foreground group-data-[collapsible=icon]:hidden">
               {displayName}
             </span>

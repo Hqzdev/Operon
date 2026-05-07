@@ -26,6 +26,7 @@ import {
 
 import { type AnalysisInput, type AnalysisOutput } from "@/lib/analysis-schema";
 import { getApiBaseUrl } from "@/lib/api-base-url";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -142,6 +143,15 @@ function fmt(value: number, options?: Intl.NumberFormatOptions) {
 }
 
 
+type Period = 7 | 30 | 90 | null;
+
+const PERIODS: { label: string; value: Period }[] = [
+  { label: "7 days",   value: 7 },
+  { label: "30 days",  value: 30 },
+  { label: "90 days",  value: 90 },
+  { label: "All time", value: null },
+];
+
 export function DashboardHome() {
   const router = useRouter();
   const apiBaseUrl = getApiBaseUrl();
@@ -150,6 +160,7 @@ export function DashboardHome() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [latestInput, setLatestInput] = useState<AnalysisInput | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<Period>(7);
 
   useEffect(() => {
     let isMounted = true;
@@ -198,21 +209,41 @@ export function DashboardHome() {
 
   const activeStoreName = user?.activeStore?.name || user?.storeName || user?.storeUrl || null;
   const firstName = user?.name?.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || null;
-  const latestHistory = history[0];
+
+  const cutoffDate = useMemo(() => {
+    if (!period) return null;
+    const d = new Date();
+    d.setDate(d.getDate() - period);
+    return d;
+  }, [period]);
+
+  const filteredHistory = useMemo(() => {
+    if (!cutoffDate) return history;
+    return history.filter((item) => new Date(item.createdAt) >= cutoffDate);
+  }, [history, cutoffDate]);
+
+  const filteredSnapshots = useMemo(() => {
+    if (!cutoffDate) return snapshots;
+    return snapshots.filter((s) => new Date(s.date) >= cutoffDate);
+  }, [snapshots, cutoffDate]);
 
   const totals = useMemo(() => {
-    const source = latestInput ?? latestHistory?.inputData;
+    const source =
+      filteredSnapshots[0]?.analysisInput ??
+      filteredHistory[0]?.inputData ??
+      latestInput ??
+      history[0]?.inputData;
+    if (!source) return { revenue: 0, purchases: 0, clicks: 0, impressions: 0, spend: 0, roas: 0 };
+    const spend = source.cpc * source.clicks;
     return {
-      revenue: source?.revenue ?? 0,
-      purchases: source?.purchases ?? 0,
-      clicks: source?.clicks ?? 0,
-      impressions: source?.impressions ?? 0,
-      spend: source ? Number((source.cpc * source.clicks).toFixed(2)) : 0,
-      roas: source && source.cpc * source.clicks > 0
-        ? Number((source.revenue / (source.cpc * source.clicks)).toFixed(2))
-        : 0,
+      revenue: source.revenue,
+      purchases: source.purchases,
+      clicks: source.clicks,
+      impressions: 0,
+      spend: Number(spend.toFixed(2)),
+      roas: spend > 0 ? Number((source.revenue / spend).toFixed(2)) : 0,
     };
-  }, [latestHistory, latestInput]);
+  }, [filteredHistory, filteredSnapshots, latestInput, history]);
 
   const chartData = useMemo(() => {
     const byDate = new Map<string, { date: string; revenue: number; purchases: number; clicks: number }>();
@@ -225,15 +256,16 @@ export function DashboardHome() {
       byDate.set(key, current);
     };
 
-    snapshots.slice(0, 14).forEach((snapshot) => addPoint(snapshot.date, snapshot.analysisInput));
-    history.slice(0, 14).forEach((item) => addPoint(item.createdAt, item.inputData));
+    filteredSnapshots.forEach((s) => addPoint(s.date, s.analysisInput));
+    filteredHistory.forEach((item) => addPoint(item.createdAt, item.inputData));
 
+    const emptyDays = period ?? 7;
     if (byDate.size === 0) {
-      return Array.from({ length: 7 }, (_, index) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (6 - index));
+      return Array.from({ length: Math.min(emptyDays, 14) }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (Math.min(emptyDays, 14) - 1 - i));
         return {
-          date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
           revenue: 0,
           purchases: 0,
           clicks: 0,
@@ -241,11 +273,11 @@ export function DashboardHome() {
       });
     }
 
-    return Array.from(byDate.values()).reverse().slice(-7);
-  }, [history, snapshots]);
+    return Array.from(byDate.values()).reverse();
+  }, [filteredHistory, filteredSnapshots, period]);
 
   const productRows = useMemo(() => {
-    const rows = history.slice(0, 5).map((item) => ({
+    const rows = filteredHistory.slice(0, 10).map((item) => ({
       name: item.inputData.product_name,
       revenue: item.inputData.revenue,
       purchases: item.inputData.purchases,
@@ -264,7 +296,7 @@ export function DashboardHome() {
       roas: totals.roas,
       decision: totals.revenue > 0 ? "WATCH" : "WAIT",
     }];
-  }, [activeStoreName, history, totals]);
+  }, [activeStoreName, filteredHistory, totals]);
 
   const usageLimit = user?.usageLimit ?? user?.analysisLimit ?? 0;
   const usagePct = usageLimit > 0 ? Math.min(100, Math.round((user?.usageCount ?? 0) / usageLimit * 100)) : 0;
@@ -310,10 +342,20 @@ export function DashboardHome() {
         </section>
 
         <div className="flex gap-1 text-[13px] font-medium text-muted-foreground">
-          <span className="rounded-md bg-foreground px-3 py-1.5 text-background">7 days</span>
-          <span className="rounded-md px-3 py-1.5 cursor-pointer transition-colors hover:bg-accent hover:text-foreground">30 days</span>
-          <span className="rounded-md px-3 py-1.5 cursor-pointer transition-colors hover:bg-accent hover:text-foreground">90 days</span>
-          <span className="rounded-md px-3 py-1.5 cursor-pointer transition-colors hover:bg-accent hover:text-foreground">All time</span>
+          {PERIODS.map(({ label, value }) => (
+            <button
+              key={label}
+              onClick={() => setPeriod(value)}
+              className={cn(
+                "rounded-md px-3 py-1.5 transition-colors",
+                period === value
+                  ? "bg-foreground text-background"
+                  : "hover:bg-accent hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <section className="grid gap-4 md:grid-cols-2">
