@@ -1,30 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Cable, Info } from "lucide-react";
+import { Bot, Zap, RefreshCw, Bell, TrendingUp } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 const steps = [
   {
-    num: 1,
-    title: "Синхронизирует метрики каждый день",
-    body: "Autopilot автоматически забирает свежие данные из Meta, TikTok и Shopify каждые 24 часа — без ручного ввода.",
+    icon: RefreshCw,
+    title: "Daily sync",
+    body: "Fetches fresh data from your ad accounts every 24 hours automatically.",
   },
   {
-    num: 2,
-    title: "Запускает анализ по каждому продукту",
-    body: "Каждый товар и рекламный сет оценивается движком решений. Вердикт SCALE / KILL / WATCH формируется без участия пользователя.",
+    icon: Zap,
+    title: "Smart analysis",
+    body: "Every product and ad set is scored. Scale / Stop / Watch decisions are made for you.",
   },
   {
-    num: 3,
-    title: "Отправляет еженедельный дайджест",
-    body: "Итоги приходят на почту каждый понедельник. Только изменившиеся решения — никакого шума.",
+    icon: Bell,
+    title: "Weekly digest",
+    body: "A summary lands in your inbox every Monday — only what changed, no noise.",
   },
   {
-    num: 4,
-    title: "Оповещает о критических падениях",
-    body: "Если ROAS опускается ниже точки безубыточности, вы получаете уведомление немедленно.",
+    icon: TrendingUp,
+    title: "Instant alerts",
+    body: "If ROAS drops below break-even, you get notified right away.",
   },
 ];
 
@@ -37,28 +38,22 @@ export function AutopilotPanel() {
         <button className="flex h-8 items-center gap-2 rounded-lg border border-border bg-card px-3 text-[13px] font-medium text-foreground transition-colors hover:bg-accent">
           <Bot className="size-3.5 text-muted-foreground" />
           Autopilot
-          <span className={`size-2 rounded-full transition-colors ${enabled ? "bg-[#10B981]" : "bg-muted"}`} />
+          <span className={cn("size-2 rounded-full transition-colors", enabled ? "bg-emerald-500" : "bg-muted")} />
         </button>
       </PopoverTrigger>
 
-      <PopoverContent
-        align="end"
-        sideOffset={8}
-        className="w-80 p-0"
-      >
-        <div className="border-b border-border px-4 py-3.5">
-          <div className="flex items-center gap-2">
-            <Bot className="size-4 text-muted-foreground" />
-            <span className="text-[14px] font-semibold">Autopilot</span>
-          </div>
-        </div>
+      <PopoverContent align="end" sideOffset={8} className="w-[300px] p-0 shadow-lg">
 
-        <div className="px-4 py-3.5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[13px] font-medium">Включить Autopilot</div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">Авто-анализ рекламных кампаний</div>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className="flex size-6 items-center justify-center rounded-md bg-foreground">
+              <Bot className="size-3.5 text-background" />
             </div>
+            <span className="text-[13px] font-semibold">Autopilot</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">{enabled ? "On" : "Off"}</span>
             <Switch
               checked={enabled}
               onCheckedChange={setEnabled}
@@ -67,35 +62,44 @@ export function AutopilotPanel() {
           </div>
         </div>
 
-        <div className="mx-4 mb-3.5 flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
-          <Cable className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-          <div>
-            <div className="text-[12px] font-medium">Нужна интеграция</div>
-            <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-              Autopilot требует хотя бы одного подключённого аккаунта Meta, TikTok или Shopify.
-            </div>
-          </div>
+        {/* Status banner */}
+        <div className={cn(
+          "mx-3 mt-3 rounded-lg px-3 py-2.5 text-[12px] leading-relaxed transition-colors",
+          enabled
+            ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+            : "bg-muted text-muted-foreground"
+        )}>
+          {enabled
+            ? "Autopilot is running. Your campaigns are being monitored."
+            : "Enable Autopilot to start monitoring your campaigns automatically."}
         </div>
 
-        <div className="border-t border-border px-4 py-3.5">
-          <button className="mb-3 flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-            <Info className="size-3" />
-            Как работает Autopilot
-          </button>
-          <ol className="space-y-3">
-            {steps.map((step) => (
-              <li key={step.num} className="flex gap-2.5">
-                <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
-                  {step.num}
-                </span>
-                <div>
-                  <div className="text-[12px] font-medium leading-snug">{step.title}</div>
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{step.body}</div>
-                </div>
-              </li>
-            ))}
-          </ol>
+        {/* Steps */}
+        <div className="p-3 space-y-1">
+          {steps.map((step) => (
+            <div
+              key={step.title}
+              className="group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent cursor-default"
+            >
+              <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors group-hover:border-foreground/20 group-hover:bg-card">
+                <step.icon className="size-3 text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[12px] font-medium leading-snug text-foreground">{step.title}</div>
+                <div className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{step.body}</div>
+              </div>
+            </div>
+          ))}
         </div>
+
+        {/* Footer */}
+        <div className="border-t border-border px-4 py-2.5">
+          <p className="text-[11px] text-muted-foreground">
+            Requires at least one connected ad account in{" "}
+            <span className="font-medium text-foreground">Integrations</span>.
+          </p>
+        </div>
+
       </PopoverContent>
     </Popover>
   );

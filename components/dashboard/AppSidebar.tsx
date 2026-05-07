@@ -418,9 +418,6 @@ export function AppSidebar() {
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <StoreSwitcher />
-            <div className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground group-data-[collapsible=icon]:hidden">
-              Last scan 1d ago
-            </div>
           </div>
           <ChevronsUpDown className="size-3.5 shrink-0 text-[#9CA3AF] group-data-[collapsible=icon]:hidden" />
         </div>
