@@ -19,7 +19,7 @@ import {
   AreaChart,
   CartesianGrid,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -355,7 +355,7 @@ export function DashboardHome() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={1} />
                   <XAxis dataKey="date" stroke="var(--color-muted-foreground)" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
                   <YAxis stroke="var(--color-muted-foreground)" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                  <Tooltip
+                  <RechartsTooltip
                     contentStyle={{
                       background: "var(--color-card)",
                       border: "1px solid var(--color-border)",
