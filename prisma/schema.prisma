@@ -49,6 +49,17 @@ enum NotificationType {
   info
 }
 
+enum FatigueSeverity {
+  warning
+  critical
+}
+
+enum FatigueAlertStatus {
+  active
+  dismissed
+  snoozed
+}
+
 model User {
   id                  String             @id @default(cuid())
   email               String             @unique
@@ -56,6 +67,7 @@ model User {
   name                String?
   storeName           String?
   storeUrl            String?
+  niche               String?
   activeStoreId       String?
   onboardingCompleted Boolean            @default(false)
   plan                UserPlan           @default(STARTER)
@@ -71,6 +83,7 @@ model User {
   seoAnalysis         SeoAnalysis?
   notifications       Notification[]
   digestLogs          DigestLog[]
+  fatigueAlerts       FatigueAlert[]
   stores              Store[]            @relation("UserStores")
   activeStore         Store?             @relation("ActiveStore", fields: [activeStoreId], references: [id], onDelete: SetNull)
 }
@@ -114,6 +127,30 @@ model DigestLog {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, sentAt])
+}
+
+model FatigueAlert {
+  id                String             @id @default(cuid())
+  userId            String
+  connectionId      String?
+  provider          IntegrationProvider
+  externalAccountId String
+  externalEntityId  String
+  creativeName      String
+  severity          FatigueSeverity
+  status            FatigueAlertStatus @default(active)
+  triggeredMetrics  Json
+  recommendation    String             @default("Pause or refresh creative")
+  detectedAt        DateTime           @default(now())
+  snoozeUntil       DateTime?
+  dismissedAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, detectedAt])
+  @@index([userId, externalEntityId, detectedAt])
+  @@index([provider, externalAccountId, externalEntityId])
 }
 
 model Analysis {

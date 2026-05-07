@@ -1,0 +1,1 @@
+- [Operon DB Migration Conventions](project_conventions.md) — Prisma/PostgreSQL setup, naming patterns, manual apply process, known enum quirk, all applied migrations

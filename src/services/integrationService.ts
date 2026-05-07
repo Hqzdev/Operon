@@ -10,6 +10,7 @@ import { z } from "zod";
 import { prisma } from "../models/prisma";
 import { env } from "../utils/env";
 import { AppError } from "../utils/appError";
+import { runFatigueCheckForAccount } from "./fatigueService";
 
 const analysisInputSchema = z.object({
   product_name: z.string().min(2).max(120).default("Untitled product"),
@@ -65,6 +66,7 @@ type RawMetrics = {
   add_to_cart: number;
   purchases: number;
   revenue: number;
+  frequency?: number;
   product_price?: number;
   cost?: number;
   source?: Prisma.InputJsonValue;
@@ -438,6 +440,12 @@ export async function syncConnection(connectionId: string) {
       },
     });
 
+    if (freshConnection.provider === IntegrationProvider.META || freshConnection.provider === IntegrationProvider.TIKTOK) {
+      await runFatigueCheckForAccount(freshConnection.id).catch((error) => {
+        console.error(`[fatigue] Check failed for ${freshConnection.id}:`, error);
+      });
+    }
+
     return { connectionId: freshConnection.id, snapshots: raw.length };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sync failed";
@@ -511,7 +519,7 @@ async function fetchMetaMetrics(connection: IntegrationConnection): Promise<RawM
   url.searchParams.set("level", "adset");
   url.searchParams.set("date_preset", "last_7d");
   url.searchParams.set("time_increment", "1");
-  url.searchParams.set("fields", "adset_id,adset_name,date_start,spend,impressions,clicks,ctr,cpc,cpm,actions,action_values");
+  url.searchParams.set("fields", "adset_id,adset_name,date_start,spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,action_values");
   url.searchParams.set("access_token", token);
   const data = await providerFetch<{ data?: Array<Record<string, unknown>> }>(url.toString());
   return (data.data ?? []).map((row) => ({
@@ -524,6 +532,7 @@ async function fetchMetaMetrics(connection: IntegrationConnection): Promise<RawM
     add_to_cart: sumActions(row.actions, ["add_to_cart", "omni_add_to_cart", "offsite_conversion.fb_pixel_add_to_cart"]),
     purchases: sumActions(row.actions, ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]),
     revenue: sumActions(row.action_values, ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]),
+    frequency: asNumber(row.frequency),
     source: row as Prisma.InputJsonValue,
   }));
 }
@@ -546,6 +555,7 @@ async function fetchTikTokMetrics(connection: IntegrationConnection): Promise<Ra
     "total_complete_payment_rate",
     "total_complete_payment_value",
     "add_to_cart",
+    "frequency",
   ]));
   url.searchParams.set("start_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
   url.searchParams.set("end_date", new Date().toISOString().slice(0, 10));
@@ -566,6 +576,7 @@ async function fetchTikTokMetrics(connection: IntegrationConnection): Promise<Ra
       add_to_cart: asNumber(metrics.add_to_cart),
       purchases: asNumber(metrics.complete_payment),
       revenue: asNumber(metrics.total_complete_payment_value),
+      frequency: asNumber(metrics.frequency),
       source: row as Prisma.InputJsonValue,
     };
   });

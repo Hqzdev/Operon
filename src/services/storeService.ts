@@ -7,6 +7,7 @@ type StoreInput = {
   url: string;
   platform?: string;
   description?: string;
+  niche?: string;
   analysis?: Prisma.InputJsonValue;
 };
 
@@ -69,6 +70,7 @@ export async function upsertStore(userId: string, input: StoreInput) {
       activeStoreId: store.id,
       storeName: store.name,
       storeUrl: store.url,
+      niche: input.niche,
       onboardingCompleted: true,
     },
   });

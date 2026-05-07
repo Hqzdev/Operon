@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { generateDigestsForAllUsers } from "./digestService";
+import { runFatigueChecksForDueAccounts } from "./fatigueService";
 
 let started = false;
 
@@ -16,5 +17,15 @@ export function startScheduler(): void {
     }
   });
 
+  cron.schedule("15 7 * * *", async () => {
+    console.log("[scheduler] Running creative fatigue job");
+    try {
+      await runFatigueChecksForDueAccounts();
+    } catch (err) {
+      console.error("[scheduler] Creative fatigue job failed:", err);
+    }
+  });
+
   console.log("[scheduler] Morning digest scheduled for 08:00 daily");
+  console.log("[scheduler] Creative fatigue check scheduled for 07:15 daily");
 }

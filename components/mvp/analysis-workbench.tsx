@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
+  ArrowRight,
   Cable,
   Crown,
   KeyRound,
@@ -169,6 +170,134 @@ const emptyAdSet = (): AdSetInput => ({
   add_to_cart: 0, purchases: 0, revenue: 0, product_price: 0, cost: 0,
 });
 
+// ── Mock data (shown when API returns no data) ────────────────────────────────
+
+const MOCK_RESULT: AnalysisOutput = {
+  decision: { finalDecision: "WATCH", confidence: "medium", shortReason: "ROAS is above break-even but conversion rate is low. Needs creative optimisation before scaling budget." },
+  diagnosis: { mainProblem: "Funnel problem", why: "Only 6.6% of clicks add to cart, signalling product-page friction or audience mismatch.", proofMetric: "Add-to-cart rate: 6.6% (target: 10–15%)" },
+  actionPlan: [
+    "Test 3 creatives focused on pain-relief outcome rather than product specs.",
+    "Narrow audience to 35–55 with back-pain interests to improve CTR quality.",
+    "A/B test the product page headline and hero image to lift add-to-cart rate.",
+  ],
+  validation: { verdict: "high potential", reason: "Strong margin, validated click volume. Core offer is solid — funnel execution needs work.", shouldContinueTesting: true },
+  profitability: { breakEvenCpa: 26.49, breakEvenRoas: 1.32, maxCpcAtCurrentConversion: 0.32, currentCpa: 78.61, isProfitable: false, why: "Spend exceeds revenue at current volume. Break-even requires 3× more purchases at this CPC." },
+  funnelLeak: { weakestStage: "clicks → add to cart", explanation: "High intent (click volume) but poor product-page conversion. Fix the landing page before increasing ad spend.", severity: "high" },
+  creativeAngles: [
+    { hookIdea: '"My back pain disappeared after 2 weeks at my desk."', concept: "First-person testimonial with posture before/after", targetEmotion: "Relief" },
+    { hookIdea: '"Why 2.4 million office workers swear by this cushion."', concept: "Social proof stat + product close-up reveal", targetEmotion: "Curiosity" },
+    { hookIdea: '"Stop wasting money on physio — fix the source."', concept: "Pain-point contrast: cost of problem vs. cost of fix", targetEmotion: "Urgency" },
+  ],
+  continueDecision: { decision: "CONTINUE", reason: "Positive signal exists. Improve landing-page conversion rate before adding budget.", minimumAdditionalTestNeeded: "$150 over 7 days" },
+  derived: { spend: 314.45, roas: 0.45, conversionRate: 1.21, addToCartRate: 6.65, breakEvenRoas: 1.32, breakEvenCpa: 26.49, currentCpa: 78.61, maxCpcAtCurrentConversion: 0.32, profit: -174.49, netProfitMargin: -124.67 },
+  provider: "gigachat",
+  saved: true,
+};
+
+const MOCK_HISTORY: AnalysisHistoryItem[] = [
+  {
+    id: "demo_1",
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+    input: { ...initialForm, product_name: "Lumbar Support Cushion", revenue: 139.96, purchases: 4 },
+    output: MOCK_RESULT,
+  },
+  {
+    id: "demo_2",
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+    input: { ...initialForm, product_name: "Ergonomic Wrist Rest", product_price: 24.99, cost: 5.5, revenue: 74.97, purchases: 3, clicks: 280, impressions: 14200, ctr: 1.97 },
+    output: { ...MOCK_RESULT, decision: { finalDecision: "KILL", confidence: "high", shortReason: "ROAS below break-even for 14 days. No recovery signal. Pause and rethink offer." } },
+  },
+  {
+    id: "demo_3",
+    createdAt: new Date(Date.now() - 9 * 86400000).toISOString(),
+    input: { ...initialForm, product_name: "Standing Desk Mat", product_price: 49.99, cost: 12.0, revenue: 549.89, purchases: 11, clicks: 590, impressions: 28000, ctr: 2.11, cpc: 0.81 },
+    output: { ...MOCK_RESULT, decision: { finalDecision: "SCALE", confidence: "high", shortReason: "ROAS 2.9x, profitability confirmed, stable for 10+ days. Increase daily budget 20% every 3 days." } },
+  },
+];
+
+const MOCK_INTEGRATIONS: IntegrationConnection[] = [
+  {
+    id: "demo_meta_1",
+    provider: "META",
+    externalAccountId: "act_384729104",
+    accountName: "Waveflow · Meta Ads",
+    status: "CONNECTED",
+    scopes: ["ads_read"],
+    lastSyncedAt: new Date(Date.now() - 3600000).toISOString(),
+    nextSyncAt: new Date(Date.now() + 82800000).toISOString(),
+    lastError: null,
+    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+  },
+  {
+    id: "demo_tiktok_1",
+    provider: "TIKTOK",
+    externalAccountId: "7198473829102938476",
+    accountName: "Waveflow · TikTok Ads",
+    status: "CONNECTED",
+    scopes: ["campaign.read"],
+    lastSyncedAt: new Date(Date.now() - 7200000).toISOString(),
+    nextSyncAt: new Date(Date.now() + 79200000).toISOString(),
+    lastError: null,
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+  },
+];
+
+const MOCK_SNAPSHOTS: IntegrationSnapshot[] = [
+  {
+    id: "demo_snap_1",
+    provider: "META",
+    externalAccountId: "act_384729104",
+    externalEntityId: "23851019384750",
+    entityName: "Lumbar Support — US Broad",
+    date: new Date(Date.now() - 86400000).toISOString(),
+    analysisInput: { ...initialForm, impressions: 22400, clicks: 470, add_to_cart: 38, purchases: 9, revenue: 314.91, ctr: 2.1, cpc: 0.88, cpm: 68 },
+    metrics: { spend: 413.6, frequency: 1.4 },
+  },
+  {
+    id: "demo_snap_2",
+    provider: "TIKTOK",
+    externalAccountId: "7198473829102938476",
+    externalEntityId: "tiktok_adset_88901",
+    entityName: "Back Pain Relief — Interest",
+    date: new Date(Date.now() - 86400000).toISOString(),
+    analysisInput: { ...initialForm, impressions: 14800, clicks: 237, add_to_cart: 14, purchases: 3, revenue: 104.97, ctr: 1.6, cpc: 1.12, cpm: 79 },
+    metrics: { spend: 265.44 },
+  },
+  {
+    id: "demo_snap_3",
+    provider: "META",
+    externalAccountId: "act_384729104",
+    externalEntityId: "23851029384751",
+    entityName: "Lumbar Support — Retargeting",
+    date: new Date(Date.now() - 2 * 86400000).toISOString(),
+    analysisInput: { ...initialForm, impressions: 8200, clicks: 310, add_to_cart: 52, purchases: 12, revenue: 419.88, ctr: 3.78, cpc: 0.58, cpm: 52 },
+    metrics: { spend: 179.8, frequency: 2.1 },
+  },
+];
+
+const MOCK_AD_SETS: AdSetInput[] = [
+  { name: "Meta · US Broad",      spend: 420,  impressions: 22400, clicks: 470, add_to_cart: 38, purchases: 9,  revenue: 314.91, product_price: 34.99, cost: 8.50 },
+  { name: "TikTok · Interest",    spend: 265,  impressions: 14800, clicks: 237, add_to_cart: 14, purchases: 3,  revenue: 104.97, product_price: 34.99, cost: 8.50 },
+  { name: "Meta · Retargeting",   spend: 180,  impressions: 8200,  clicks: 310, add_to_cart: 52, purchases: 12, revenue: 419.88, product_price: 34.99, cost: 8.50 },
+];
+
+const MOCK_BUDGET_RESULT: BudgetAllocationResult = {
+  totalBudget: 1000,
+  summary: "Retargeting dominates on efficiency — allocate the majority there. US Broad has upside with creative testing. TikTok is marginal; hold spend until ROAS recovers.",
+  adSets: [
+    { name: "Meta · US Broad",    spend: 420, roas: 0.75, cpa: 46.67, breakEvenRoas: 1.32, conversionRate: 1.91, efficiencyScore: 0.57, recommendation: "HOLD", recommendedBudget: 270, allocatedPct: 27 },
+    { name: "TikTok · Interest",  spend: 265, roas: 0.40, cpa: 88.48, breakEvenRoas: 1.32, conversionRate: 1.27, efficiencyScore: 0.30, recommendation: "CUT",  recommendedBudget: 110, allocatedPct: 11 },
+    { name: "Meta · Retargeting", spend: 180, roas: 2.33, cpa: 15.00, breakEvenRoas: 1.32, conversionRate: 3.87, efficiencyScore: 1.77, recommendation: "SCALE", recommendedBudget: 620, allocatedPct: 62 },
+  ],
+};
+
+const MOCK_SCENARIO_RESULT: ScenarioResult = {
+  baseline:  { impressions: 18400, clicks: 331, purchases: 4,  revenue: 139.96, spend: 314.45, roas: 0.45, profit: -174.49, cpa: 78.61, conversionRate: 1.21 },
+  projected: { impressions: 18400, clicks: 497, purchases: 9,  revenue: 314.91, spend: 283.01, roas: 1.11, profit:   31.46, cpa: 31.45, conversionRate: 1.81 },
+  delta: { revenue_pct: 124.97, profit_pct: null, roas_pct: 146.67, purchases_pct: 125 },
+  insight: "+50% CTR lift plus +30% conversion improvement brings ROAS to 1.11x — above break-even for the first time. Prioritise hook testing and landing-page CRO before scaling budget.",
+};
+
 const dashboardTabs = new Set(["analysis", "integrations", "budget", "scenario", "settings"]);
 
 function numberInputValue(value: number) {
@@ -189,8 +318,8 @@ export function AnalysisWorkbench() {
 
   // Analysis state
   const [form, setForm] = useState<AnalysisInput>(initialForm);
-  const [result, setResult] = useState<AnalysisOutput | null>(null);
-  const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
+  const [result, setResult] = useState<AnalysisOutput | null>(MOCK_RESULT);
+  const [history, setHistory] = useState<AnalysisHistoryItem[]>(MOCK_HISTORY);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -210,8 +339,8 @@ export function AnalysisWorkbench() {
 
   // Budget Allocation state
   const [budgetTotal, setBudgetTotal] = useState(1000);
-  const [adSets, setAdSets] = useState<AdSetInput[]>([emptyAdSet(), emptyAdSet()]);
-  const [budgetResult, setBudgetResult] = useState<BudgetAllocationResult | null>(null);
+  const [adSets, setAdSets] = useState<AdSetInput[]>(MOCK_AD_SETS);
+  const [budgetResult, setBudgetResult] = useState<BudgetAllocationResult | null>(MOCK_BUDGET_RESULT);
   const [budgetLoading, setBudgetLoading] = useState(false);
   const [budgetError, setBudgetError] = useState<string | null>(null);
 
@@ -220,18 +349,18 @@ export function AnalysisWorkbench() {
     product_price: 34.99, cost: 8.50, impressions: 18400, clicks: 331,
     add_to_cart: 22, purchases: 4, revenue: 139.96, ctr: 1.8, cpc: 0.95, cpm: 72,
   });
-  const [scenarioCtrDelta, setScenarioCtrDelta] = useState(0);
-  const [scenarioConvDelta, setScenarioConvDelta] = useState(0);
+  const [scenarioCtrDelta, setScenarioCtrDelta] = useState(50);
+  const [scenarioConvDelta, setScenarioConvDelta] = useState(30);
   const [scenarioCpcDelta, setScenarioCpcDelta] = useState(0);
   const [scenarioAovDelta, setScenarioAovDelta] = useState(0);
   const [scenarioNewBudget, setScenarioNewBudget] = useState<string>("");
-  const [scenarioResult, setScenarioResult] = useState<ScenarioResult | null>(null);
+  const [scenarioResult, setScenarioResult] = useState<ScenarioResult | null>(MOCK_SCENARIO_RESULT);
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
 
   // Integrations state
-  const [integrations, setIntegrations] = useState<IntegrationConnection[]>([]);
-  const [snapshots, setSnapshots] = useState<IntegrationSnapshot[]>([]);
+  const [integrations, setIntegrations] = useState<IntegrationConnection[]>(MOCK_INTEGRATIONS);
+  const [snapshots, setSnapshots] = useState<IntegrationSnapshot[]>(MOCK_SNAPSHOTS);
   const [shopifyShop, setShopifyShop] = useState("");
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
   const [integrationsMsg, setIntegrationsMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -289,22 +418,25 @@ export function AnalysisWorkbench() {
 
         if (historyRes.ok) {
           const data = await historyRes.json() as Array<{ id: string; createdAt: string; inputData: AnalysisInput; result: AnalysisOutput }>;
-          setHistory(data.map((item) => ({ id: item.id, createdAt: item.createdAt, input: item.inputData, output: item.result })));
+          const mapped = data.map((item) => ({ id: item.id, createdAt: item.createdAt, input: item.inputData, output: item.result }));
+          if (mapped.length > 0) {
+            setHistory(mapped);
+            setResult(mapped[0].output);
+          }
         }
 
         if (integrationsRes.ok) {
-          setIntegrations(await integrationsRes.json() as IntegrationConnection[]);
+          const data = await integrationsRes.json() as IntegrationConnection[];
+          if (data.length > 0) setIntegrations(data);
         }
 
         if (metricsRes.ok) {
           const data = await metricsRes.json() as { snapshots: IntegrationSnapshot[]; latestInput: AnalysisInput | null };
-          setSnapshots(data.snapshots);
-          if (data.latestInput) {
-            setForm(data.latestInput);
-          }
+          if (data.snapshots.length > 0) setSnapshots(data.snapshots);
+          if (data.latestInput) setForm(data.latestInput);
         }
       } catch {
-        if (isMounted) setHistory([]);
+        // keep mock defaults on error
       }
     }
 
@@ -636,6 +768,15 @@ export function AnalysisWorkbench() {
                     <Button variant="outline" className="rounded-full" onClick={refreshIntegrations}>
                       Refresh
                     </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-full"
+                      disabled={integrationsLoading || snapshots.length === 0}
+                      onClick={() => setActiveTab("analysis")}
+                    >
+                      Continue to analysis
+                      <ArrowRight className="size-4" />
+                    </Button>
                   </div>
 
                   {integrationsMsg ? (
@@ -707,7 +848,8 @@ export function AnalysisWorkbench() {
                               setActiveTab("analysis");
                             }}
                           >
-                            Use in form
+                            Continue with this data
+                            <ArrowRight className="size-4" />
                           </Button>
                         </div>
                         <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
@@ -740,6 +882,16 @@ export function AnalysisWorkbench() {
                           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                             Connect an account and run sync to populate daily snapshots.
                           </p>
+                          <div className="mt-5 flex justify-center">
+                            <Button
+                              className="rounded-full"
+                              onClick={integrations.length ? syncIntegrations : () => connectProvider("META")}
+                              disabled={integrationsLoading}
+                            >
+                              {integrationsLoading ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+                              {integrations.length ? "Continue: sync data" : "Continue: connect Meta Ads"}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -995,6 +1147,16 @@ export function AnalysisWorkbench() {
                           ))}
                         </div>
                       </div>
+
+                      <div className="flex flex-wrap gap-3 border-t border-border pt-4">
+                        <Button className="rounded-full" onClick={() => setActiveTab("budget")}>
+                          Continue to budget check
+                          <ArrowRight className="size-4" />
+                        </Button>
+                        <Button variant="outline" className="rounded-full" onClick={() => setActiveTab("scenario")}>
+                          Continue to scenario check
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex min-h-[520px] items-center justify-center rounded-3xl border border-dashed border-border text-center">
@@ -1004,6 +1166,12 @@ export function AnalysisWorkbench() {
                           The dashboard will return a decision, diagnosis, profitability check,
                           funnel leak, creative ideas, and the next actions from one input.
                         </p>
+                        <div className="mt-5 flex justify-center">
+                          <Button className="rounded-full" onClick={submit} disabled={isSubmitting}>
+                            {isSubmitting ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+                            Continue: run data check
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1047,7 +1215,7 @@ export function AnalysisWorkbench() {
               <Card className="border-border bg-card py-0 shadow-none">
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Recent analyses</CardTitle>
-                  <CardDescription>Loaded from PostgreSQL when DATABASE_URL is configured.</CardDescription>
+                  <CardDescription>Your past analyses — tap any to review the decision.</CardDescription>
                 </CardHeader>
                 <CardContent className="px-6 py-6">
                   {history.length ? (
@@ -1073,7 +1241,7 @@ export function AnalysisWorkbench() {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No saved analyses yet. Configure PostgreSQL and run the form once.
+                      No analyses yet — run the form above to get your first recommendation.
                     </p>
                   )}
                 </CardContent>

@@ -144,6 +144,18 @@ export async function generateAndSendDigest(userId: string): Promise<DigestSumma
   const storeName = user.storeName ?? "";
 
   const summary = await generateDigestContent(storeUrl, storeName);
+  const fatigueAlerts = await prisma.fatigueAlert.findMany({
+    where: { userId, status: "active" },
+    orderBy: { detectedAt: "desc" },
+    take: 3,
+  });
+
+  if (fatigueAlerts.length > 0) {
+    const fatigueSummary = fatigueAlerts
+      .map((alert) => `Creative fatigue: ${alert.creativeName}`)
+      .join("; ");
+    summary.alert = summary.alert ? `${summary.alert} ${fatigueSummary}` : fatigueSummary;
+  }
 
   await prisma.notification.create({
     data: {

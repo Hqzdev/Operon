@@ -29,12 +29,15 @@ import { getApiBaseUrl } from "@/lib/api-base-url";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { BenchmarkComparePanel } from "@/components/dashboard/BenchmarkComparePanel";
+import { CreativeFatigueAlerts } from "@/components/dashboard/CreativeFatigueAlerts";
 
 type UserProfile = {
   name: string | null;
   email: string;
   storeName?: string | null;
   storeUrl?: string | null;
+  niche?: string | null;
   activeStore?: { name: string; url: string } | null;
   usageCount: number;
   usageLimit?: number;
@@ -51,6 +54,7 @@ type HistoryItem = {
 
 type Snapshot = {
   id: string;
+  provider?: string;
   date: string;
   entityName: string | null;
   externalEntityId: string;
@@ -245,6 +249,22 @@ export function DashboardHome() {
     };
   }, [filteredHistory, filteredSnapshots, latestInput, history]);
 
+  const benchmarkMetrics = useMemo(() => {
+    const source =
+      filteredSnapshots[0]?.analysisInput ??
+      latestInput ??
+      filteredHistory[0]?.inputData ??
+      history[0]?.inputData;
+    const spend = source ? source.cpc * source.clicks : 0;
+    return {
+      ctr: source?.ctr ?? 0,
+      cpc: source?.cpc ?? 0,
+      cpm: source?.cpm ?? 0,
+      cpa: source && source.purchases > 0 ? spend / source.purchases : 0,
+      roas: spend > 0 ? (source?.revenue ?? 0) / spend : 0,
+    };
+  }, [filteredHistory, filteredSnapshots, latestInput, history]);
+
   const chartData = useMemo(() => {
     const byDate = new Map<string, { date: string; revenue: number; purchases: number; clicks: number }>();
     const addPoint = (date: string, input: AnalysisInput) => {
@@ -331,7 +351,7 @@ export function DashboardHome() {
                 <span className="truncate">Connect your ad accounts to keep everything updated automatically.</span>
               </span>
               <Button variant="ghost" size="sm" className="h-7 rounded-md px-3 text-[13px] font-semibold" onClick={() => router.push("/dashboard?tab=integrations")}>
-                Connect
+                Continue
               </Button>
             </div>
             <div className="flex h-10 items-center gap-3 rounded-lg border border-border bg-card px-4 text-[13px] text-muted-foreground">
@@ -357,6 +377,14 @@ export function DashboardHome() {
             </button>
           ))}
         </div>
+
+        <CreativeFatigueAlerts />
+
+        <BenchmarkComparePanel
+          niche={user?.niche}
+          platform={filteredSnapshots[0]?.provider ?? snapshots[0]?.provider ?? "META"}
+          metrics={benchmarkMetrics}
+        />
 
         <section className="grid gap-4 md:grid-cols-2">
           {[

@@ -3,6 +3,7 @@ import { analysisRoutes } from "./analysisRoutes";
 import { analyticsRoutes } from "./analyticsRoutes";
 import { authRoutes } from "./authRoutes";
 import { budgetRoutes } from "./budgetRoutes";
+import { fatigueRoutes } from "./fatigueRoutes";
 import { notificationRoutes } from "./notificationRoutes";
 import { onboardingRoutes } from "./onboardingRoutes";
 import { paymentRoutes } from "./paymentRoutes";
@@ -20,5 +21,6 @@ router.use("/onboarding", onboardingRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/budget", budgetRoutes);
 router.use("/scenario", scenarioRoutes);
+router.use("/fatigue-alerts", fatigueRoutes);
 
 export { router as apiRoutes };

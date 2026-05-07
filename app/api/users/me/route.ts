@@ -21,8 +21,8 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const userId = getAuthUserId(request);
-    const { name, storeName } = await request.json();
-    const profile = await updateUserProfile(userId, { name, storeName });
+    const { name, storeName, niche } = await request.json();
+    const profile = await updateUserProfile(userId, { name, storeName, niche });
     return NextResponse.json(profile);
   } catch (error) {
     return errorResponse(error);

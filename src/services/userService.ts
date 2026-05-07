@@ -9,6 +9,7 @@ const profileSelect = {
   name: true,
   storeName: true,
   storeUrl: true,
+  niche: true,
   activeStoreId: true,
   onboardingCompleted: true,
   plan: true,
@@ -61,10 +62,10 @@ export async function getUserProfile(userId: string) {
   };
 }
 
-export async function updateUserProfile(userId: string, input: { name?: string; storeName?: string }) {
+export async function updateUserProfile(userId: string, input: { name?: string; storeName?: string; niche?: string }) {
   const user = await prisma.user.update({
     where: { id: userId },
-    data: { name: input.name, storeName: input.storeName },
+    data: { name: input.name, storeName: input.storeName, niche: input.niche },
     select: profileSelect,
   });
   return user;

@@ -90,6 +90,7 @@ export default function OnboardingPage() {
               onboardingCompleted: true,
               storeName: (data.analysis as StoreAnalysis).storeName,
               storeUrl: url,
+              niche: (data.analysis as StoreAnalysis).niche,
             }),
           );
         } catch {
@@ -309,7 +310,7 @@ export default function OnboardingPage() {
                   className="rounded-xl px-8"
                 >
                   <Link href="/dashboard">
-                    Go to Dashboard
+                    Continue to Dashboard
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
