@@ -1796,19 +1796,19 @@ export function AnalysisWorkbench() {
                           <div className="rounded-xl bg-muted/40 p-3">
                             <div className="text-xs text-muted-foreground">CPA</div>
                             <div className="mt-1 font-medium tabular-nums">
-                              {formatMetricDelta(scenario.delta.cpaPct)} ({formatMoney(simulationResult.baseline.cpa)} -> {formatMoney(scenario.expected.cpa)})
+                              {formatMetricDelta(scenario.delta.cpaPct)} ({formatMoney(simulationResult.baseline.cpa)} {"->"} {formatMoney(scenario.expected.cpa)})
                             </div>
                           </div>
                           <div className="rounded-xl bg-muted/40 p-3">
                             <div className="text-xs text-muted-foreground">Revenue</div>
                             <div className="mt-1 font-medium tabular-nums">
-                              {formatMetricDelta(scenario.delta.revenuePct)} ({formatMoney(simulationResult.baseline.revenue)} -> {formatMoney(scenario.expected.revenue)})
+                              {formatMetricDelta(scenario.delta.revenuePct)} ({formatMoney(simulationResult.baseline.revenue)} {"->"} {formatMoney(scenario.expected.revenue)})
                             </div>
                           </div>
                           <div className="rounded-xl bg-muted/40 p-3">
                             <div className="text-xs text-muted-foreground">ROAS</div>
                             <div className="mt-1 font-medium tabular-nums">
-                              {formatMetricDelta(scenario.delta.roasPct)} ({simulationResult.baseline.roas.toFixed(2)} -> {scenario.expected.roas.toFixed(2)})
+                              {formatMetricDelta(scenario.delta.roasPct)} ({simulationResult.baseline.roas.toFixed(2)} {"->"} {scenario.expected.roas.toFixed(2)})
                             </div>
                           </div>
                         </div>
