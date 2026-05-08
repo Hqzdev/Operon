@@ -180,32 +180,69 @@ function SidebarBottomBlock() {
 
   return (
     <div className="space-y-4 group-data-[collapsible=icon]:hidden">
-      <div className="space-y-2 px-3">
-        <div className="flex items-center justify-between text-[13px] text-sidebar-foreground/70">
-          <span>Usage</span>
-          <Link href="/dashboard?tab=settings" className="font-medium text-sidebar-foreground hover:text-sidebar-foreground">
-            Upgrade
-          </Link>
-        </div>
-        <div className="h-1.5 rounded-full bg-destructive" />
-      </div>
-
       <div className="space-y-1">
         <SidebarMenuItem>
-          <SidebarMenuButton
-            asChild
-            size="default"
-            tooltip="What's New"
-            className="h-10 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4"
-          >
-            <Link href="/docs" className="justify-between">
-              <span className="flex items-center gap-3">
+          <Popover>
+            <PopoverTrigger asChild>
+              <SidebarMenuButton
+                size="default"
+                tooltip="What's New"
+                className="h-10 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4"
+              >
                 <Sparkles size={16} />
                 <span>What's New</span>
-              </span>
-              <PanelLeftClose size={15} className="text-muted-foreground" />
-            </Link>
-          </SidebarMenuButton>
+                <PanelLeftClose size={15} className="ml-auto text-muted-foreground" />
+              </SidebarMenuButton>
+            </PopoverTrigger>
+            <PopoverContent
+              side="right"
+              align="end"
+              sideOffset={14}
+              className="w-[420px] overflow-hidden rounded-3xl border-border p-0 shadow-xl"
+            >
+              <div className="border-b px-8 py-6">
+                <div className="text-[20px] font-semibold tracking-normal">What's New</div>
+              </div>
+              <div className="divide-y">
+                <div className="px-8 py-6">
+                  <div className="flex items-start justify-between gap-5">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-[12px] font-semibold text-emerald-700">
+                        NEW
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[17px] font-semibold leading-snug">
+                          Reddit acquisition engine
+                        </div>
+                        <p className="mt-2 text-[14px] leading-6 text-muted-foreground">
+                          Find high-intent Reddit posts about CPM spikes, ROAS drops, CPA issues, and creative fatigue with outreach angles.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[13px] text-muted-foreground">Today</span>
+                  </div>
+                </div>
+                <div className="px-8 py-6">
+                  <div className="flex items-start justify-between gap-5">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-[12px] font-semibold text-blue-700">
+                        IMPROVED
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[17px] font-semibold leading-snug">
+                          Budget prediction simulator
+                        </div>
+                        <p className="mt-2 text-[14px] leading-6 text-muted-foreground">
+                          Preview CPA, revenue, ROAS, risk level, and confidence before changing campaign budgets.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[13px] text-muted-foreground">Today</span>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </SidebarMenuItem>
         <SidebarMenuItem>
           <SidebarMenuButton
