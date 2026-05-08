@@ -1,6 +1,6 @@
 # Operon Chrome Extension
 
-Autopilot расширение для Operon — анализ рекламных кампаний прямо из браузера.
+Autopilot расширение для Operon — синхронизация Meta, TikTok и Shopify метрик прямо из браузера через extension key.
 
 ## Структура
 
@@ -10,13 +10,14 @@ chrome-extension/
 ├── popup.html                 UI попапа
 ├── src/
 │   ├── popup/
-│   │   ├── popup.js           Логика попапа (auth, анализ, autopilot)
+│   │   ├── popup.js           Логика попапа (extension key, sync, autopilot)
 │   │   └── popup.css          Стили
 │   ├── background/
 │   │   └── service-worker.js  Фоновый worker (alarms, notifications, sync)
 │   └── content/
 │       ├── meta.js            Scraper для Meta Ads Manager
-│       └── tiktok.js          Scraper для TikTok Ads Manager
+│       ├── tiktok.js          Scraper для TikTok Ads Manager
+│       └── shopify.js         Scraper для Shopify Admin
 └── icons/                     16px, 48px, 128px иконки (добавить вручную)
 ```
 
@@ -28,11 +29,18 @@ chrome-extension/
 
 ## Функции
 
-- **Auth** — вставить API-токен из Operon Dashboard → Settings
-- **Быстрый анализ** — ввести метрики → получить SCALE/KILL/WATCH без открытия сайта
-- **Автозаполнение** — при открытии Meta / TikTok Ads Manager метрики заполняются автоматически
-- **Autopilot** — синхронизация раз в 24ч, Chrome-уведомления при изменении решений или падении ROAS
+- **Extension key** — вставить ключ из Operon → Settings → Integrations
+- **Sync to Operon** — отправить видимые метрики текущей страницы в `/integrations/extension/sync`
+- **Автозаполнение** — при открытии Meta / TikTok / Shopify метрики заполняются автоматически
+- **Autopilot** — синхронизация открытых вкладок раз в 24ч
 - **Sync now** — ручной запуск синхронизации
+
+## Как подключить
+
+1. В Operon открыть `Settings → Integrations`.
+2. Нажать `Connect via extension` для Meta, TikTok или Shopify.
+3. Скопировать extension key в попап расширения.
+4. Открыть Ads Manager или Shopify Admin и нажать `Sync to Operon`.
 
 ## Иконки
 

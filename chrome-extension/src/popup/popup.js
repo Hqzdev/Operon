@@ -1,4 +1,6 @@
-const API = "https://operons.vercel.app/api";
+const DEFAULT_API_BASE = "https://operons.vercel.app/api";
+let activeProvider = null;
+let activeAccountName = "";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
@@ -12,15 +14,31 @@ function showScreen(name) {
   });
 }
 
-function getToken() {
+function getSettings() {
   return new Promise((resolve) =>
-    chrome.storage.local.get("operon_token", (r) => resolve(r.operon_token ?? null))
+    chrome.storage.local.get(
+      ["operon_extension_key", "operon_api_base", "operon_account_name", "last_sync_result"],
+      (r) =>
+        resolve({
+          extensionKey: r.operon_extension_key || "",
+          apiBase: r.operon_api_base || DEFAULT_API_BASE,
+          accountName: r.operon_account_name || "",
+          lastSyncResult: r.last_sync_result || null,
+        })
+    )
   );
 }
 
-function setToken(token) {
+function setSettings(settings) {
   return new Promise((resolve) =>
-    chrome.storage.local.set({ operon_token: token }, resolve)
+    chrome.storage.local.set(
+      {
+        operon_extension_key: settings.extensionKey,
+        operon_api_base: settings.apiBase || DEFAULT_API_BASE,
+        operon_account_name: settings.accountName || "",
+      },
+      resolve
+    )
   );
 }
 
@@ -36,18 +54,60 @@ function setAutopilot(enabled) {
   );
 }
 
-function apiFetch(path, options = {}) {
-  return getToken().then((token) => {
-    if (!token) throw new Error("no_token");
-    return fetch(`${API}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(options.headers ?? {}),
-      },
-    });
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function slug(value, fallback = "creative") {
+  return String(value || fallback)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80) || fallback;
+}
+
+async function syncMetrics(provider, rows, accountName = "") {
+  const settings = await getSettings();
+  if (!settings.extensionKey) throw new Error("Paste extension key first");
+
+  const metrics = rows.map((row, index) => {
+    const purchases = Number(row.purchases || 0);
+    const revenue = Number(row.revenue || 0);
+    const name = row.name || row.entityName || `Creative ${index + 1}`;
+
+    return {
+      externalEntityId: row.externalEntityId || row.id || `${provider.toLowerCase()}-${slug(name)}-${index}`,
+      entityName: name,
+      date: todayIsoDate(),
+      spend: Number(row.spend || 0),
+      impressions: Number(row.impressions || 0),
+      clicks: Number(row.clicks || 0),
+      add_to_cart: Number(row.add_to_cart || row.addToCart || 0),
+      purchases,
+      revenue,
+      frequency: Number(row.frequency || 0),
+      product_price: Number(row.product_price || (purchases ? revenue / purchases : 0)),
+      cost: Number(row.cost || 0),
+      source: { ...row, provider, capturedBy: "operon-popup", capturedAt: new Date().toISOString() },
+    };
   });
+
+  const res = await fetch(`${settings.apiBase}/integrations/extension/sync`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider,
+      extensionKey: settings.extensionKey,
+      accountName: accountName || settings.accountName || `${provider} browser sync`,
+      externalAccountId: accountName || settings.accountName || provider.toLowerCase(),
+      metrics,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || "Sync failed");
+  chrome.storage.local.set({ last_sync: new Date().toISOString(), last_sync_result: data });
+  return data;
 }
 
 function decisionClass(d) {
@@ -59,31 +119,32 @@ function decisionClass(d) {
 // ── init ─────────────────────────────────────────────────────────────────────
 async function init() {
   showScreen("loading");
-  const token = await getToken();
-  if (!token) { showScreen("auth"); return; }
+  const settings = await getSettings();
+  $("token-input").value = settings.extensionKey;
+  if ($("api-base-input")) $("api-base-input").value = settings.apiBase;
+  if ($("account-name-input")) $("account-name-input").value = settings.accountName;
 
-  try {
-    const res = await apiFetch("/users/me");
-    if (res.status === 401) { await setToken(null); showScreen("auth"); return; }
-    showScreen("main");
-    await onMainLoaded();
-  } catch {
+  if (!settings.extensionKey) {
     showScreen("auth");
+    return;
   }
+
+  showScreen("main");
+  await onMainLoaded();
 }
 
 // ── auth screen ───────────────────────────────────────────────────────────────
 $("btn-save-token").addEventListener("click", async () => {
-  const token = $("token-input").value.trim();
-  if (!token) return;
+  const extensionKey = $("token-input").value.trim();
+  if (!extensionKey) return;
   hide("auth-error");
   $("btn-save-token").disabled = true;
   try {
-    const res = await fetch(`${API}/users/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+    await setSettings({
+      extensionKey,
+      apiBase: $("api-base-input")?.value.trim() || DEFAULT_API_BASE,
+      accountName: $("account-name-input")?.value.trim() || "",
     });
-    if (!res.ok) throw new Error("Invalid token");
-    await setToken(token);
     showScreen("main");
     await onMainLoaded();
   } catch (err) {
@@ -96,7 +157,7 @@ $("btn-save-token").addEventListener("click", async () => {
 
 // ── logout ────────────────────────────────────────────────────────────────────
 $("btn-logout").addEventListener("click", async () => {
-  await setToken(null);
+  await setSettings({ extensionKey: "", apiBase: DEFAULT_API_BASE, accountName: "" });
   showScreen("auth");
 });
 
@@ -166,23 +227,9 @@ $("btn-analyze").addEventListener("click", async () => {
   $("btn-analyze").textContent = "Analyzing…";
 
   try {
-    const res = await apiFetch("/analysis", {
-      method: "POST",
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message ?? "Analysis failed");
-
-    const result = data.result ?? data;
-    showAnalysisResult(result, form.product_name);
-
-    chrome.storage.local.set({
-      last_result: {
-        decision: result.decision,
-        productName: form.product_name,
-        shortReason: result.decision?.shortReason ?? "",
-      },
-    });
+    const provider = activeProvider || "META";
+    const data = await syncMetrics(provider, [{ ...form, name: form.product_name }], activeAccountName);
+    showSyncResult(data, form.product_name);
   } catch (err) {
     $("analyze-error").textContent = err.message;
     show("analyze-error");
@@ -191,9 +238,23 @@ $("btn-analyze").addEventListener("click", async () => {
     $("btn-analyze").innerHTML = `
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-      </svg> Run analysis`;
+      </svg> Sync to Operon`;
   }
 });
+
+function showSyncResult(result, productName) {
+  const count = result.count ?? 1;
+  $("res-decision").textContent = "SYNCED";
+  $("res-decision").className = "badge badge-scale";
+  $("res-confidence").textContent = `${count} metric snapshot${count === 1 ? "" : "s"}`;
+  $("res-reason").textContent = `${productName} is now available in the Operon dashboard.`;
+  $("d-roas").textContent = "-";
+  $("d-spend").textContent = "-";
+  $("d-be-roas").textContent = "-";
+  $("d-margin").textContent = "-";
+  $("res-actions").innerHTML = "";
+  show("result-block");
+}
 
 function showAnalysisResult(result, productName) {
   const decision = result.decision?.finalDecision ?? "—";
@@ -232,6 +293,8 @@ async function tryScrapeActiveTab() {
     if (!response?.metrics) return;
 
     const m = response.metrics;
+    activeProvider = response.provider || null;
+    activeAccountName = response.accountName || "";
     if (m.impressions) $("f-impressions").value = m.impressions;
     if (m.clicks)      $("f-clicks").value      = m.clicks;
     if (m.cpc)         $("f-cpc").value          = m.cpc;
@@ -240,6 +303,7 @@ async function tryScrapeActiveTab() {
     if (m.revenue)     $("f-revenue").value      = m.revenue;
     if (m.name)        $("f-product").value      = m.name;
 
+    $("scrape-hint").lastChild.textContent = " Fields auto-filled from the current page";
     show("scrape-hint");
   } catch {
     // not on a supported ads page
@@ -265,6 +329,8 @@ async function scanCurrentPage() {
       .catch(() => null);
 
     scrapedCampaigns = response?.campaigns ?? [];
+    activeProvider = response?.provider || activeProvider;
+    activeAccountName = response?.accountName || activeAccountName;
     campaignResults  = {};
     renderCampaignList();
   } catch {
@@ -338,31 +404,12 @@ async function analyzeAll() {
 
   for (let i = 0; i < scrapedCampaigns.length; i++) {
     const campaign = scrapedCampaigns[i];
-    $("bulk-progress").textContent = `Analyzing ${i + 1} / ${scrapedCampaigns.length}…`;
+    $("bulk-progress").textContent = `Syncing ${i + 1} / ${scrapedCampaigns.length}…`;
     $("bulk-progress-fill").style.width = `${Math.round((i / scrapedCampaigns.length) * 100)}%`;
 
     try {
-      const form = {
-        product_name:        campaign.name || `Campaign ${i + 1}`,
-        product_price:       0,
-        cost:                0,
-        impressions:         campaign.impressions || 0,
-        clicks:              campaign.clicks || 0,
-        cpc:                 campaign.cpc || 0,
-        ctr:                 campaign.ctr || 0,
-        purchases:           campaign.purchases || 0,
-        revenue:             campaign.revenue || 0,
-        add_to_cart:         0,
-        cpm:                 0,
-        stage:               "testing",
-        product_description: "",
-      };
-
-      const res  = await apiFetch("/analysis", { method: "POST", body: JSON.stringify(form) });
-      const data = await res.json();
-      if (res.ok) {
-        campaignResults[i] = data.result ?? data;
-      }
+      await syncMetrics(activeProvider || "META", [campaign], activeAccountName);
+      campaignResults[i] = { decision: { finalDecision: "SYNCED" } };
     } catch {
       // continue on individual failure
     }
@@ -372,13 +419,13 @@ async function analyzeAll() {
   }
 
   $("bulk-progress-fill").style.width = "100%";
-  $("bulk-progress").textContent = `Done — ${completed} analyzed`;
+  $("bulk-progress").textContent = `Done — ${completed} synced`;
 
   btn.disabled = false;
   btn.innerHTML = `
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-    </svg> Re-analyze all`;
+    </svg> Sync all again`;
 }
 
 // ── autopilot toggle ──────────────────────────────────────────────────────────

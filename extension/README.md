@@ -1,6 +1,6 @@
 # Operon Lens Extension
 
-Chrome extension scaffold for the Operon in-browser decision layer.
+Chrome extension for the Operon in-browser integration layer.
 
 ## Load Locally
 
@@ -11,15 +11,17 @@ Chrome extension scaffold for the Operon in-browser decision layer.
 
 ## Current Scope
 
-- Manifest V3 extension shell.
-- Popup with page scan controls.
+- Manifest V3 extension.
+- Popup with extension key, page scan, and sync controls.
 - Background service worker.
 - Content script registration for Meta, TikTok, and Shopify surfaces.
-- Basic page-kind detection.
+- Basic visible metric parsing for Meta, TikTok, and Shopify.
+- POST sync to `/integrations/extension/sync`.
 
-## Next Steps
+## Connect
 
-1. Add auth with the existing Operon JWT.
-2. Add manual metric capture in popup.
-3. Add Send to Operon form.
-4. Add Meta, TikTok, and Shopify parsers.
+1. Open Operon → Settings → Integrations.
+2. Create an extension connection and copy the extension key.
+3. Paste the key in the extension popup.
+4. Open Meta Ads, TikTok Ads, or Shopify Admin.
+5. Click Sync data.

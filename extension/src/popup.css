@@ -59,6 +59,40 @@ h1 {
   border: 1px solid rgba(22, 22, 22, 0.1);
   border-radius: 8px;
   display: grid;
+  overflow: hidden;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.field + .field,
+.field + .row {
+  border-top: 1px solid rgba(22, 22, 22, 0.08);
+}
+
+.field span {
+  color: #696760;
+  font-size: 12px;
+}
+
+input {
+  appearance: none;
+  background: #fbfaf7;
+  border: 1px solid rgba(22, 22, 22, 0.12);
+  border-radius: 8px;
+  color: #161616;
+  font: inherit;
+  font-size: 13px;
+  height: 36px;
+  outline: none;
+  padding: 0 10px;
+}
+
+input:focus {
+  border-color: rgba(22, 22, 22, 0.35);
 }
 
 .row {
@@ -93,6 +127,10 @@ h1 {
   display: grid;
   gap: 10px;
   grid-template-columns: 1fr 1fr;
+}
+
+.actions .secondary {
+  grid-column: 1 / -1;
 }
 
 button {

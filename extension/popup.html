@@ -11,12 +11,24 @@
       <header class="header">
         <div>
           <p class="eyebrow">Operon Lens</p>
-          <h1>Page scanner scaffold</h1>
+          <h1>Extension sync</h1>
         </div>
         <span id="page-kind" class="badge">Detecting</span>
       </header>
 
       <section class="panel">
+        <label class="field">
+          <span>Extension key</span>
+          <input id="extension-key-input" type="password" placeholder="Paste key from Integrations" />
+        </label>
+        <label class="field">
+          <span>Account name</span>
+          <input id="account-name-input" type="text" placeholder="Optional" />
+        </label>
+        <label class="field">
+          <span>API base</span>
+          <input id="api-base-input" type="text" placeholder="https://operons.vercel.app/api" />
+        </label>
         <div class="row">
           <span>Current page</span>
           <strong id="current-host">-</strong>
@@ -29,13 +41,14 @@
 
       <section class="actions">
         <button id="scan-button" type="button">Scan page</button>
+        <button id="sync-button" type="button">Sync data</button>
         <button id="open-dashboard-button" type="button" class="secondary">
           Open Operon
         </button>
       </section>
 
       <p id="status-message" class="status">
-        Auth, metric capture, and parser logic come in the next steps.
+        Paste the extension key from Operon Integrations, then sync Meta, TikTok, or Shopify.
       </p>
     </main>
     <script src="src/popup.js" type="module"></script>

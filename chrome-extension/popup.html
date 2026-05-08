@@ -17,13 +17,21 @@
         </svg>
         Operon
       </div>
-      <p class="subtitle">Sign in to use Autopilot</p>
+      <p class="subtitle">Connect the browser extension</p>
       <div class="field">
-        <label for="token-input">API token</label>
-        <input id="token-input" type="password" placeholder="Paste token from your dashboard" />
+        <label for="token-input">Extension key</label>
+        <input id="token-input" type="password" placeholder="Paste key from Integrations" />
       </div>
-      <p class="hint">Settings → API → Copy token</p>
-      <button id="btn-save-token" class="btn btn-primary">Sign in</button>
+      <div class="field">
+        <label for="account-name-input">Account name</label>
+        <input id="account-name-input" type="text" placeholder="Optional" />
+      </div>
+      <div class="field">
+        <label for="api-base-input">API base</label>
+        <input id="api-base-input" type="text" placeholder="https://operons.vercel.app/api" />
+      </div>
+      <p class="hint">Operon → Settings → Integrations → Connect via extension</p>
+      <button id="btn-save-token" class="btn btn-primary">Continue</button>
       <p id="auth-error" class="error hidden"></p>
     </div>
 
@@ -122,7 +130,7 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
           </svg>
-          Run analysis
+          Sync to Operon
         </button>
 
         <div id="result-block" class="result-block hidden">
@@ -170,7 +178,7 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
             </svg>
-            Analyze all campaigns
+            Sync all campaigns
           </button>
         </div>
 
@@ -188,7 +196,7 @@
         <div class="autopilot-toggle-row">
           <div>
             <div class="toggle-title">Autopilot</div>
-            <div class="toggle-sub">Auto-analyze every 24 hours</div>
+            <div class="toggle-sub">Sync browser metrics every 24 hours</div>
           </div>
           <label class="switch">
             <input id="autopilot-switch" type="checkbox" />
@@ -201,8 +209,8 @@
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
           </svg>
           <div>
-            <div class="info-title">No API key needed</div>
-            <div class="info-body">Keep an Ads Manager tab open in Chrome. Autopilot reads campaign data directly from the page and runs analysis automatically.</div>
+            <div class="info-title">Extension key connection</div>
+            <div class="info-body">Keep Meta, TikTok, or Shopify open in Chrome. Operon reads visible metrics and syncs them to your dashboard.</div>
           </div>
         </div>
 
@@ -210,16 +218,16 @@
           <div class="how-label">How Autopilot works</div>
           <ol class="steps">
             <li>
-              <strong>Reads your Ads Manager</strong>
-              Every 24 hours it scans your open Meta or TikTok Ads Manager tab.
+              <strong>Reads your workspace</strong>
+              Every 24 hours it scans your open Meta, TikTok, or Shopify tab.
             </li>
             <li>
-              <strong>Runs analysis</strong>
-              Each campaign gets a SCALE / KILL / FIX verdict instantly.
+              <strong>Syncs snapshots</strong>
+              Campaign and store metrics appear in Operon without direct platform APIs.
             </li>
             <li>
-              <strong>Notifies you of changes</strong>
-              If a decision flips or ROAS drops below break-even, you get a Chrome notification.
+              <strong>Powers alerts</strong>
+              Dashboard fatigue, benchmarks, confidence, and history use the synced data.
             </li>
           </ol>
         </div>

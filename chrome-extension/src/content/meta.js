@@ -5,7 +5,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "SCRAPE_METRICS") {
     try {
       const campaigns = scrapeAllCampaigns();
-      sendResponse({ metrics: campaigns[0] ?? null });
+      sendResponse({ provider: "META", accountName: getAccountName(), metrics: campaigns[0] ?? null });
     } catch {
       sendResponse({ metrics: null });
     }
@@ -15,7 +15,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "SCRAPE_ALL") {
     try {
       const campaigns = scrapeAllCampaigns();
-      sendResponse({ campaigns });
+      sendResponse({ provider: "META", accountName: getAccountName(), campaigns });
     } catch {
       sendResponse({ campaigns: [] });
     }
@@ -51,6 +51,10 @@ function scrapeAllCampaigns() {
       firstCell;
     campaign.name = (nameEl.textContent ?? "").trim().replace(/\s+/g, " ");
     if (!campaign.name) return;
+    campaign.externalEntityId = row.getAttribute("data-testid") ||
+      row.getAttribute("data-id") ||
+      row.getAttribute("id") ||
+      `meta-${slug(campaign.name)}`;
 
     // Header-based column extraction
     if (headers.length > 0) {
@@ -146,7 +150,22 @@ function scrapeAllCampaigns() {
 }
 
 function parseNumber(str) {
-  const cleaned = (str ?? "").replace(/[$,%\s]/g, "").replace(",", ".");
+  const cleaned = (str ?? "")
+    .replace(/[^\d,.\-]/g, "")
+    .replace(/,(?=\d{3}\b)/g, "")
+    .replace(",", ".");
   const num = parseFloat(cleaned);
   return isFinite(num) && num >= 0 ? num : null;
+}
+
+function getAccountName() {
+  return document.title?.replace(/\s+\|.*/g, "").trim() || window.location.hostname;
+}
+
+function slug(value) {
+  return String(value || "creative")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80) || "creative";
 }

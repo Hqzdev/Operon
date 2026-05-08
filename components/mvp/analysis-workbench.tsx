@@ -410,6 +410,7 @@ export function AnalysisWorkbench() {
   const [confirmAction, setConfirmAction] = useState<AdActionType | null>(null);
   const [adActionLoading, setAdActionLoading] = useState(false);
   const [adActionMsg, setAdActionMsg] = useState<{ type: "ok" | "err"; text: string; actionId?: string } | null>(null);
+  const [paymentContactPlan, setPaymentContactPlan] = useState<"PRO" | "SCALE" | null>(null);
 
   // Tab state
   const [activeTab, setActiveTab] = useState("analysis");
@@ -643,18 +644,8 @@ export function AnalysisWorkbench() {
     }
   }
 
-  async function upgradePlan(plan: "PRO" | "SCALE") {
-    const token = getToken();
-    if (!token) return;
-    const res = await fetch(`${apiBaseUrl}/payments/create`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ plan }),
-    });
-    const data = await res.json() as { confirmationUrl?: string; message?: string };
-    if (res.ok && data.confirmationUrl) {
-      window.location.href = data.confirmationUrl;
-    }
+  function upgradePlan(plan: "PRO" | "SCALE") {
+    setPaymentContactPlan(plan);
   }
 
   async function refreshIntegrations() {
@@ -2192,7 +2183,7 @@ export function AnalysisWorkbench() {
                             ))}
                           </div>
                           <p className="text-[11px] text-muted-foreground text-center">
-                            Payments via YooKassa · Cancel anytime
+                            Manual activation · Write us to start
                           </p>
                         </div>
                       )}
@@ -2420,6 +2411,54 @@ export function AnalysisWorkbench() {
                 >
                   {adActionLoading ? <LoaderCircle className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
                   Confirm
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={Boolean(paymentContactPlan)} onOpenChange={(open) => !open && setPaymentContactPlan(null)}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="text-base">
+                  Upgrade to {paymentContactPlan === "PRO" ? "Basic" : "Pro"}
+                </DialogTitle>
+                <DialogDescription className="text-xs leading-5">
+                  Payments are activated manually while we test international billing.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-4 text-sm">
+                <p className="leading-6 text-muted-foreground">
+                  To activate this plan, send us your account email and selected plan in Reddit or by email.
+                </p>
+                <div className="rounded-lg border border-border bg-background px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Email</div>
+                  <div className="mt-1 font-medium">wkeyqwert@gmail.com</div>
+                </div>
+                <div className="rounded-lg border border-border bg-background px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Message</div>
+                  <div className="mt-1 text-[13px] leading-5">
+                    Please activate {paymentContactPlan === "PRO" ? "Basic $9/mo" : "Pro $19/mo"} for {user?.email ?? "my account"}.
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-full text-xs"
+                  onClick={() => setPaymentContactPlan(null)}
+                >
+                  Close
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 rounded-full text-xs"
+                  onClick={() => {
+                    const planLabel = paymentContactPlan === "PRO" ? "Basic $9/mo" : "Pro $19/mo";
+                    window.location.href = `mailto:wkeyqwert@gmail.com?subject=Operon ${encodeURIComponent(planLabel)} activation&body=${encodeURIComponent(`Please activate ${planLabel} for ${user?.email ?? "my account"}.`)}`;
+                  }}
+                >
+                  <CreditCard className="size-3.5" />
+                  Write by email
                 </Button>
               </div>
             </DialogContent>

@@ -29,7 +29,10 @@
     "https://*.facebook.com/*",
     "https://business.facebook.com/*",
     "https://ads.tiktok.com/*",
+    "https://business.tiktok.com/*",
     "https://*.myshopify.com/*",
-    "https://admin.shopify.com/*"
+    "https://admin.shopify.com/*",
+    "https://operons.vercel.app/*",
+    "http://localhost:3000/*"
   ]
 }
