@@ -300,6 +300,16 @@ const emptyAdSet = (): AdSetInput => ({
 });
 
 const dashboardTabs = new Set(["analysis", "integrations", "budget", "scenario", "settings"]);
+type SettingsSection = "account" | "billing" | "integrations" | "api" | "notifications" | "data";
+
+const settingsNav: Array<{ key: SettingsSection; label: string; icon: typeof UserCircle }> = [
+  { key: "account", label: "Account", icon: UserCircle },
+  { key: "billing", label: "Billing", icon: CreditCard },
+  { key: "integrations", label: "Integrations", icon: Link2 },
+  { key: "api", label: "API", icon: Code2 },
+  { key: "notifications", label: "Notifications", icon: Bell },
+  { key: "data", label: "Data", icon: Database },
+];
 
 function numberInputValue(value: number) {
   return value === 0 ? "" : String(value);
@@ -351,6 +361,9 @@ export function AnalysisWorkbench() {
 
   // Tab state
   const [activeTab, setActiveTab] = useState("analysis");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
+  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [actionEmailsEnabled, setActionEmailsEnabled] = useState(true);
 
   // Settings state
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -781,6 +794,23 @@ export function AnalysisWorkbench() {
           : connection,
       ));
     }
+  }
+
+  function exportWorkspaceData() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      user,
+      history,
+      integrations,
+      snapshots,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "operon-workspace-export.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   async function disconnectIntegration(connectionId: string) {
@@ -1771,109 +1801,209 @@ export function AnalysisWorkbench() {
                     </p>
                   </div>
                   <div className="mt-5 flex flex-wrap justify-center gap-5 text-[13px] text-muted-foreground">
-                    <button className="flex items-center gap-1.5 border-b-2 border-foreground pb-2 font-medium text-foreground">
-                      <UserCircle className="size-4" />
-                      Account
-                    </button>
-                    <button className="flex items-center gap-1.5 pb-2">
-                      <CreditCard className="size-4" />
-                      Billing
-                    </button>
-                    <button className="flex items-center gap-1.5 pb-2">
-                      <Link2 className="size-4" />
-                      Integrations
-                    </button>
-                    <button className="flex items-center gap-1.5 pb-2">
-                      <Code2 className="size-4" />
-                      API
-                    </button>
-                    <button className="flex items-center gap-1.5 pb-2">
-                      <Bell className="size-4" />
-                      Notifications
-                    </button>
-                    <button className="flex items-center gap-1.5 pb-2">
-                      <Database className="size-4" />
-                      Data
-                    </button>
+                    {settingsNav.map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => setSettingsSection(item.key)}
+                        className={`flex items-center gap-1.5 pb-2 ${settingsSection === item.key ? "border-b-2 border-foreground font-medium text-foreground" : ""}`}
+                      >
+                        <item.icon className="size-4" />
+                        {item.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
               <div className="mx-auto max-w-2xl space-y-5 px-4 py-6 sm:px-6">
-                <Card className="overflow-hidden rounded-xl border-border bg-card py-0 shadow-sm">
-                  <CardContent className="p-0">
-                    <div className="px-6 py-6">
-                      <h2 className="text-[19px] font-semibold tracking-normal">Profile</h2>
-                      <div className="mt-5 flex items-center gap-4">
-                        <Avatar className="size-12 bg-emerald-800">
-                          <AvatarImage src={user?.avatarUrl ?? undefined} alt={profileDisplayName} />
-                          <AvatarFallback className="bg-emerald-800 text-lg font-medium text-white">
-                            {profileInitial}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <div className="truncate text-[15px] font-medium">{profileDisplayName}</div>
-                          <div className="mt-0.5 truncate text-[13px] text-muted-foreground">{user?.email ?? "—"}</div>
-                          <span className="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                            {profilePlan}
-                          </span>
+                {settingsSection === "account" ? (
+                  <>
+                    <Card className="overflow-hidden rounded-xl border-border bg-card py-0 shadow-sm">
+                      <CardContent className="p-0">
+                        <div className="px-6 py-6">
+                          <h2 className="text-[19px] font-semibold tracking-normal">Profile</h2>
+                          <div className="mt-5 flex items-center gap-4">
+                            <Avatar className="size-12 bg-emerald-800">
+                              <AvatarImage src={user?.avatarUrl ?? undefined} alt={profileDisplayName} />
+                              <AvatarFallback className="bg-emerald-800 text-lg font-medium text-white">
+                                {profileInitial}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <div className="truncate text-[15px] font-medium">{profileDisplayName}</div>
+                              <div className="mt-0.5 truncate text-[13px] text-muted-foreground">{user?.email ?? "—"}</div>
+                              <span className="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                                {profilePlan}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="border-t bg-muted/40 px-6 py-3.5">
+                          <button
+                            onClick={logout}
+                            className="flex items-center gap-2.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <LogOut className="size-3.5" />
+                            Sign out
+                          </button>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                      <CardContent className="px-6 py-6">
+                        <h2 className="text-[19px] font-semibold tracking-normal">Preferences</h2>
+                        <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <div className="text-[14px] font-medium">Timezone</div>
+                            <p className="mt-0.5 text-[12px] text-muted-foreground">
+                              Affects email digest delivery and scheduling.
+                            </p>
+                          </div>
+                          <button className="flex h-10 min-w-[220px] items-center justify-between rounded-lg border border-border px-3 text-left text-[13px]">
+                            Yekaterinburg (GMT+5)
+                            <ChevronDown className="size-3.5 text-muted-foreground" />
+                          </button>
+                        </div>
+                        <Separator className="my-5" />
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <div className="text-[14px] font-medium">Theme</div>
+                            <p className="mt-0.5 text-[12px] text-muted-foreground">
+                              Choose your preferred appearance.
+                            </p>
+                          </div>
+                          <div className="flex rounded-lg bg-muted p-0.5">
+                            <button
+                              onClick={() => setTheme("light")}
+                              className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium ${!isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+                            >
+                              <Sun className="size-3.5" />
+                              Light
+                            </button>
+                            <button
+                              onClick={() => setTheme("dark")}
+                              className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium ${isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+                            >
+                              <Moon className="size-3.5" />
+                              Dark
+                            </button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                ) : null}
+
+                {settingsSection === "billing" ? (
+                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                    <CardContent className="px-6 py-6">
+                      <h2 className="text-[19px] font-semibold tracking-normal">Billing</h2>
+                      <div className="mt-5 rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[14px] font-medium">{user?.planDisplay ?? user?.plan ?? "Starter"}</div>
+                            <p className="mt-0.5 text-[12px] text-muted-foreground">
+                              Status: {user?.subscriptionStatus ?? "NONE"}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={() => upgradePlan("PRO")}>
+                              Pro
+                            </Button>
+                            <Button size="sm" className="h-8 rounded-full text-xs" onClick={() => upgradePlan("SCALE")}>
+                              Scale
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="border-t bg-muted/40 px-6 py-3.5">
-                      <button
-                        onClick={logout}
-                        className="flex items-center gap-2.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        <LogOut className="size-3.5" />
-                        Sign out
-                      </button>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                  <CardContent className="px-6 py-6">
-                    <h2 className="text-[19px] font-semibold tracking-normal">Preferences</h2>
-                    <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <div className="text-[14px] font-medium">Timezone</div>
-                        <p className="mt-0.5 text-[12px] text-muted-foreground">
-                          Affects email digest delivery and scheduling.
-                        </p>
+                {settingsSection === "integrations" ? (
+                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                    <CardContent className="px-6 py-6">
+                      <h2 className="text-[19px] font-semibold tracking-normal">Integrations</h2>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={() => connectProvider("META")}>Meta</Button>
+                        <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={() => connectProvider("TIKTOK")}>TikTok</Button>
+                        <Button size="sm" className="h-8 rounded-full text-xs" onClick={syncIntegrations} disabled={integrationsLoading}>
+                          Sync
+                        </Button>
                       </div>
-                      <button className="flex h-10 min-w-[220px] items-center justify-between rounded-lg border border-border px-3 text-left text-[13px]">
-                        Yekaterinburg (GMT+5)
-                        <ChevronDown className="size-3.5 text-muted-foreground" />
-                      </button>
-                    </div>
-                    <Separator className="my-5" />
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <div className="text-[14px] font-medium">Theme</div>
-                        <p className="mt-0.5 text-[12px] text-muted-foreground">
-                          Choose your preferred appearance.
-                        </p>
+                      <div className="mt-4 space-y-2">
+                        {integrations.length ? integrations.map((connection) => (
+                          <div key={connection.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-xs">
+                            <span>{connection.provider} · {connection.accountName ?? connection.externalAccountId}</span>
+                            <Badge variant="secondary">{connection.status}</Badge>
+                          </div>
+                        )) : (
+                          <p className="text-xs text-muted-foreground">No connected accounts yet.</p>
+                        )}
                       </div>
-                      <div className="flex rounded-lg bg-muted p-0.5">
-                        <button
-                          onClick={() => setTheme("light")}
-                          className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium ${!isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-                        >
-                          <Sun className="size-3.5" />
-                          Light
-                        </button>
-                        <button
-                          onClick={() => setTheme("dark")}
-                          className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium ${isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-                        >
-                          <Moon className="size-3.5" />
-                          Dark
-                        </button>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {settingsSection === "api" ? (
+                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                    <CardContent className="px-6 py-6">
+                      <h2 className="text-[19px] font-semibold tracking-normal">API</h2>
+                      <div className="mt-5 space-y-3 text-xs">
+                        <div className="rounded-lg border border-border p-3">
+                          <div className="text-muted-foreground">Base URL</div>
+                          <div className="mt-1 font-mono">{apiBaseUrl}</div>
+                        </div>
+                        <div className="rounded-lg border border-border p-3">
+                          <div className="text-muted-foreground">Action endpoint</div>
+                          <div className="mt-1 font-mono">POST /ad-actions</div>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {settingsSection === "notifications" ? (
+                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                    <CardContent className="px-6 py-6">
+                      <h2 className="text-[19px] font-semibold tracking-normal">Notifications</h2>
+                      <div className="mt-5 space-y-3">
+                        {[
+                          ["Weekly digest", digestEnabled, setDigestEnabled],
+                          ["Action confirmations", actionEmailsEnabled, setActionEmailsEnabled],
+                        ].map(([label, enabled, setter]) => (
+                          <div key={label as string} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                            <span>{label as string}</span>
+                            <button
+                              onClick={() => (setter as (value: boolean) => void)(!(enabled as boolean))}
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium ${enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+                            >
+                              {enabled ? "On" : "Off"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {settingsSection === "data" ? (
+                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                    <CardContent className="px-6 py-6">
+                      <h2 className="text-[19px] font-semibold tracking-normal">Data</h2>
+                      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
+                        <div>
+                          <div className="text-[14px] font-medium">Workspace export</div>
+                          <p className="mt-0.5 text-[12px] text-muted-foreground">Download profile, history, integrations, and snapshots.</p>
+                        </div>
+                        <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={exportWorkspaceData}>
+                          Export JSON
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
               </div>
             </section>
           </TabsContent>
