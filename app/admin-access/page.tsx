@@ -83,7 +83,13 @@ export default function AdminAccessPage() {
         },
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Admin access failed");
+      if (!res.ok) {
+        const details = data.details as { currentEmail?: string; allowedEmails?: string[]; hint?: string } | undefined;
+        const debug = details?.currentEmail
+          ? ` Current: ${details.currentEmail}. Allowed: ${(details.allowedEmails || []).join(", ") || "none"}. ${details.hint || ""}`
+          : "";
+        throw new Error(`${data.message || "Admin access failed"}.${debug}`);
+      }
       setUsers(data.users as AdminUser[]);
       setAdminEmail(data.adminEmail as string);
       sessionStorage.setItem(adminPasswordKey, nextPassword);

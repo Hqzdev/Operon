@@ -5,8 +5,15 @@ import { prisma } from "@/src/models/prisma";
 
 export const dynamic = "force-dynamic";
 
-function adminEmail() {
-  return process.env.ADMIN_ACCESS_EMAIL || process.env.ADMIN_EMAIL || "";
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function adminEmails() {
+  return (process.env.ADMIN_ACCESS_EMAIL || process.env.ADMIN_EMAIL || "")
+    .split(",")
+    .map(normalizeEmail)
+    .filter(Boolean);
 }
 
 function adminPassword() {
@@ -15,11 +22,11 @@ function adminPassword() {
 
 async function requireAdmin(request: Request) {
   const userId = getAuthUserId(request);
-  const configuredEmail = adminEmail().trim().toLowerCase();
+  const configuredEmails = adminEmails();
   const configuredPassword = adminPassword();
   const providedPassword = request.headers.get("x-admin-password") || "";
 
-  if (!configuredEmail || !configuredPassword) {
+  if (configuredEmails.length === 0 || !configuredPassword) {
     throw new ApiError("Admin access env is not configured", 500);
   }
 
@@ -28,11 +35,15 @@ async function requireAdmin(request: Request) {
     select: { id: true, email: true },
   });
   if (!user) throw new ApiError("User not found", 404);
-  if (user.email.toLowerCase() !== configuredEmail) {
-    throw new ApiError("This account is not allowed to access admin", 403);
-  }
   if (providedPassword !== configuredPassword) {
     throw new ApiError("Admin password is incorrect", 401);
+  }
+  if (!configuredEmails.includes(normalizeEmail(user.email))) {
+    throw new ApiError("This account is not allowed to access admin", 403, {
+      currentEmail: user.email,
+      allowedEmails: configuredEmails,
+      hint: "Set ADMIN_ACCESS_EMAIL to this exact account email, or add it to the comma-separated list, then restart/redeploy the app.",
+    });
   }
 
   return user;
