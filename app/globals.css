@@ -129,19 +129,7 @@
 }
 
 @layer utilities {
-  .dashboard-workspace :where(
-    [data-slot="card"],
-    [data-slot="table-header"] tr,
-    [data-slot="table-row"],
-    [data-slot="table-footer"],
-    table tr,
-    .rounded-xl.border,
-    .rounded-lg.border
-  ) {
-    border-color: transparent !important;
-  }
-
-  .dashboard-workspace-surface :where(main, [class*="bg-background"]) {
+.dashboard-workspace-surface :where(main, [class*="bg-background"]) {
     background-color: #ffffff !important;
   }
 
