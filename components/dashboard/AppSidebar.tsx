@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useTheme } from "next-themes";
 import {
   Analytics01Icon,
   ChartBreakoutSquareIcon,
@@ -19,10 +20,16 @@ import {
   CalendarDays,
   Check,
   ChevronsUpDown,
+  CircleHelp,
+  Lightbulb,
+  LogOut,
   PanelLeftClose,
   Plus,
+  Settings,
   Sparkles,
   Store,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 import {
@@ -60,6 +67,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { getApiBaseUrl } from "@/lib/api-base-url";
 import { useNotifications } from "@/hooks/use-notifications";
@@ -116,6 +124,7 @@ type StoreSummary = {
 type SidebarProfile = {
   name?: string | null;
   email?: string | null;
+  avatarUrl?: string | null;
   plan?: string | null;
   storeName?: string | null;
   storeUrl?: string | null;
@@ -144,6 +153,7 @@ function storeDisplayName(store?: Pick<StoreSummary, "name" | "url"> | null) {
 
 function SidebarBottomBlock() {
   const [profile, setProfile] = useState<SidebarProfile | null>(null);
+  const { resolvedTheme, setTheme } = useTheme();
   const apiBaseUrl = getApiBaseUrl();
 
   useEffect(() => {
@@ -177,6 +187,13 @@ function SidebarBottomBlock() {
   const displayName = profile?.name || profile?.email?.split("@")[0] || "User";
   const plan = profile?.plan === "STARTER" ? "FREE" : profile?.plan ?? "FREE";
   const initial = displayName.trim().charAt(0).toUpperCase() || "U";
+  const isDarkTheme = resolvedTheme === "dark";
+
+  function signOut() {
+    localStorage.removeItem("operon_token");
+    localStorage.removeItem("operon_user");
+    window.location.href = "/login";
+  }
 
   return (
     <div className="space-y-4 group-data-[collapsible=icon]:hidden">
@@ -198,46 +215,46 @@ function SidebarBottomBlock() {
               side="right"
               align="end"
               sideOffset={14}
-              className="w-[420px] overflow-hidden rounded-3xl border-border p-0 shadow-xl"
+              className="w-[340px] overflow-hidden rounded-2xl border-border p-0 shadow-xl"
             >
-              <div className="border-b px-8 py-6">
-                <div className="text-[20px] font-semibold tracking-normal">What's New</div>
+              <div className="border-b px-5 py-4">
+                <div className="text-[17px] font-semibold tracking-normal">What's New</div>
               </div>
               <div className="divide-y">
-                <div className="px-8 py-6">
-                  <div className="flex items-start justify-between gap-5">
-                    <div className="flex min-w-0 items-start gap-4">
-                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-[12px] font-semibold text-emerald-700">
+                <div className="px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
                         NEW
                       </span>
                       <div className="min-w-0">
-                        <div className="text-[17px] font-semibold leading-snug">
+                        <div className="text-[14px] font-semibold leading-snug">
                           Reddit acquisition engine
                         </div>
-                        <p className="mt-2 text-[14px] leading-6 text-muted-foreground">
-                          Find high-intent Reddit posts about CPM spikes, ROAS drops, CPA issues, and creative fatigue with outreach angles.
+                        <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+                          Finds Reddit posts about CPM spikes, ROAS drops, CPA issues, and creative fatigue.
                         </p>
                       </div>
                     </div>
-                    <span className="shrink-0 text-[13px] text-muted-foreground">Today</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">Today</span>
                   </div>
                 </div>
-                <div className="px-8 py-6">
-                  <div className="flex items-start justify-between gap-5">
-                    <div className="flex min-w-0 items-start gap-4">
-                      <span className="rounded-full bg-blue-100 px-3 py-1 text-[12px] font-semibold text-blue-700">
+                <div className="px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
                         IMPROVED
                       </span>
                       <div className="min-w-0">
-                        <div className="text-[17px] font-semibold leading-snug">
+                        <div className="text-[14px] font-semibold leading-snug">
                           Budget prediction simulator
                         </div>
-                        <p className="mt-2 text-[14px] leading-6 text-muted-foreground">
-                          Preview CPA, revenue, ROAS, risk level, and confidence before changing campaign budgets.
+                        <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+                          Preview CPA, revenue, ROAS, risk level, and confidence before budget changes.
                         </p>
                       </div>
                     </div>
-                    <span className="shrink-0 text-[13px] text-muted-foreground">Today</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">Today</span>
                   </div>
                 </div>
               </div>
@@ -259,21 +276,87 @@ function SidebarBottomBlock() {
         </SidebarMenuItem>
       </div>
 
-      <Link
-        href="/dashboard?tab=settings"
-        className="flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-sidebar-accent"
-      >
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-lg font-medium text-white">
-          {initial}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-medium text-sidebar-foreground">{displayName}</span>
-          <span className="mt-1 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-            {plan}
-          </span>
-        </span>
-        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
-      </Link>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-sidebar-accent">
+            <Avatar className="size-10 bg-emerald-800">
+              <AvatarImage src={profile?.avatarUrl ?? undefined} alt={displayName} />
+              <AvatarFallback className="bg-emerald-800 text-lg font-medium text-white">
+                {initial}
+              </AvatarFallback>
+            </Avatar>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-medium text-sidebar-foreground">{displayName}</span>
+              <span className="mt-1 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                {plan}
+              </span>
+            </span>
+            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          side="right"
+          align="end"
+          sideOffset={14}
+          className="w-[330px] rounded-3xl border-border p-5 shadow-xl"
+        >
+          <div className="flex items-center gap-4">
+            <Avatar className="size-14 bg-emerald-800">
+              <AvatarImage src={profile?.avatarUrl ?? undefined} alt={displayName} />
+              <AvatarFallback className="bg-emerald-800 text-2xl font-medium text-white">
+                {initial}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <div className="truncate text-[18px] font-medium text-foreground">{displayName}</div>
+              <div className="truncate text-[14px] text-muted-foreground">{profile?.email}</div>
+            </div>
+          </div>
+
+          <div className="mt-7 space-y-1">
+            <Link href="/dashboard?tab=settings" className="flex items-center gap-3 rounded-xl px-1 py-2.5 text-[15px] hover:bg-muted">
+              <Settings className="size-5" />
+              Settings
+            </Link>
+            <Link href="mailto:founder@operon.app?subject=Feature request" className="flex items-center gap-3 rounded-xl px-1 py-2.5 text-[15px] hover:bg-muted">
+              <Lightbulb className="size-5" />
+              Request a feature
+            </Link>
+            <Link href="/docs" className="flex items-center gap-3 rounded-xl px-1 py-2.5 text-[15px] hover:bg-muted">
+              <CircleHelp className="size-5" />
+              Help
+            </Link>
+          </div>
+
+          <div className="mt-7 flex items-center justify-between">
+            <span className="text-[15px] text-foreground">Theme</span>
+            <div className="flex rounded-xl bg-muted p-1">
+              <button
+                onClick={() => setTheme("light")}
+                className={cn("flex size-9 items-center justify-center rounded-lg", !isDarkTheme && "bg-background shadow-sm")}
+                aria-label="Use light theme"
+              >
+                <Sun className="size-4" />
+              </button>
+              <button
+                onClick={() => setTheme("dark")}
+                className={cn("flex size-9 items-center justify-center rounded-lg", isDarkTheme && "bg-background shadow-sm")}
+                aria-label="Use dark theme"
+              >
+                <Moon className="size-4" />
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={signOut}
+            className="mt-7 flex items-center gap-3 rounded-xl px-1 py-2.5 text-[15px] text-destructive hover:bg-destructive/10"
+          >
+            <LogOut className="size-5" />
+            Sign out
+          </button>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

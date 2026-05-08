@@ -92,6 +92,7 @@ type GoogleUserInfo = {
   email?: string;
   email_verified?: boolean;
   name?: string;
+  picture?: string;
 };
 
 function assertGoogleOAuthConfigured() {
@@ -169,6 +170,7 @@ async function fetchGoogleUserInfo(accessToken: string) {
   return {
     email: profile.email.toLowerCase(),
     name: profile.name,
+    avatarUrl: profile.picture,
   };
 }
 
@@ -183,10 +185,12 @@ export async function completeGoogleOAuth(input: { code: string; state: string; 
     where: { email: googleUser.email },
     update: {
       name: googleUser.name,
+      avatarUrl: googleUser.avatarUrl,
     },
     create: {
       email: googleUser.email,
       name: googleUser.name,
+      avatarUrl: googleUser.avatarUrl,
       password: await hashPassword(`google-oauth:${crypto.randomBytes(32).toString("hex")}`),
     },
   });

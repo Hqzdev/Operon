@@ -34,8 +34,8 @@ const providerSchema = z.enum(["META", "TIKTOK", "SHOPIFY"]);
 export type ProviderKey = z.infer<typeof providerSchema>;
 
 const OAUTH_SCOPES: Record<ProviderKey, string[]> = {
-  META: ["ads_read", "read_insights", "business_management"],
-  TIKTOK: ["advertiser.read", "report.read"],
+  META: ["ads_read", "read_insights", "business_management", "ads_management"],
+  TIKTOK: ["advertiser.read", "report.read", "ad.write"],
   SHOPIFY: ["read_orders", "read_products", "read_inventory"],
 };
 
@@ -106,7 +106,7 @@ function encryptToken(value: string) {
   return `${iv.toString("base64")}.${tag.toString("base64")}.${encrypted.toString("base64")}`;
 }
 
-function decryptToken(value: string) {
+export function decryptIntegrationToken(value: string) {
   const [ivRaw, tagRaw, encryptedRaw] = value.split(".");
   if (!ivRaw || !tagRaw || !encryptedRaw) return value;
   const decipher = crypto.createDecipheriv("aes-256-gcm", tokenKey(), Buffer.from(ivRaw, "base64"));
@@ -156,7 +156,7 @@ function toAnalysisInput(metrics: RawMetrics): AnalysisInput {
   return analysisInputSchema.parse(input);
 }
 
-async function providerFetch<T>(url: string, init?: RequestInit, attempts = 3): Promise<T> {
+export async function providerFetch<T>(url: string, init?: RequestInit, attempts = 3): Promise<T> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const res = await fetch(url, init);
     if (res.status === 429 && attempt < attempts - 1) {
@@ -362,6 +362,7 @@ export async function listConnections(userId: string) {
       lastSyncedAt: true,
       nextSyncAt: true,
       lastError: true,
+      maxDailyBudgetChangePercent: true,
       createdAt: true,
     },
     orderBy: [{ provider: "asc" }, { createdAt: "desc" }],
@@ -462,7 +463,7 @@ export async function syncConnection(connectionId: string) {
   }
 }
 
-async function refreshIfNeeded(connection: IntegrationConnection) {
+export async function refreshIfNeeded(connection: IntegrationConnection) {
   if (!connection.tokenExpiresAt || connection.tokenExpiresAt.getTime() > Date.now() + 10 * 60 * 1000) {
     return connection;
   }
@@ -483,7 +484,7 @@ async function refreshIfNeeded(connection: IntegrationConnection) {
       body: JSON.stringify({
         app_id: env.TIKTOK_APP_ID,
         secret: env.TIKTOK_APP_SECRET,
-        refresh_token: decryptToken(connection.refreshToken),
+        refresh_token: decryptIntegrationToken(connection.refreshToken),
       }),
     });
     if (!token.data?.access_token) throw new Error("TikTok refresh failed");
@@ -514,7 +515,7 @@ function sumActions(actions: unknown, names: string[]) {
 }
 
 async function fetchMetaMetrics(connection: IntegrationConnection): Promise<RawMetrics[]> {
-  const token = decryptToken(connection.accessToken);
+  const token = decryptIntegrationToken(connection.accessToken);
   const url = new URL(`https://graph.facebook.com/${env.META_API_VERSION}/${connection.externalAccountId}/insights`);
   url.searchParams.set("level", "adset");
   url.searchParams.set("date_preset", "last_7d");
@@ -538,7 +539,7 @@ async function fetchMetaMetrics(connection: IntegrationConnection): Promise<RawM
 }
 
 async function fetchTikTokMetrics(connection: IntegrationConnection): Promise<RawMetrics[]> {
-  const token = decryptToken(connection.accessToken);
+  const token = decryptIntegrationToken(connection.accessToken);
   const url = new URL("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/");
   url.searchParams.set("advertiser_id", connection.externalAccountId);
   url.searchParams.set("report_type", "BASIC");
@@ -583,7 +584,7 @@ async function fetchTikTokMetrics(connection: IntegrationConnection): Promise<Ra
 }
 
 async function fetchShopifyMetrics(connection: IntegrationConnection): Promise<RawMetrics[]> {
-  const token = decryptToken(connection.accessToken);
+  const token = decryptIntegrationToken(connection.accessToken);
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const url = new URL(`https://${connection.externalAccountId}/admin/api/${env.SHOPIFY_API_VERSION}/orders.json`);
   url.searchParams.set("status", "any");
@@ -690,6 +691,6 @@ export async function getShopifyConnectionCredentials(userId: string) {
   if (!connection) return null;
   return {
     storeUrl: connection.externalAccountId,
-    accessToken: decryptToken(connection.accessToken),
+    accessToken: decryptIntegrationToken(connection.accessToken),
   };
 }

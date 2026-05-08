@@ -66,11 +66,25 @@ enum RedditIntentLevel {
   low
 }
 
+enum AdActionType {
+  pause
+  increase_budget_20
+  decrease_budget_20
+  undo_budget_change
+}
+
+enum AdActionStatus {
+  succeeded
+  failed
+  undone
+}
+
 model User {
   id                  String             @id @default(cuid())
   email               String             @unique
   password            String
   name                String?
+  avatarUrl           String?
   storeName           String?
   storeUrl            String?
   niche               String?
@@ -91,6 +105,7 @@ model User {
   digestLogs          DigestLog[]
   fatigueAlerts       FatigueAlert[]
   simulationLogs      SimulationLog[]
+  adActionLogs        AdActionLog[]
   stores              Store[]            @relation("UserStores")
   activeStore         Store?             @relation("ActiveStore", fields: [activeStoreId], references: [id], onDelete: SetNull)
 }
@@ -211,6 +226,7 @@ model Analysis {
   result    Json
   createdAt DateTime      @default(now())
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adActionLogs AdActionLog[]
 
   @@index([userId, createdAt])
 }
@@ -249,10 +265,12 @@ model IntegrationConnection {
   nextSyncAt        DateTime            @default(now())
   syncLockUntil     DateTime?
   lastError         String?
+  maxDailyBudgetChangePercent Int                 @default(20)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   metrics           IntegrationMetricSnapshot[]
+  adActionLogs      AdActionLog[]
 
   @@unique([userId, provider, externalAccountId])
   @@index([userId, provider])
@@ -279,6 +297,32 @@ model IntegrationMetricSnapshot {
   @@unique([userId, provider, externalAccountId, externalEntityId, date])
   @@index([userId, date])
   @@index([connectionId, date])
+}
+
+model AdActionLog {
+  id                String              @id @default(cuid())
+  userId            String
+  connectionId      String
+  provider          IntegrationProvider
+  externalAccountId String
+  externalEntityId  String
+  entityName        String?
+  verdictId         String?
+  actionType        AdActionType
+  status            AdActionStatus
+  beforeState       Json
+  afterState        Json?
+  errorMessage      String?             @db.Text
+  undoUntil         DateTime?
+  undoneAt          DateTime?
+  createdAt         DateTime            @default(now())
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection        IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  verdict           Analysis?           @relation(fields: [verdictId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([connectionId, externalEntityId, createdAt])
+  @@index([verdictId])
 }
 
 model SeoAnalysis {

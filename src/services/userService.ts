@@ -7,6 +7,7 @@ const profileSelect = {
   id: true,
   email: true,
   name: true,
+  avatarUrl: true,
   storeName: true,
   storeUrl: true,
   niche: true,

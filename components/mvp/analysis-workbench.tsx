@@ -5,9 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   ArrowRight,
+  Bell,
   Cable,
+  ChevronDown,
+  Code2,
+  CreditCard,
   Crown,
-  KeyRound,
+  Database,
+  Link2,
   LoaderCircle,
   LogOut,
   Minus,
@@ -17,6 +22,8 @@ import {
   Sun,
   Target,
   TrendingUp,
+  UserCircle,
+  Zap,
 } from "lucide-react";
 import {
   type AnalysisHistoryItem,
@@ -44,9 +51,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const initialForm: AnalysisInput = {
   product_name: "",
@@ -141,7 +148,9 @@ type UserProfile = {
   id: string;
   email: string;
   name: string | null;
+  avatarUrl?: string | null;
   plan: string;
+  planDisplay?: string;
   subscriptionStatus: string;
   subscriptionEndDate: string | null;
   usageCount: number;
@@ -206,6 +215,7 @@ type IntegrationConnection = {
   lastSyncedAt: string | null;
   nextSyncAt: string;
   lastError: string | null;
+  maxDailyBudgetChangePercent?: number;
   createdAt: string;
 };
 
@@ -263,6 +273,27 @@ type BudgetSimulationResult = {
   basedOn: string[];
 };
 
+type ExecutionTarget = {
+  connectionId: string;
+  provider: "META" | "TIKTOK";
+  externalAccountId: string;
+  externalEntityId: string;
+  entityName: string | null;
+};
+
+type AdActionType = "pause" | "increase_budget_20" | "decrease_budget_20";
+
+type AdActionLog = {
+  id: string;
+  actionType: AdActionType | "undo_budget_change";
+  status: "succeeded" | "failed" | "undone";
+  externalEntityId: string;
+  entityName: string | null;
+  errorMessage?: string | null;
+  undoUntil?: string | null;
+  createdAt: string;
+};
+
 const emptyAdSet = (): AdSetInput => ({
   name: "", spend: 0, impressions: 0, clicks: 0,
   add_to_cart: 0, purchases: 0, revenue: 0, product_price: 0, cost: 0,
@@ -313,20 +344,16 @@ export function AnalysisWorkbench() {
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [executionTarget, setExecutionTarget] = useState<ExecutionTarget | null>(null);
+  const [confirmAction, setConfirmAction] = useState<AdActionType | null>(null);
+  const [adActionLoading, setAdActionLoading] = useState(false);
+  const [adActionMsg, setAdActionMsg] = useState<{ type: "ok" | "err"; text: string; actionId?: string } | null>(null);
 
   // Tab state
   const [activeTab, setActiveTab] = useState("analysis");
 
   // Settings state
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [settingsName, setSettingsName] = useState("");
-  const [settingsSaving, setSettingsSaving] = useState(false);
-  const [settingsMsg, setSettingsMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  const [pwCurrent, setPwCurrent] = useState("");
-  const [pwNew, setPwNew] = useState("");
-  const [pwConfirm, setPwConfirm] = useState("");
-  const [pwSaving, setPwSaving] = useState(false);
-  const [pwMsg, setPwMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // Budget Allocation state
   const [budgetTotal, setBudgetTotal] = useState(0);
@@ -405,7 +432,6 @@ export function AnalysisWorkbench() {
         if (profileRes.ok) {
           const profile = await profileRes.json() as UserProfile;
           setUser(profile);
-          setSettingsName(profile.name ?? "");
         } else if (profileRes.status === 401) {
           logout();
           return;
@@ -445,55 +471,6 @@ export function AnalysisWorkbench() {
     const nextTab = tabParam === "scenarios" ? "scenario" : (tabParam ?? "analysis");
     setActiveTab(dashboardTabs.has(nextTab) ? nextTab : "analysis");
   }, [searchParams]);
-
-  async function saveProfile() {
-    const token = getToken();
-    if (!token) return;
-    setSettingsSaving(true);
-    setSettingsMsg(null);
-    try {
-      const res = await fetch(`${apiBaseUrl}/users/me`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: settingsName }),
-      });
-      const data = await res.json() as UserProfile;
-      if (!res.ok) { setSettingsMsg({ type: "err", text: (data as { message?: string }).message ?? "Failed to save" }); return; }
-      setUser(data);
-      setSettingsMsg({ type: "ok", text: "Saved" });
-    } catch {
-      setSettingsMsg({ type: "err", text: "Network error" });
-    } finally {
-      setSettingsSaving(false);
-    }
-  }
-
-  async function changePassword() {
-    if (pwNew !== pwConfirm) { setPwMsg({ type: "err", text: "Passwords don't match" }); return; }
-    if (pwNew.length < 8) { setPwMsg({ type: "err", text: "Minimum 8 characters" }); return; }
-    const token = getToken();
-    if (!token) return;
-    setPwSaving(true);
-    setPwMsg(null);
-    try {
-      const res = await fetch(`${apiBaseUrl}/users/me/password`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ currentPassword: pwCurrent, newPassword: pwNew }),
-      });
-      if (!res.ok) {
-        const data = await res.json() as { message?: string };
-        setPwMsg({ type: "err", text: data.message ?? "Failed" });
-        return;
-      }
-      setPwMsg({ type: "ok", text: "Password changed" });
-      setPwCurrent(""); setPwNew(""); setPwConfirm("");
-    } catch {
-      setPwMsg({ type: "err", text: "Network error" });
-    } finally {
-      setPwSaving(false);
-    }
-  }
 
   async function submit() {
     setError(null);
@@ -706,6 +683,106 @@ export function AnalysisWorkbench() {
     }
   }
 
+  function targetFromSnapshot(snapshot: IntegrationSnapshot): ExecutionTarget | null {
+    if (snapshot.provider === "SHOPIFY") return null;
+    const connection = integrations.find((item) =>
+      item.provider === snapshot.provider && item.externalAccountId === snapshot.externalAccountId,
+    );
+    if (!connection) return null;
+    return {
+      connectionId: connection.id,
+      provider: snapshot.provider,
+      externalAccountId: snapshot.externalAccountId,
+      externalEntityId: snapshot.externalEntityId,
+      entityName: snapshot.entityName,
+    };
+  }
+
+  function actionLabel(action: AdActionType | null) {
+    if (action === "pause") return "PAUSE";
+    if (action === "increase_budget_20") return "INCREASE BUDGET +20%";
+    if (action === "decrease_budget_20") return "DECREASE BUDGET -20%";
+    return "EXECUTE";
+  }
+
+  async function executeConfirmedAction() {
+    if (!confirmAction || !executionTarget) return;
+    const token = getToken();
+    if (!token) { router.push("/login"); return; }
+    setAdActionLoading(true);
+    setAdActionMsg(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/ad-actions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ...executionTarget,
+          actionType: confirmAction,
+          verdictId: result?.savedId,
+          confirmed: true,
+        }),
+      });
+      const data = await res.json() as { action?: AdActionLog; message?: string };
+      if (!res.ok || !data.action) {
+        setAdActionMsg({ type: "err", text: data.message ?? "Action failed" });
+        return;
+      }
+      const canUndo = data.action.undoUntil && new Date(data.action.undoUntil) > new Date();
+      setAdActionMsg({
+        type: "ok",
+        text: `${actionLabel(confirmAction)} executed${canUndo ? ". Undo available for 1 hour." : "."}`,
+        actionId: canUndo ? data.action.id : undefined,
+      });
+      setConfirmAction(null);
+    } catch {
+      setAdActionMsg({ type: "err", text: "Network error" });
+    } finally {
+      setAdActionLoading(false);
+    }
+  }
+
+  async function undoLastAction(actionId: string) {
+    const token = getToken();
+    if (!token) { router.push("/login"); return; }
+    setAdActionLoading(true);
+    try {
+      const res = await fetch(`${apiBaseUrl}/ad-actions/${actionId}/undo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { message?: string };
+      if (!res.ok) {
+        setAdActionMsg({ type: "err", text: data.message ?? "Undo failed" });
+        return;
+      }
+      setAdActionMsg({ type: "ok", text: "Budget change undone." });
+    } catch {
+      setAdActionMsg({ type: "err", text: "Network error" });
+    } finally {
+      setAdActionLoading(false);
+    }
+  }
+
+  async function updateGuardrail(connectionId: string, value: number) {
+    const token = getToken();
+    if (!token) { router.push("/login"); return; }
+    const res = await fetch(`${apiBaseUrl}/ad-actions/guardrails`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        connectionId,
+        maxDailyBudgetChangePercent: value,
+      }),
+    });
+    if (res.ok) {
+      setIntegrations((current) => current.map((connection) =>
+        connection.id === connectionId
+          ? { ...connection, maxDailyBudgetChangePercent: value }
+          : connection,
+      ));
+    }
+  }
+
   async function disconnectIntegration(connectionId: string) {
     const token = getToken();
     if (!token) return;
@@ -724,6 +801,9 @@ export function AnalysisWorkbench() {
   }
 
   const hasProFeatures = true;
+  const profileDisplayName = user?.name || user?.email?.split("@")[0] || "User";
+  const profileInitial = profileDisplayName.trim().charAt(0).toUpperCase() || "U";
+  const profilePlan = user?.plan === "STARTER" ? "FREE PLAN" : `${user?.planDisplay ?? user?.plan ?? "FREE"} PLAN`;
 
   return (
     <main className="relative h-full overflow-y-auto bg-background text-foreground">
@@ -829,6 +909,28 @@ export function AnalysisWorkbench() {
                             {connection.lastError ? (
                               <div className="mt-2 text-xs text-red-600">{connection.lastError}</div>
                             ) : null}
+                            {connection.provider !== "SHOPIFY" ? (
+                              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span>Max daily budget change</span>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={100}
+                                  value={connection.maxDailyBudgetChangePercent ?? 20}
+                                  onChange={(event) => {
+                                    const value = Math.max(1, Math.min(100, Number(event.target.value) || 20));
+                                    setIntegrations((current) => current.map((item) =>
+                                      item.id === connection.id
+                                        ? { ...item, maxDailyBudgetChangePercent: value }
+                                        : item,
+                                    ));
+                                  }}
+                                  onBlur={(event) => updateGuardrail(connection.id, Math.max(1, Math.min(100, Number(event.target.value) || 20)))}
+                                  className="h-8 w-20 rounded-lg text-xs"
+                                />
+                                <span>%</span>
+                              </div>
+                            ) : null}
                           </div>
                           <Button
                             size="sm"
@@ -883,6 +985,7 @@ export function AnalysisWorkbench() {
                               size="sm"
                               className="rounded-full"
                               onClick={() => {
+                                setExecutionTarget(targetFromSnapshot(snapshot));
                                 setForm(snapshot.analysisInput);
                                 setActiveTab("analysis");
                               }}
@@ -1065,6 +1168,63 @@ export function AnalysisWorkbench() {
                           <span className="text-sm text-muted-foreground">Saved</span>
                         ) : null}
                       </div>
+
+                      {executionTarget ? (
+                        <div className="rounded-2xl border border-border bg-muted/20 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold">One-click execution</div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Target: {executionTarget.entityName ?? executionTarget.externalEntityId} · {executionTarget.provider}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="rounded-full"
+                                onClick={() => setConfirmAction("pause")}
+                              >
+                                PAUSE
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() => setConfirmAction("increase_budget_20")}
+                              >
+                                +20%
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() => setConfirmAction("decrease_budget_20")}
+                              >
+                                -20%
+                              </Button>
+                            </div>
+                          </div>
+                          {adActionMsg ? (
+                            <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm ${adActionMsg.type === "ok" ? "text-emerald-600" : "text-red-600"}`}>
+                              <span>{adActionMsg.text}</span>
+                              {adActionMsg.actionId ? (
+                                <button
+                                  className="font-medium underline"
+                                  disabled={adActionLoading}
+                                  onClick={() => undoLastAction(adActionMsg.actionId!)}
+                                >
+                                  Undo budget change
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                          Choose a Meta or TikTok synced campaign first to execute actions from Operon.
+                        </div>
+                      )}
 
                       <div>
                         <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Why</div>
@@ -1601,131 +1761,120 @@ export function AnalysisWorkbench() {
             )}
           </TabsContent>
           <TabsContent value="settings">
-            <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-              <Card className="border-border bg-card py-0 shadow-none">
-                <CardHeader className="border-b border-foreground/10 py-6">
-                  <CardTitle className="text-[15px] font-semibold tracking-normal">Settings</CardTitle>
-                  <CardDescription>Profile, appearance, and account controls.</CardDescription>
-                </CardHeader>
-                <CardContent className="px-6 py-6 space-y-5">
-                  <div className="rounded-2xl border border-border p-5 space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                      {isDarkTheme ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
-                      Appearance
+            <section className="min-h-full bg-background">
+              <div className="border-b border-border px-4 py-8 sm:px-8">
+                <div className="mx-auto max-w-6xl">
+                  <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
+                    <h1 className="text-[28px] font-semibold tracking-normal">Settings</h1>
+                    <p className="pb-1 text-[17px] text-muted-foreground">
+                      Account, billing, integrations, and notifications.
+                    </p>
+                  </div>
+                  <div className="mt-8 flex flex-wrap justify-center gap-8 text-[16px] text-muted-foreground">
+                    <button className="flex items-center gap-2 border-b-2 border-foreground pb-3 font-medium text-foreground">
+                      <UserCircle className="size-5" />
+                      Account
+                    </button>
+                    <button className="flex items-center gap-2 pb-3">
+                      <CreditCard className="size-5" />
+                      Billing
+                    </button>
+                    <button className="flex items-center gap-2 pb-3">
+                      <Link2 className="size-5" />
+                      Integrations
+                    </button>
+                    <button className="flex items-center gap-2 pb-3">
+                      <Code2 className="size-5" />
+                      API
+                    </button>
+                    <button className="flex items-center gap-2 pb-3">
+                      <Bell className="size-5" />
+                      Notifications
+                    </button>
+                    <button className="flex items-center gap-2 pb-3">
+                      <Database className="size-5" />
+                      Data
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-8">
+                <Card className="overflow-hidden rounded-xl border-border bg-card py-0 shadow-sm">
+                  <CardContent className="p-0">
+                    <div className="px-8 py-8">
+                      <h2 className="text-[24px] font-semibold tracking-normal">Profile</h2>
+                      <div className="mt-8 flex items-center gap-5">
+                        <Avatar className="size-16 bg-emerald-800">
+                          <AvatarImage src={user?.avatarUrl ?? undefined} alt={profileDisplayName} />
+                          <AvatarFallback className="bg-emerald-800 text-2xl font-medium text-white">
+                            {profileInitial}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="truncate text-[18px] font-medium">{profileDisplayName}</div>
+                          <div className="mt-1 truncate text-[16px] text-muted-foreground">{user?.email ?? "—"}</div>
+                          <span className="mt-3 inline-flex rounded-md bg-muted px-2.5 py-1 text-[13px] font-semibold text-muted-foreground">
+                            {profilePlan}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="border-t bg-muted/40 px-8 py-5">
+                      <button
+                        onClick={logout}
+                        className="flex items-center gap-3 text-[15px] text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <LogOut className="size-4" />
+                        Sign out
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                  <CardContent className="px-8 py-8">
+                    <h2 className="text-[24px] font-semibold tracking-normal">Preferences</h2>
+                    <div className="mt-8 flex flex-wrap items-center justify-between gap-5">
                       <div>
-                        <div className="text-sm font-medium">Dark theme</div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Switch the workspace between light and black mode.
+                        <div className="text-[16px] font-medium">Timezone</div>
+                        <p className="mt-1 text-[14px] text-muted-foreground">
+                          Affects email digest delivery and scheduling.
                         </p>
                       </div>
-                      <Switch
-                        checked={isDarkTheme}
-                        onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-                        aria-label="Toggle dark theme"
-                      />
+                      <button className="flex h-12 min-w-[260px] items-center justify-between rounded-xl border border-border px-4 text-left text-[15px]">
+                        Yekaterinburg (GMT+5)
+                        <ChevronDown className="size-4 text-muted-foreground" />
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-border p-5 space-y-4">
-                    <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                      Profile
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Email</p>
-                      <div className="flex h-10 w-full items-center rounded-xl border border-border bg-muted/40 px-3 text-sm">
-                        {user?.email ?? "—"}
+                    <Separator className="my-7" />
+                    <div className="flex flex-wrap items-center justify-between gap-5">
+                      <div>
+                        <div className="text-[16px] font-medium">Theme</div>
+                        <p className="mt-1 text-[14px] text-muted-foreground">
+                          Choose your preferred appearance.
+                        </p>
+                      </div>
+                      <div className="flex rounded-xl bg-muted p-1">
+                        <button
+                          onClick={() => setTheme("light")}
+                          className={`flex h-11 items-center gap-2 rounded-lg px-4 text-[15px] font-medium ${!isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+                        >
+                          <Sun className="size-4" />
+                          Light
+                        </button>
+                        <button
+                          onClick={() => setTheme("dark")}
+                          className={`flex h-11 items-center gap-2 rounded-lg px-4 text-[15px] font-medium ${isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+                        >
+                          <Moon className="size-4" />
+                          Dark
+                        </button>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="settings-page-name" className="text-sm">Name</Label>
-                      <Input
-                        id="settings-page-name"
-                        value={settingsName}
-                        onChange={(e) => setSettingsName(e.target.value)}
-                        className="h-10 rounded-xl"
-                      />
-                    </div>
-                    {settingsMsg && (
-                      <p className={`text-xs ${settingsMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
-                        {settingsMsg.text}
-                      </p>
-                    )}
-                    <Button
-                      size="sm"
-                      className="h-9 rounded-full"
-                      onClick={saveProfile}
-                      disabled={settingsSaving}
-                    >
-                      {settingsSaving ? <LoaderCircle className="size-3.5 animate-spin" /> : "Save changes"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-card py-0 shadow-none">
-                <CardHeader className="border-b border-foreground/10 py-6">
-                  <CardTitle className="text-[15px] font-semibold tracking-normal">Account</CardTitle>
-                  <CardDescription>Password and session actions.</CardDescription>
-                </CardHeader>
-                <CardContent className="px-6 py-6 space-y-5">
-                  <div className="rounded-2xl border border-border p-5 space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                      <KeyRound className="size-3.5" />
-                      Change password
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <Input
-                        type="password"
-                        placeholder="Current password"
-                        value={pwCurrent}
-                        onChange={(e) => setPwCurrent(e.target.value)}
-                        className="h-10 rounded-xl"
-                      />
-                      <Input
-                        type="password"
-                        placeholder="New password"
-                        value={pwNew}
-                        onChange={(e) => setPwNew(e.target.value)}
-                        className="h-10 rounded-xl"
-                      />
-                      <Input
-                        type="password"
-                        placeholder="Confirm new password"
-                        value={pwConfirm}
-                        onChange={(e) => setPwConfirm(e.target.value)}
-                        className="h-10 rounded-xl"
-                      />
-                    </div>
-                    {pwMsg && (
-                      <p className={`text-xs ${pwMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
-                        {pwMsg.text}
-                      </p>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-9 rounded-full"
-                      onClick={changePassword}
-                      disabled={pwSaving || !pwCurrent || !pwNew || !pwConfirm}
-                    >
-                      {pwSaving ? <LoaderCircle className="size-3.5 animate-spin" /> : "Update password"}
-                    </Button>
-                  </div>
-
-                  <div className="rounded-2xl border border-border p-5 space-y-3">
-                    <Button
-                      variant="ghost"
-                      className="h-10 rounded-xl justify-start gap-3 px-3 font-normal"
-                      onClick={logout}
-                    >
-                      <LogOut className="size-4 text-muted-foreground" />
-                      Log out
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </section>
           </TabsContent>
           </Tabs>
@@ -1835,6 +1984,33 @@ export function AnalysisWorkbench() {
                   </div>
                 </div>
               ) : null}
+            </DialogContent>
+          </Dialog>
+          <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => !open && setConfirmAction(null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Confirm ad action</DialogTitle>
+                <DialogDescription>
+                  This will execute {actionLabel(confirmAction)} on {executionTarget?.entityName ?? executionTarget?.externalEntityId ?? "the selected ad set"}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                Pause actions change delivery immediately. Budget changes can be undone from Operon for 1 hour and are limited by the account guardrail.
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" className="rounded-full" onClick={() => setConfirmAction(null)} disabled={adActionLoading}>
+                  Cancel
+                </Button>
+                <Button
+                  variant={confirmAction === "pause" ? "destructive" : "default"}
+                  className="rounded-full"
+                  onClick={executeConfirmedAction}
+                  disabled={adActionLoading}
+                >
+                  {adActionLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Zap className="size-4" />}
+                  Confirm
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
       </div>

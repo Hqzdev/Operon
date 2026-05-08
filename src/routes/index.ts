@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { analysisRoutes } from "./analysisRoutes";
 import { analyticsRoutes } from "./analyticsRoutes";
+import { adActionRoutes } from "./adActionRoutes";
 import { authRoutes } from "./authRoutes";
 import { budgetRoutes } from "./budgetRoutes";
 import { campaignSimulationRoutes } from "./campaignSimulationRoutes";
@@ -17,6 +18,7 @@ const router = Router();
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 router.use("/analysis", analysisRoutes);
+router.use("/ad-actions", adActionRoutes);
 router.use("/analytics", analyticsRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/onboarding", onboardingRoutes);
