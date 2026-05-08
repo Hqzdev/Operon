@@ -52,7 +52,7 @@ function apiFetch(path, options = {}) {
 
 function decisionClass(d) {
   if (d === "SCALE") return "badge-scale";
-  if (d === "KILL")  return "badge-kill";
+  if (d === "KILL") return "badge-kill";
   return "badge-wait";
 }
 
@@ -62,7 +62,6 @@ async function init() {
   const token = await getToken();
   if (!token) { showScreen("auth"); return; }
 
-  // Verify token
   try {
     const res = await apiFetch("/users/me");
     if (res.status === 401) { await setToken(null); showScreen("auth"); return; }
@@ -83,7 +82,7 @@ $("btn-save-token").addEventListener("click", async () => {
     const res = await fetch(`${API}/users/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error("Неверный токен");
+    if (!res.ok) throw new Error("Invalid token");
     await setToken(token);
     showScreen("main");
     await onMainLoaded();
@@ -114,24 +113,20 @@ document.querySelectorAll(".tab").forEach((btn) => {
 
 // ── main loaded ───────────────────────────────────────────────────────────────
 async function onMainLoaded() {
-  // Autopilot state
   const autopilotOn = await getAutopilot();
   $("autopilot-switch").checked = autopilotOn;
   $("autopilot-dot").className = `status-dot ${autopilotOn ? "on" : "off"}`;
 
-  // Last sync time
   chrome.storage.local.get("last_sync", (r) => {
     $("last-sync-time").textContent = r.last_sync
-      ? new Date(r.last_sync).toLocaleString("ru-RU")
-      : "Никогда";
+      ? new Date(r.last_sync).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })
+      : "Never";
   });
 
-  // Last result
   chrome.storage.local.get("last_result", (r) => {
     if (r.last_result) showLastResult(r.last_result);
   });
 
-  // Try scraping from active tab
   tryScrapeActiveTab();
 }
 
@@ -146,7 +141,7 @@ function showLastResult(result) {
   show("last-result");
 }
 
-// ── analysis form ─────────────────────────────────────────────────────────────
+// ── single analysis form ──────────────────────────────────────────────────────
 $("btn-analyze").addEventListener("click", async () => {
   hide("analyze-error");
   hide("result-block");
@@ -168,7 +163,7 @@ $("btn-analyze").addEventListener("click", async () => {
   };
 
   $("btn-analyze").disabled = true;
-  $("btn-analyze").textContent = "Анализирую…";
+  $("btn-analyze").textContent = "Analyzing…";
 
   try {
     const res = await apiFetch("/analysis", {
@@ -176,12 +171,11 @@ $("btn-analyze").addEventListener("click", async () => {
       body: JSON.stringify(form),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message ?? "Ошибка анализа");
+    if (!res.ok) throw new Error(data.message ?? "Analysis failed");
 
     const result = data.result ?? data;
     showAnalysisResult(result, form.product_name);
 
-    // Cache
     chrome.storage.local.set({
       last_result: {
         decision: result.decision,
@@ -197,7 +191,7 @@ $("btn-analyze").addEventListener("click", async () => {
     $("btn-analyze").innerHTML = `
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-      </svg> Запустить анализ`;
+      </svg> Run analysis`;
   }
 });
 
@@ -226,33 +220,7 @@ function showAnalysisResult(result, productName) {
   show("result-block");
 }
 
-// ── autopilot toggle ──────────────────────────────────────────────────────────
-$("autopilot-switch").addEventListener("change", async (e) => {
-  const enabled = e.target.checked;
-  await setAutopilot(enabled);
-  $("autopilot-dot").className = `status-dot ${enabled ? "on" : "off"}`;
-  chrome.runtime.sendMessage({ type: "AUTOPILOT_TOGGLE", enabled });
-});
-
-// ── sync now ─────────────────────────────────────────────────────────────────
-$("btn-sync-now").addEventListener("click", async () => {
-  $("btn-sync-now").disabled = true;
-  $("btn-sync-now").textContent = "Синхронизация…";
-  try {
-    const res = await apiFetch("/integrations", { method: "PATCH" });
-    if (!res.ok) throw new Error("Sync failed");
-    const now = new Date().toISOString();
-    chrome.storage.local.set({ last_sync: now });
-    $("last-sync-time").textContent = new Date(now).toLocaleString("ru-RU");
-  } catch {
-    // silent
-  } finally {
-    $("btn-sync-now").disabled = false;
-    $("btn-sync-now").textContent = "Синхронизировать сейчас";
-  }
-});
-
-// ── scrape from active tab ────────────────────────────────────────────────────
+// ── scrape active tab (single, fills analyze form) ────────────────────────────
 async function tryScrapeActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -277,6 +245,173 @@ async function tryScrapeActiveTab() {
     // not on a supported ads page
   }
 }
+
+// ── campaigns tab — bulk scrape ───────────────────────────────────────────────
+let scrapedCampaigns = [];
+let campaignResults  = {};
+
+$("btn-scan-page").addEventListener("click", scanCurrentPage);
+
+async function scanCurrentPage() {
+  const btn = $("btn-scan-page");
+  btn.disabled = true;
+  btn.textContent = "Scanning…";
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) throw new Error("No active tab");
+
+    const response = await chrome.tabs.sendMessage(tab.id, { type: "SCRAPE_ALL" })
+      .catch(() => null);
+
+    scrapedCampaigns = response?.campaigns ?? [];
+    campaignResults  = {};
+    renderCampaignList();
+  } catch {
+    // stay on empty state
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg> Scan current page`;
+  }
+}
+
+function badgeClassFor(decision) {
+  if (decision === "SCALE") return "scale";
+  if (decision === "KILL")  return "kill";
+  if (decision === "FIX")   return "fix";
+  return "test";
+}
+
+function renderCampaignList() {
+  if (scrapedCampaigns.length === 0) {
+    show("campaigns-empty-state");
+    hide("campaigns-found-state");
+    return;
+  }
+
+  hide("campaigns-empty-state");
+  show("campaigns-found-state");
+  $("campaigns-count").textContent = `${scrapedCampaigns.length} campaign${scrapedCampaigns.length !== 1 ? "s" : ""} found`;
+
+  const listEl = $("campaigns-list");
+  listEl.innerHTML = "";
+
+  scrapedCampaigns.forEach((c, i) => {
+    const result = campaignResults[i];
+    const decision = result?.decision?.finalDecision;
+
+    const item = document.createElement("div");
+    item.className = "campaign-item";
+
+    const metaParts = [];
+    if (c.impressions) metaParts.push(`${Number(c.impressions).toLocaleString()} imp`);
+    if (c.spend) metaParts.push(`$${c.spend} spent`);
+    else if (c.clicks) metaParts.push(`${c.clicks} clicks`);
+
+    item.innerHTML = `
+      <div style="min-width:0; flex:1">
+        <div class="campaign-item-name">${c.name || `Campaign ${i + 1}`}</div>
+        <div class="campaign-item-meta">${metaParts.join(" · ")}</div>
+      </div>
+      ${decision ? `<span class="campaign-item-badge ${badgeClassFor(decision)}">${decision}</span>` : ""}
+    `;
+    listEl.appendChild(item);
+  });
+}
+
+$("btn-analyze-all").addEventListener("click", analyzeAll);
+
+async function analyzeAll() {
+  if (scrapedCampaigns.length === 0) return;
+
+  const btn = $("btn-analyze-all");
+  btn.disabled = true;
+  hide("campaigns-error");
+  show("bulk-progress");
+  show("bulk-progress-bar");
+
+  let completed = 0;
+
+  for (let i = 0; i < scrapedCampaigns.length; i++) {
+    const campaign = scrapedCampaigns[i];
+    $("bulk-progress").textContent = `Analyzing ${i + 1} / ${scrapedCampaigns.length}…`;
+    $("bulk-progress-fill").style.width = `${Math.round((i / scrapedCampaigns.length) * 100)}%`;
+
+    try {
+      const form = {
+        product_name:        campaign.name || `Campaign ${i + 1}`,
+        product_price:       0,
+        cost:                0,
+        impressions:         campaign.impressions || 0,
+        clicks:              campaign.clicks || 0,
+        cpc:                 campaign.cpc || 0,
+        ctr:                 campaign.ctr || 0,
+        purchases:           campaign.purchases || 0,
+        revenue:             campaign.revenue || 0,
+        add_to_cart:         0,
+        cpm:                 0,
+        stage:               "testing",
+        product_description: "",
+      };
+
+      const res  = await apiFetch("/analysis", { method: "POST", body: JSON.stringify(form) });
+      const data = await res.json();
+      if (res.ok) {
+        campaignResults[i] = data.result ?? data;
+      }
+    } catch {
+      // continue on individual failure
+    }
+
+    completed++;
+    renderCampaignList();
+  }
+
+  $("bulk-progress-fill").style.width = "100%";
+  $("bulk-progress").textContent = `Done — ${completed} analyzed`;
+
+  btn.disabled = false;
+  btn.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg> Re-analyze all`;
+}
+
+// ── autopilot toggle ──────────────────────────────────────────────────────────
+$("autopilot-switch").addEventListener("change", async (e) => {
+  const enabled = e.target.checked;
+  await setAutopilot(enabled);
+  $("autopilot-dot").className = `status-dot ${enabled ? "on" : "off"}`;
+  chrome.runtime.sendMessage({ type: "AUTOPILOT_TOGGLE", enabled });
+});
+
+// ── sync now ─────────────────────────────────────────────────────────────────
+$("btn-sync-now").addEventListener("click", async () => {
+  $("btn-sync-now").disabled = true;
+  $("btn-sync-now").textContent = "Syncing…";
+  try {
+    await new Promise((resolve, reject) =>
+      chrome.runtime.sendMessage({ type: "MANUAL_SYNC" }, (r) =>
+        r?.ok ? resolve() : reject()
+      )
+    );
+    const now = new Date().toISOString();
+    chrome.storage.local.set({ last_sync: now });
+    $("last-sync-time").textContent = new Date(now).toLocaleString("en-US", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  } catch {
+    // silent
+  } finally {
+    $("btn-sync-now").disabled = false;
+    $("btn-sync-now").textContent = "Sync now";
+  }
+});
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 init();

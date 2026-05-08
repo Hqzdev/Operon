@@ -248,13 +248,30 @@ export async function undoAdAction(userId: string, actionLogId: string) {
   const before = log.beforeState as unknown as EntityState;
   if (!before.dailyBudget) throw new AppError("Original budget is missing", 400);
   const connection = await refreshIfNeeded(log.connection);
+  const undoBefore = await getEntityState(connection, log.externalEntityId);
   const after = await restoreBudget(connection, log.externalEntityId, before.dailyBudget);
 
-  return prisma.adActionLog.update({
+  await prisma.adActionLog.update({
     where: { id: log.id },
     data: {
       status: AdActionStatus.undone,
       undoneAt: new Date(),
+      afterState: after as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  return prisma.adActionLog.create({
+    data: {
+      userId,
+      connectionId: connection.id,
+      provider: connection.provider,
+      externalAccountId: connection.externalAccountId,
+      externalEntityId: log.externalEntityId,
+      entityName: log.entityName,
+      verdictId: log.verdictId,
+      actionType: AdActionType.undo_budget_change,
+      status: AdActionStatus.succeeded,
+      beforeState: undoBefore as unknown as Prisma.InputJsonValue,
       afterState: after as unknown as Prisma.InputJsonValue,
     },
   });

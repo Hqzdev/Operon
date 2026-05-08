@@ -242,3 +242,46 @@ ol#res-actions li { font-size: 11px; color: var(--text); line-height: 1.5; }
 
 /* ── Error ── */
 .error { font-size: 11px; color: var(--red); }
+
+/* ── Campaigns tab ── */
+.campaigns-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 20px 0; text-align: center;
+}
+.campaigns-empty-icon { color: var(--muted); }
+.campaigns-empty-title { font-size: 12px; font-weight: 500; }
+.campaigns-empty-sub { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+.campaigns-found { display: flex; flex-direction: column; gap: 8px; }
+.campaigns-count { font-size: 11px; color: var(--muted); }
+.campaigns-list { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
+.campaign-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--surface); gap: 8px;
+}
+.campaign-item-name {
+  font-size: 11px; font-weight: 500; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 160px;
+}
+.campaign-item-meta { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+.campaign-item-badge {
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px;
+  flex-shrink: 0;
+}
+.campaign-item-badge.scale { background: var(--primary); color: var(--primary-fg); }
+.campaign-item-badge.kill  { background: var(--red); color: #fff; }
+.campaign-item-badge.fix   { background: var(--amber); color: #fff; }
+.campaign-item-badge.test  { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+
+.bulk-progress {
+  font-size: 11px; color: var(--muted); text-align: center; padding: 4px 0;
+}
+.progress-bar {
+  height: 3px; background: var(--border); border-radius: 2px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; background: var(--primary);
+  border-radius: 2px; transition: width 0.3s;
+}

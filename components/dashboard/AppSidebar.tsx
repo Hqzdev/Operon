@@ -72,37 +72,15 @@ import { cn } from "@/lib/utils";
 import { getApiBaseUrl } from "@/lib/api-base-url";
 import { useNotifications } from "@/hooks/use-notifications";
 
-const mainNav = [
-  {
-    title: "Home",
-    href: "/dashboard",
-    icon: Home01Icon,
-    tab: null,
-  },
-  {
-    title: "Analytics",
-    href: "/dashboard?tab=analysis",
-    icon: Analytics01Icon,
-    tab: "analysis",
-  },
-  {
-    title: "Integrations",
-    href: "/dashboard?tab=integrations",
-    icon: ConnectIcon,
-    tab: "integrations",
-  },
-  {
-    title: "Budget Allocation",
-    href: "/dashboard?tab=budget",
-    icon: Money01Icon,
-    tab: "budget",
-  },
-  {
-    title: "Scenario Simulator",
-    href: "/dashboard?tab=scenarios",
-    icon: Rocket01Icon,
-    tab: "scenarios",
-  },
+const coreNav = [
+  { title: "Home",         href: "/dashboard",                icon: Home01Icon,      tab: null         },
+  { title: "Analytics",   href: "/dashboard?tab=analysis",   icon: Analytics01Icon, tab: "analysis"   },
+  { title: "Integrations",href: "/dashboard?tab=integrations",icon: ConnectIcon,     tab: "integrations"},
+] as const;
+
+const advancedNav = [
+  { title: "Budget Allocation",  href: "/dashboard?tab=budget",   icon: Money01Icon,  tab: "budget"   },
+  { title: "Scenario Simulator", href: "/dashboard?tab=scenarios", icon: Rocket01Icon, tab: "scenarios"},
 ] as const;
 
 const secondaryNav = [
@@ -708,6 +686,18 @@ export function AppSidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get("tab");
+  const [usageCount, setUsageCount] = useState(0);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("operon_user");
+    if (!raw) return;
+    try {
+      const user = JSON.parse(raw) as { usageCount?: number };
+      setUsageCount(user.usageCount ?? 0);
+    } catch { /* ignore */ }
+  }, []);
+
+  const showAdvanced = usageCount >= 1;
 
   function isActive(href: string, tab: string | null) {
     if (tab === null) {
@@ -719,6 +709,8 @@ export function AppSidebar() {
     return currentTab === tab;
   }
 
+  const navButtonClass = "h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4";
+
   return (
     <Sidebar collapsible="icon" className="dashboard-sidebar border-r-0 bg-sidebar text-sidebar-foreground shadow-none">
       <SidebarHeader className="px-2 pb-3 pt-3">
@@ -726,18 +718,13 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-3">
+        {/* Core nav — always visible */}
         <SidebarGroup className="px-0 py-1">
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {mainNav.map((item) => (
+              {coreNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href, item.tab)}
-                    tooltip={item.title}
-                    size="default"
-                    className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4"
-                  >
+                  <SidebarMenuButton asChild isActive={isActive(item.href, item.tab)} tooltip={item.title} size="default" className={navButtonClass}>
                     <Link href={item.href}>
                       <item.icon size={16} />
                       <span>{item.title}</span>
@@ -749,53 +736,48 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="px-0 py-1">
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-0.5">
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === "/dashboard/seo"}
-                  tooltip="SEO & Marketing"
-                  size="default"
-                  className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4"
-                >
-                  <Link href="/dashboard/seo">
-                    <ChartBreakoutSquareIcon size={16} />
-                    <span>SEO & Marketing</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === "/dashboard/acquisition"}
-                  tooltip="Acquisition Leads"
-                  size="default"
-                  className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4"
-                >
-                  <Link href="/dashboard/acquisition">
-                    <Rocket01Icon size={16} />
-                    <span>Acquisition Leads</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Advanced nav — unlocked after first analysis */}
+        {showAdvanced && (
+          <SidebarGroup className="px-0 py-1">
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-0.5">
+                {advancedNav.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive(item.href, item.tab)} tooltip={item.title} size="default" className={navButtonClass}>
+                      <Link href={item.href}>
+                        <item.icon size={16} />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/seo"} tooltip="SEO & Marketing" size="default" className={navButtonClass}>
+                    <Link href="/dashboard/seo">
+                      <ChartBreakoutSquareIcon size={16} />
+                      <span>SEO & Marketing</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/acquisition"} tooltip="Acquisition Leads" size="default" className={navButtonClass}>
+                    <Link href="/dashboard/acquisition">
+                      <Rocket01Icon size={16} />
+                      <span>Acquisition Leads</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup className="px-0 py-1">
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
               {secondaryNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.href, item.tab)}
-                    tooltip={item.title}
-                    size="default"
-                    className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4"
-                  >
+                  <SidebarMenuButton asChild isActive={isActive(item.href, item.tab)} tooltip={item.title} size="default" className={navButtonClass}>
                     <Link href={item.href}>
                       <item.icon size={16} />
                       <span>{item.title}</span>

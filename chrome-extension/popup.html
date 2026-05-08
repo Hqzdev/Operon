@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -17,13 +17,13 @@
         </svg>
         Operon
       </div>
-      <p class="subtitle">Войдите чтобы использовать Autopilot</p>
+      <p class="subtitle">Sign in to use Autopilot</p>
       <div class="field">
-        <label for="token-input">API токен</label>
-        <input id="token-input" type="password" placeholder="Вставьте токен из dashboard" />
+        <label for="token-input">API token</label>
+        <input id="token-input" type="password" placeholder="Paste token from your dashboard" />
       </div>
-      <p class="hint">Настройки → API → Скопировать токен</p>
-      <button id="btn-save-token" class="btn btn-primary">Войти</button>
+      <p class="hint">Settings → API → Copy token</p>
+      <button id="btn-save-token" class="btn btn-primary">Sign in</button>
       <p id="auth-error" class="error hidden"></p>
     </div>
 
@@ -38,8 +38,8 @@
           Operon
         </div>
         <div class="top-actions">
-          <div id="autopilot-dot" class="status-dot off" title="Autopilot выключен"></div>
-          <button id="btn-logout" class="btn-icon" title="Выйти">
+          <div id="autopilot-dot" class="status-dot off" title="Autopilot off"></div>
+          <button id="btn-logout" class="btn-icon" title="Sign out">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
@@ -60,23 +60,24 @@
 
       <!-- Tabs -->
       <div class="tabs">
-        <button class="tab active" data-tab="analyze">Анализ</button>
+        <button class="tab active" data-tab="analyze">Analyze</button>
+        <button class="tab" data-tab="campaigns">Campaigns</button>
         <button class="tab" data-tab="autopilot">Autopilot</button>
       </div>
 
-      <!-- Analyze tab -->
+      <!-- Analyze tab (single campaign manual form) -->
       <div id="tab-analyze" class="tab-content">
         <div class="form-grid">
           <div class="field">
-            <label>Продукт</label>
-            <input id="f-product" type="text" placeholder="Название" />
+            <label>Product</label>
+            <input id="f-product" type="text" placeholder="Product name" />
           </div>
           <div class="field">
-            <label>Цена (₽/$)</label>
+            <label>Price ($)</label>
             <input id="f-price" type="number" step="0.01" placeholder="0.00" />
           </div>
           <div class="field">
-            <label>Себестоимость</label>
+            <label>Cost ($)</label>
             <input id="f-cost" type="number" step="0.01" placeholder="0.00" />
           </div>
           <div class="field">
@@ -100,7 +101,7 @@
             <input id="f-purchases" type="number" placeholder="0" />
           </div>
           <div class="field">
-            <label>Revenue</label>
+            <label>Revenue ($)</label>
             <input id="f-revenue" type="number" step="0.01" placeholder="0.00" />
           </div>
           <div class="field">
@@ -113,7 +114,7 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
           </svg>
-          Данные автоматически заполнены с текущей страницы
+          Fields auto-filled from the current page
         </div>
 
         <p id="analyze-error" class="error hidden"></p>
@@ -121,7 +122,7 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
           </svg>
-          Запустить анализ
+          Run analysis
         </button>
 
         <div id="result-block" class="result-block hidden">
@@ -137,10 +138,49 @@
             <div class="derived-item"><span class="d-label">Margin</span><span id="d-margin" class="d-value"></span></div>
           </div>
           <div class="actions-list">
-            <div class="actions-label">Действия</div>
+            <div class="actions-label">Next steps</div>
             <ol id="res-actions"></ol>
           </div>
         </div>
+      </div>
+
+      <!-- Campaigns tab (bulk scrape from current Ads Manager tab) -->
+      <div id="tab-campaigns" class="tab-content hidden">
+
+        <!-- Empty state: not on an ads page -->
+        <div id="campaigns-empty-state" class="campaigns-empty">
+          <svg class="campaigns-empty-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+          </svg>
+          <div class="campaigns-empty-title">Open Meta or TikTok Ads Manager</div>
+          <div class="campaigns-empty-sub">Navigate to your Ads Manager campaign table, then click Scan to pull all campaign data automatically — no API key needed.</div>
+        </div>
+
+        <!-- Found state -->
+        <div id="campaigns-found-state" class="campaigns-found hidden">
+          <div class="campaigns-count" id="campaigns-count">0 campaigns found</div>
+          <div class="campaigns-list" id="campaigns-list"></div>
+          <div id="bulk-progress" class="bulk-progress hidden"></div>
+          <div id="bulk-progress-bar" class="progress-bar hidden">
+            <div id="bulk-progress-fill" class="progress-fill" style="width: 0%"></div>
+          </div>
+          <p id="campaigns-error" class="error hidden"></p>
+          <button id="btn-analyze-all" class="btn btn-primary btn-full">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Analyze all campaigns
+          </button>
+        </div>
+
+        <button id="btn-scan-page" class="btn btn-outline btn-full">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          Scan current page
+        </button>
       </div>
 
       <!-- Autopilot tab -->
@@ -148,7 +188,7 @@
         <div class="autopilot-toggle-row">
           <div>
             <div class="toggle-title">Autopilot</div>
-            <div class="toggle-sub">Авто-анализ раз в 24 часа</div>
+            <div class="toggle-sub">Auto-analyze every 24 hours</div>
           </div>
           <label class="switch">
             <input id="autopilot-switch" type="checkbox" />
@@ -161,37 +201,33 @@
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
           </svg>
           <div>
-            <div class="info-title">Нужна интеграция</div>
-            <div class="info-body">Подключите Meta, TikTok или Shopify в Operon Dashboard.</div>
+            <div class="info-title">No API key needed</div>
+            <div class="info-body">Keep an Ads Manager tab open in Chrome. Autopilot reads campaign data directly from the page and runs analysis automatically.</div>
           </div>
         </div>
 
         <div class="how-it-works">
-          <div class="how-label">Как работает Autopilot</div>
+          <div class="how-label">How Autopilot works</div>
           <ol class="steps">
             <li>
-              <strong>Синхронизирует метрики</strong>
-              Каждые 24 часа забирает свежие данные из Meta, TikTok и Shopify.
+              <strong>Reads your Ads Manager</strong>
+              Every 24 hours it scans your open Meta or TikTok Ads Manager tab.
             </li>
             <li>
-              <strong>Запускает анализ</strong>
-              Каждый продукт оценивается движком — вердикт SCALE / KILL / WATCH.
+              <strong>Runs analysis</strong>
+              Each campaign gets a SCALE / KILL / FIX verdict instantly.
             </li>
             <li>
-              <strong>Уведомляет об изменениях</strong>
-              Если решение изменилось или ROAS упал ниже точки безубыточности — Chrome-уведомление.
-            </li>
-            <li>
-              <strong>Дайджест каждый понедельник</strong>
-              Сводка всех решений приходит на почту.
+              <strong>Notifies you of changes</strong>
+              If a decision flips or ROAS drops below break-even, you get a Chrome notification.
             </li>
           </ol>
         </div>
 
         <div class="sync-status">
-          <div class="sync-label">Последняя синхронизация</div>
-          <div id="last-sync-time" class="sync-time">—</div>
-          <button id="btn-sync-now" class="btn btn-outline btn-full">Синхронизировать сейчас</button>
+          <div class="sync-label">Last sync</div>
+          <div id="last-sync-time" class="sync-time">Never</div>
+          <button id="btn-sync-now" class="btn btn-outline btn-full">Sync now</button>
         </div>
       </div>
     </div>

@@ -2,80 +2,151 @@
 // Scrapes campaign metrics from the Ads Manager table UI
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type !== "SCRAPE_METRICS") return;
-
-  try {
-    const metrics = scrapeMeta();
-    sendResponse({ metrics });
-  } catch {
-    sendResponse({ metrics: null });
+  if (msg.type === "SCRAPE_METRICS") {
+    try {
+      const campaigns = scrapeAllCampaigns();
+      sendResponse({ metrics: campaigns[0] ?? null });
+    } catch {
+      sendResponse({ metrics: null });
+    }
+    return true;
   }
 
-  return true;
+  if (msg.type === "SCRAPE_ALL") {
+    try {
+      const campaigns = scrapeAllCampaigns();
+      sendResponse({ campaigns });
+    } catch {
+      sendResponse({ campaigns: [] });
+    }
+    return true;
+  }
 });
 
-function scrapeMeta() {
-  const metrics = {};
+function scrapeAllCampaigns() {
+  const campaigns = [];
 
-  // Campaign/adset name — first selected row or page title
-  const nameEl =
-    document.querySelector("[data-testid='campaign-name']") ??
-    document.querySelector(".x1n2onr6 .x193iq5w") ??
-    document.querySelector("h1");
-  if (nameEl) metrics.name = nameEl.textContent.trim();
+  // Get column positions from table headers
+  const headerEls = Array.from(
+    document.querySelectorAll("thead th, [role='columnheader']")
+  );
+  const headers = headerEls.map((th) => th.textContent.trim().toLowerCase());
 
-  // Try to read table cells — Meta Ads Manager uses data-testid attributes
-  const cells = document.querySelectorAll("[data-testid]");
-  cells.forEach((cell) => {
-    const key = cell.getAttribute("data-testid") ?? "";
-    const val = parseNumber(cell.textContent);
+  // All data rows (tbody or aria rows)
+  const rows = document.querySelectorAll(
+    "tbody tr, [role='row']:not([role='columnheader'])"
+  );
 
-    if (key.includes("impressions") && val) metrics.impressions = val;
-    if (key.includes("clicks") && val)      metrics.clicks = val;
-    if (key.includes("cpc") && val)         metrics.cpc = val;
-    if (key.includes("ctr") && val)         metrics.ctr = val;
-    if (key.includes("purchase") && val)    metrics.purchases = val;
-    if (key.includes("revenue") || key.includes("purchase_roas")) {
-      if (val) metrics.revenue = val;
+  rows.forEach((row) => {
+    const cells = Array.from(row.querySelectorAll("td, [role='cell']"));
+    if (cells.length < 2) return;
+
+    const campaign = {};
+
+    // Campaign name — first cell, prefer anchor or named element
+    const firstCell = cells[0];
+    const nameEl =
+      firstCell.querySelector("a") ??
+      firstCell.querySelector("[data-testid*='name']") ??
+      firstCell;
+    campaign.name = (nameEl.textContent ?? "").trim().replace(/\s+/g, " ");
+    if (!campaign.name) return;
+
+    // Header-based column extraction
+    if (headers.length > 0) {
+      headers.forEach((header, i) => {
+        if (i >= cells.length) return;
+        const val = parseNumber(cells[i]?.textContent ?? "");
+        if (val === null) return;
+
+        if (header.includes("impression")) campaign.impressions = val;
+        if (
+          (header.includes("link click") ||
+            header === "clicks (all)" ||
+            header === "clicks") &&
+          !header.includes("ctr")
+        )
+          campaign.clicks = val;
+        if (
+          header === "cpc (all)" ||
+          header === "cpc" ||
+          header.includes("cost per click")
+        )
+          campaign.cpc = val;
+        if (header === "ctr (all)" || header === "ctr") campaign.ctr = val;
+        if (
+          (header.includes("purchase") || header.includes("result")) &&
+          !header.includes("cost") &&
+          !header.includes("roas") &&
+          !header.includes("value") &&
+          !campaign.purchases
+        )
+          campaign.purchases = val;
+        if (
+          header.includes("purchase roas") ||
+          header.includes("return on ad spend") ||
+          header === "roas"
+        )
+          campaign.roas = val;
+        if (header.includes("amount spent") || header === "spend")
+          campaign.spend = val;
+        if (
+          (header.includes("purchase") && header.includes("value")) ||
+          header.includes("conversion value") ||
+          header.includes("purchase conversion value")
+        )
+          campaign.revenue = val;
+      });
+    }
+
+    // Fallback: data-testid attributes on individual cells
+    cells.forEach((cell) => {
+      const key = (cell.getAttribute("data-testid") ?? "").toLowerCase();
+      const val = parseNumber(cell.textContent);
+      if (val === null) return;
+
+      if (key.includes("impressions") && !campaign.impressions)
+        campaign.impressions = val;
+      if (
+        key.includes("clicks") &&
+        !key.includes("ctr") &&
+        !campaign.clicks
+      )
+        campaign.clicks = val;
+      if (key.includes("cpc") && !campaign.cpc) campaign.cpc = val;
+      if (key.includes("ctr") && !campaign.ctr) campaign.ctr = val;
+      if (
+        key.includes("purchase") &&
+        !key.includes("roas") &&
+        !key.includes("value") &&
+        !campaign.purchases
+      )
+        campaign.purchases = val;
+      if (
+        (key.includes("revenue") ||
+          key.includes("purchase_roas") ||
+          key.includes("roas")) &&
+        !campaign.roas
+      )
+        campaign.roas = val;
+    });
+
+    // Include only rows with at least some real ad data
+    if (
+      campaign.impressions ||
+      campaign.clicks ||
+      campaign.spend ||
+      campaign.purchases
+    ) {
+      campaigns.push(campaign);
     }
   });
 
-  // Fallback: scan table rows for column-header aligned values
-  if (!metrics.impressions) {
-    scrapeTableByHeaders(metrics);
-  }
-
-  return Object.keys(metrics).length > 1 ? metrics : null;
-}
-
-function scrapeTableByHeaders() {
-  const headers = Array.from(document.querySelectorAll("th")).map((th) =>
-    th.textContent.trim().toLowerCase()
-  );
-
-  const rows = document.querySelectorAll("tr");
-  rows.forEach((row) => {
-    const cells = Array.from(row.querySelectorAll("td")).map((td) =>
-      td.textContent.trim()
-    );
-    if (cells.length === 0) return;
-
-    headers.forEach((header, i) => {
-      const val = parseNumber(cells[i] ?? "");
-      if (!val) return;
-
-      if (header.includes("impression")) window._operonMetrics = { ...window._operonMetrics, impressions: val };
-      if (header.includes("click") && !header.includes("ctr")) window._operonMetrics = { ...window._operonMetrics, clicks: val };
-      if (header === "cpc") window._operonMetrics = { ...window._operonMetrics, cpc: val };
-      if (header === "ctr") window._operonMetrics = { ...window._operonMetrics, ctr: val };
-    });
-  });
-
-  return window._operonMetrics ?? {};
+  return campaigns;
 }
 
 function parseNumber(str) {
-  const cleaned = str.replace(/[$,%\s]/g, "").replace(",", ".");
+  const cleaned = (str ?? "").replace(/[$,%\s]/g, "").replace(",", ".");
   const num = parseFloat(cleaned);
   return isFinite(num) && num >= 0 ? num : null;
 }

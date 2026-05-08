@@ -4,10 +4,10 @@ export default function RegisterPage() {
   return (
     <AuthShell
       mode="register"
-      title="Create your workspace"
-      description="Create your account, set up your seller workspace, and start using Operon with a real backend and saved account data."
-      submitLabel="Create account"
-      secondaryLabel="Already have access?"
+      title="Stop guessing what to do with your ads"
+      description="Operon reads your campaign numbers and tells you exactly whether to scale, stop, or fix — in seconds."
+      submitLabel="Create free account"
+      secondaryLabel="Already have an account?"
       secondaryHref="/login"
       fields={[
         {
@@ -17,21 +17,21 @@ export default function RegisterPage() {
         },
         {
           id: "email",
-          label: "Work email",
+          label: "Email",
           type: "email",
           placeholder: "founder@store.com",
-        },
-        {
-          id: "storeName",
-          label: "Store name",
-          placeholder: "Operon Labs",
         },
         {
           id: "password",
           label: "Password",
           type: "password",
-          placeholder: "Create a secure password",
+          placeholder: "Min. 8 characters",
         },
+      ]}
+      leftCards={[
+        { value: "Know what to scale", label: "before you overspend" },
+        { value: "Catch losing ads fast", label: "before they drain budget" },
+        { value: "Act with confidence", label: "not gut feeling" },
       ]}
     />
   );

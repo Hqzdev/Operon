@@ -3,6 +3,7 @@ import { generateDigestsForAllUsers } from "./digestService";
 import { runFatigueChecksForDueAccounts } from "./fatigueService";
 import { runRedditAcquisitionScan } from "./redditAcquisitionService";
 import { recomputeDueRecommendationOutcomes } from "./recommendationOutcomeService";
+import { generateWeeklyAgencyReports } from "./agencyService";
 
 let started = false;
 
@@ -46,6 +47,16 @@ export function startScheduler(): void {
     }
   });
 
+  cron.schedule("10 6 * * 1", async () => {
+    console.log("[scheduler] Generating agency weekly reports");
+    try {
+      await generateWeeklyAgencyReports();
+    } catch (err) {
+      console.error("[scheduler] Agency weekly report job failed:", err);
+    }
+  });
+
+  console.log("[scheduler] Agency weekly reports scheduled for Monday 06:10");
   console.log("[scheduler] Recommendation accuracy scheduled for 05:30 daily");
   console.log("[scheduler] Morning digest scheduled for 08:00 daily");
   console.log("[scheduler] Creative fatigue check scheduled for 07:15 daily");

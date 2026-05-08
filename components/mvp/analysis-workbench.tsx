@@ -403,6 +403,7 @@ export function AnalysisWorkbench() {
   const [result, setResult] = useState<AnalysisOutput | null>(null);
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [executionTarget, setExecutionTarget] = useState<ExecutionTarget | null>(null);
   const [confirmAction, setConfirmAction] = useState<AdActionType | null>(null);
@@ -550,7 +551,11 @@ export function AnalysisWorkbench() {
 
       const data = await response.json();
       if (!response.ok) {
-        setError(data.message ?? data.error ?? "Analysis failed");
+        if (response.status === 429) {
+          setLimitReached(true);
+        } else {
+          setError(data.message ?? data.error ?? "Analysis failed");
+        }
         return;
       }
 
@@ -880,7 +885,8 @@ export function AnalysisWorkbench() {
     }));
   }
 
-  const hasProFeatures = true;
+  const hasProFeatures = user?.plan !== "STARTER" && user !== null;
+  const isStarterPlan = user?.plan === "STARTER" || user === null;
   const profileDisplayName = user?.name || user?.email?.split("@")[0] || "User";
   const profileInitial = profileDisplayName.trim().charAt(0).toUpperCase() || "U";
   const profilePlan = user?.plan === "STARTER" ? "FREE PLAN" : `${user?.planDisplay ?? user?.plan ?? "FREE"} PLAN`;
@@ -888,11 +894,15 @@ export function AnalysisWorkbench() {
   return (
     <main className="relative h-full overflow-y-auto bg-background text-foreground">
       <div className="flex min-h-full flex-col px-6 py-5 sm:px-8 lg:px-8">
-        <div className="mb-6 shrink-0">
-          <h1 className="text-[20px] font-semibold leading-tight tracking-normal sm:text-[24px]">
+        <div className="mb-8 shrink-0">
+          <div className="mb-3 flex items-center gap-3">
+            <span className="h-px w-6 bg-foreground/30" />
+            <span className="font-mono text-xs text-muted-foreground">Analysis Workbench</span>
+          </div>
+          <h1 className="font-display text-[28px] leading-tight tracking-tight sm:text-[36px]">
             Operon Analysis Workbench
           </h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">
+          <p className="mt-2 text-[14px] text-muted-foreground">
             Decision engine, diagnosis, action plan, and product validation
           </p>
         </div>
@@ -1200,7 +1210,36 @@ export function AnalysisWorkbench() {
                     </div>
                   </div>
 
-                  <div className="mt-6 flex flex-wrap gap-3">
+                  {/* Usage bar for Starter plan */}
+                  {isStarterPlan && user && (
+                    <div className="mt-5 rounded-xl border border-border bg-muted/40 px-4 py-3">
+                      <div className="flex items-center justify-between text-[12px]">
+                        <span className="text-muted-foreground">
+                          {user.usageCount} / 10 analyses used this month
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => upgradePlan("SCALE")}
+                          className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+                        >
+                          Upgrade for unlimited
+                        </button>
+                      </div>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                        <div
+                          className={`h-1.5 rounded-full transition-all ${user.usageCount >= 8 ? "bg-amber-500" : "bg-foreground"}`}
+                          style={{ width: `${Math.min(100, (user.usageCount / 10) * 100)}%` }}
+                        />
+                      </div>
+                      {user.usageCount >= 8 && (
+                        <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+                          {10 - user.usageCount} {10 - user.usageCount === 1 ? "analysis" : "analyses"} left — upgrade to keep going after that.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex flex-wrap gap-3">
                     <Button onClick={submit} disabled={isSubmitting} className="rounded-full">
                       {isSubmitting ? (
                         <>
@@ -1217,13 +1256,41 @@ export function AnalysisWorkbench() {
                     <Button
                       variant="outline"
                       className="rounded-full"
-                      onClick={() => { setForm(initialForm); setError(null); }}
+                      onClick={() => { setForm(initialForm); setError(null); setLimitReached(false); }}
                     >
                       Clear form
                     </Button>
                   </div>
 
-                  {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+                  {limitReached && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-900/40 dark:bg-amber-950/30">
+                      <div className="flex items-start gap-3">
+                        <Crown className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-semibold text-amber-900 dark:text-amber-200">
+                            You&apos;ve used all 10 free analyses this month
+                          </p>
+                          <p className="mt-1 text-[12px] leading-relaxed text-amber-700 dark:text-amber-400">
+                            Upgrade to Pro for unlimited analyses, Budget Allocation, and Scenario Simulator — $19/mo.
+                          </p>
+                          <Button
+                            size="sm"
+                            className="mt-3 h-8 rounded-full text-xs"
+                            onClick={() => upgradePlan("SCALE")}
+                          >
+                            <TrendingUp className="size-3.5" />
+                            Upgrade to Pro · $19/mo
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {error ? (
+                    <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700 dark:border-red-900/30 dark:bg-red-950/30 dark:text-red-400">
+                      {error}
+                    </p>
+                  ) : null}
                 </CardContent>
               </Card>
 
@@ -1546,17 +1613,33 @@ export function AnalysisWorkbench() {
           {/* ── Budget Allocation tab ── */}
           <TabsContent value="budget">
             {!hasProFeatures ? (
-              <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-border">
-                <div className="max-w-sm text-center">
-                  <Crown className="mx-auto size-10 text-amber-500 mb-4" />
-                  <div className="text-[20px] font-semibold">Pro plan required</div>
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    Budget Allocation Engine compares your ad sets and recommends how to distribute your budget for maximum ROAS.
+              <div className="flex min-h-[480px] items-center justify-center">
+                <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
+                  <div className="mb-5 flex size-11 items-center justify-center rounded-xl bg-muted">
+                    <TrendingUp className="size-5 text-muted-foreground" />
+                  </div>
+                  <div className="text-[20px] font-semibold tracking-tight">Budget Allocation</div>
+                  <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                    Compare your ad sets side by side. Operon scores each by efficiency and tells you exactly how to redistribute your budget to maximize ROAS.
                   </p>
-                  <Button className="mt-6 rounded-full gap-2" onClick={() => upgradePlan("SCALE")}>
-                    <TrendingUp className="size-4" />
-                    Upgrade to Pro · $19/mo
+                  <ul className="mt-4 space-y-2">
+                    {[
+                      "Compare up to 10 ad sets at once",
+                      "Efficiency score per ad set (SCALE / HOLD / CUT)",
+                      "Recommended budget split in dollars",
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2 text-[12px] text-muted-foreground">
+                        <span className="mt-0.5 size-3.5 shrink-0 text-foreground">✓</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button className="mt-6 w-full rounded-xl" onClick={() => upgradePlan("SCALE")}>
+                    Unlock Budget Allocation · $19/mo
                   </Button>
+                  <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                    Pro plan · Unlimited analyses + all features · Cancel anytime
+                  </p>
                 </div>
               </div>
             ) : (
@@ -1692,17 +1775,33 @@ export function AnalysisWorkbench() {
           {/* ── Scenario Simulator tab ── */}
           <TabsContent value="scenario">
             {!hasProFeatures ? (
-              <div className="flex min-h-[480px] items-center justify-center rounded-3xl border border-dashed border-border">
-                <div className="max-w-sm text-center">
-                  <Crown className="mx-auto size-10 text-amber-500 mb-4" />
-                  <div className="text-[20px] font-semibold">Pro plan required</div>
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    Scenario Simulator projects revenue and profit when you change CTR, conversion rate, CPC, or budget.
+              <div className="flex min-h-[480px] items-center justify-center">
+                <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
+                  <div className="mb-5 flex size-11 items-center justify-center rounded-xl bg-muted">
+                    <Zap className="size-5 text-muted-foreground" />
+                  </div>
+                  <div className="text-[20px] font-semibold tracking-tight">Scenario Simulator</div>
+                  <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                    Before you change a budget or tweak a campaign, see the projected outcome. Adjust CTR, CPC, conversion rate, or budget — Operon shows you the revenue and profit delta instantly.
                   </p>
-                  <Button className="mt-6 rounded-full gap-2" onClick={() => upgradePlan("SCALE")}>
-                    <TrendingUp className="size-4" />
-                    Upgrade to Pro · $19/mo
+                  <ul className="mt-4 space-y-2">
+                    {[
+                      "Preview revenue and ROAS before committing",
+                      "Model CPC, CTR, conversion rate, and budget changes",
+                      "Risk level and confidence score on every scenario",
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2 text-[12px] text-muted-foreground">
+                        <span className="mt-0.5 size-3.5 shrink-0 text-foreground">✓</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button className="mt-6 w-full rounded-xl" onClick={() => upgradePlan("SCALE")}>
+                    Unlock Scenario Simulator · $19/mo
                   </Button>
+                  <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                    Pro plan · Unlimited analyses + all features · Cancel anytime
+                  </p>
                 </div>
               </div>
             ) : (
@@ -1956,26 +2055,89 @@ export function AnalysisWorkbench() {
 
                 {settingsSection === "billing" ? (
                   <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                    <CardContent className="px-6 py-6">
+                    <CardContent className="px-6 py-6 space-y-6">
                       <h2 className="text-[19px] font-semibold tracking-normal">Billing</h2>
-                      <div className="mt-5 rounded-lg border border-border p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
+
+                      {/* Current plan */}
+                      <div className="rounded-xl border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
-                            <div className="text-[14px] font-medium">{user?.planDisplay ?? user?.plan ?? "Starter"}</div>
-                            <p className="mt-0.5 text-[12px] text-muted-foreground">
-                              Status: {user?.subscriptionStatus ?? "NONE"}
-                            </p>
+                            <div className="text-[13px] text-muted-foreground">Current plan</div>
+                            <div className="mt-1 text-[18px] font-semibold">
+                              {user?.plan === "STARTER" ? "Starter (Free)" : user?.plan === "PRO" ? "Basic · $9/mo" : user?.plan === "SCALE" ? "Pro · $19/mo" : "Free"}
+                            </div>
+                            {user?.plan === "STARTER" && (
+                              <div className="mt-2">
+                                <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                                  <span>{user.usageCount} / 10 analyses used</span>
+                                  <span>Resets monthly</span>
+                                </div>
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+                                  <div
+                                    className={`h-1.5 rounded-full ${user.usageCount >= 8 ? "bg-amber-500" : "bg-foreground"}`}
+                                    style={{ width: `${Math.min(100, (user.usageCount / 10) * 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={() => upgradePlan("PRO")}>
-                              Pro
-                            </Button>
-                            <Button size="sm" className="h-8 rounded-full text-xs" onClick={() => upgradePlan("SCALE")}>
-                              Scale
-                            </Button>
-                          </div>
+                          {user?.plan !== "STARTER" && (
+                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400">
+                              Active
+                            </span>
+                          )}
                         </div>
                       </div>
+
+                      {/* Upgrade options — only for Starter */}
+                      {user?.plan === "STARTER" && (
+                        <div className="space-y-3">
+                          <p className="text-[13px] font-medium">Upgrade your plan</p>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {[
+                              {
+                                name: "Basic",
+                                price: "$9/mo",
+                                features: ["Unlimited analyses", "Full AI recommendations", "History tracking"],
+                                plan: "PRO" as const,
+                                primary: false,
+                              },
+                              {
+                                name: "Pro",
+                                price: "$19/mo",
+                                features: ["Everything in Basic", "Budget Allocation", "Scenario Simulator"],
+                                plan: "SCALE" as const,
+                                primary: true,
+                              },
+                            ].map((tier) => (
+                              <div key={tier.name} className={`rounded-xl border p-4 ${tier.primary ? "border-foreground" : "border-border"}`}>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[14px] font-semibold">{tier.name}</span>
+                                  <span className="text-[13px] font-semibold">{tier.price}</span>
+                                </div>
+                                <ul className="mt-3 space-y-1.5">
+                                  {tier.features.map((f) => (
+                                    <li key={f} className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                                      <span className="text-foreground">✓</span>{f}
+                                    </li>
+                                  ))}
+                                </ul>
+                                <Button
+                                  size="sm"
+                                  variant={tier.primary ? "default" : "outline"}
+                                  className="mt-4 w-full rounded-lg"
+                                  onClick={() => upgradePlan(tier.plan)}
+                                >
+                                  Upgrade to {tier.name}
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground text-center">
+                            Payments via YooKassa · Cancel anytime
+                          </p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ) : null}

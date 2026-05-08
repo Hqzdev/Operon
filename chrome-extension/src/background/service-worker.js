@@ -2,6 +2,12 @@ const API = "https://operons.vercel.app/api";
 const ALARM_NAME = "operon-autopilot-sync";
 const SYNC_INTERVAL_MINUTES = 60 * 24; // every 24h
 
+const ADS_MANAGER_PATTERNS = [
+  "https://www.facebook.com/adsmanager/*",
+  "https://business.facebook.com/*",
+  "https://ads.tiktok.com/*",
+];
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 function getStorage(keys) {
   return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
@@ -67,50 +73,135 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
-// ── core sync logic ───────────────────────────────────────────────────────────
-async function runAutopilotSync() {
-  try {
-    // 1. Trigger metrics sync from integrations
-    const syncRes = await apiFetch("/integrations", { method: "PATCH" });
-    if (!syncRes || !syncRes.ok) return;
+// ── scrape from an open Ads Manager tab ───────────────────────────────────────
+async function scrapeFromOpenTab() {
+  for (const pattern of ADS_MANAGER_PATTERNS) {
+    let tabs;
+    try {
+      tabs = await chrome.tabs.query({ url: pattern });
+    } catch {
+      continue;
+    }
+    for (const tab of tabs) {
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, { type: "SCRAPE_ALL" });
+        if (response?.campaigns?.length > 0) return response.campaigns;
+      } catch {
+        continue;
+      }
+    }
+  }
+  return [];
+}
 
-    // 2. Fetch latest analysis history to check for decision changes
-    const histRes = await apiFetch("/analysis");
-    if (!histRes || !histRes.ok) return;
+// ── analyze scraped campaigns and fire notifications ──────────────────────────
+async function analyzeScrapedCampaigns(campaigns) {
+  const { last_decisions: prevDecisions = {} } = await getStorage("last_decisions");
+  const changes = [];
 
-    const history = await histRes.json();
-    const { last_decisions: prevDecisions = {} } = await getStorage("last_decisions");
+  for (const campaign of campaigns.slice(0, 10)) {
+    const name = campaign.name || "Campaign";
+    const form = {
+      product_name:        name,
+      product_price:       0,
+      cost:                0,
+      impressions:         campaign.impressions || 0,
+      clicks:              campaign.clicks || 0,
+      cpc:                 campaign.cpc || 0,
+      ctr:                 campaign.ctr || 0,
+      purchases:           campaign.purchases || 0,
+      revenue:             campaign.revenue || 0,
+      add_to_cart:         0,
+      cpm:                 0,
+      stage:               "testing",
+      product_description: "",
+    };
 
-    const changes = [];
+    try {
+      const res = await apiFetch("/analysis", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+      if (!res?.ok) continue;
 
-    for (const item of (history ?? []).slice(0, 10)) {
-      const name = item.inputData?.product_name ?? "Product";
-      const decision = item.result?.decision?.finalDecision;
-      const prev = prevDecisions[name];
+      const data   = await res.json();
+      const result = data.result ?? data;
+      const decision = result.decision?.finalDecision;
+      const prev     = prevDecisions[name];
 
       if (prev && prev !== decision) {
         changes.push({ name, from: prev, to: decision });
       }
-
       if (decision) prevDecisions[name] = decision;
 
       // ROAS drop alert
-      const derived = item.result?.derived;
-      if (derived && derived.roas < derived.breakEvenRoas && derived.roas > 0) {
+      const derived = result.derived;
+      if (derived?.roas > 0 && derived.roas < derived.breakEvenRoas) {
         notify(
-          `⚠️ ROAS ниже точки безубыточности`,
+          "ROAS below break-even",
+          `${name}: ROAS ${derived.roas}x < BE ${derived.breakEvenRoas}x`
+        );
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (changes.length > 0) {
+    const summary = changes.map((c) => `${c.name}: ${c.from} → ${c.to}`).join("\n");
+    notify("Decision changed", summary);
+  }
+
+  chrome.storage.local.set({
+    last_decisions: prevDecisions,
+    last_sync: new Date().toISOString(),
+  });
+}
+
+// ── core sync logic ───────────────────────────────────────────────────────────
+async function runAutopilotSync() {
+  try {
+    // Try scraping from an open Ads Manager tab (no API key needed)
+    const campaigns = await scrapeFromOpenTab();
+
+    if (campaigns.length > 0) {
+      await analyzeScrapedCampaigns(campaigns);
+      return;
+    }
+
+    // Fallback: server-side integration sync (requires connected accounts)
+    const syncRes = await apiFetch("/integrations", { method: "PATCH" });
+    if (!syncRes?.ok) return;
+
+    const histRes = await apiFetch("/analysis");
+    if (!histRes?.ok) return;
+
+    const history = await histRes.json();
+    const { last_decisions: prevDecisions = {} } = await getStorage("last_decisions");
+    const changes = [];
+
+    for (const item of (history ?? []).slice(0, 10)) {
+      const name     = item.inputData?.product_name ?? "Product";
+      const decision = item.result?.decision?.finalDecision;
+      const prev     = prevDecisions[name];
+
+      if (prev && prev !== decision) changes.push({ name, from: prev, to: decision });
+      if (decision) prevDecisions[name] = decision;
+
+      const derived = item.result?.derived;
+      if (derived?.roas > 0 && derived.roas < derived.breakEvenRoas) {
+        notify(
+          "ROAS below break-even",
           `${name}: ROAS ${derived.roas}x < BE ${derived.breakEvenRoas}x`
         );
       }
     }
 
-    // Notify about decision changes
     if (changes.length > 0) {
       const summary = changes.map((c) => `${c.name}: ${c.from} → ${c.to}`).join("\n");
-      notify("Решения изменились", summary);
+      notify("Decision changed", summary);
     }
 
-    // Save state
     chrome.storage.local.set({
       last_decisions: prevDecisions,
       last_sync: new Date().toISOString(),

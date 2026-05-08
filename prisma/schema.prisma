@@ -85,6 +85,12 @@ enum RecommendationOutcomeStatus {
   unavailable
 }
 
+enum AgencyRole {
+  owner
+  member
+  view_only
+}
+
 model User {
   id                  String             @id @default(cuid())
   email               String             @unique
@@ -113,8 +119,82 @@ model User {
   simulationLogs      SimulationLog[]
   adActionLogs        AdActionLog[]
   recommendationOutcomes RecommendationOutcome[]
+  ownedAgencyWorkspaces AgencyWorkspace[] @relation("AgencyWorkspaceOwner")
+  agencyMemberships   AgencyMember[]
+  agencyClients       AgencyClient[]      @relation("AgencyClientUser")
   stores              Store[]            @relation("UserStores")
   activeStore         Store?             @relation("ActiveStore", fields: [activeStoreId], references: [id], onDelete: SetNull)
+}
+
+model AgencyWorkspace {
+  id        String         @id @default(cuid())
+  ownerId   String
+  name      String
+  logoUrl   String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  owner     User           @relation("AgencyWorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members   AgencyMember[]
+  clients   AgencyClient[]
+  reports   AgencyClientReport[]
+
+  @@index([ownerId])
+}
+
+model AgencyMember {
+  id              String           @id @default(cuid())
+  workspaceId     String
+  userId          String?
+  clientId        String?
+  role            AgencyRole
+  invitedEmail    String?
+  inviteToken     String?          @unique
+  inviteExpiresAt DateTime?
+  acceptedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  workspace       AgencyWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client          AgencyClient?    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId, role])
+  @@index([userId])
+  @@index([clientId])
+}
+
+model AgencyClient {
+  id          String               @id @default(cuid())
+  workspaceId String
+  userId      String?
+  name        String
+  contactEmail String?
+  storeUrl    String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  workspace   AgencyWorkspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?               @relation("AgencyClientUser", fields: [userId], references: [id], onDelete: SetNull)
+  members     AgencyMember[]
+  reports     AgencyClientReport[]
+
+  @@index([workspaceId, createdAt])
+  @@index([userId])
+}
+
+model AgencyClientReport {
+  id          String           @id @default(cuid())
+  workspaceId String
+  clientId    String
+  weekStart   DateTime
+  generatedAt DateTime         @default(now())
+  summary     Json
+  pdfBase64   String           @db.Text
+  filename    String
+  workspace   AgencyWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client      AgencyClient     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, weekStart])
+  @@index([workspaceId, generatedAt])
 }
 
 model Store {
