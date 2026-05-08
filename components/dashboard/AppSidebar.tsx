@@ -119,6 +119,7 @@ type StoreSummary = {
   name: string;
   url: string;
   platform?: string | null;
+  lastSyncedAt?: string | null;
 };
 
 type SidebarProfile = {
@@ -132,6 +133,15 @@ type SidebarProfile = {
   activeStore?: StoreSummary | null;
   stores?: StoreSummary[];
 };
+
+function lastScanLabel(date?: string | null) {
+  if (!date) return null;
+  try {
+    return formatDistanceToNow(new Date(date), { addSuffix: true });
+  } catch {
+    return null;
+  }
+}
 
 function storeDisplayName(store?: Pick<StoreSummary, "name" | "url"> | null) {
   const raw = store?.name || store?.url || "";
@@ -547,37 +557,70 @@ function StoreSwitcher() {
     }
   }
 
+  const activeLastScan = lastScanLabel(activeStore?.lastSyncedAt);
+  const initial = displayName.charAt(0).toUpperCase() || "S";
+
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 text-left transition-colors hover:bg-sidebar-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[#999999]">
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-5 text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-              {displayName}
-            </span>
+          <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-sidebar-accent focus:outline-none group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-[13px] font-semibold text-foreground">
+              {initial}
+            </div>
+            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[14px] font-semibold text-sidebar-foreground">{displayName}</span>
+                <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+              </div>
+              {activeLastScan && (
+                <div className="text-[12px] text-muted-foreground">Last scan {activeLastScan}</div>
+              )}
+            </div>
+            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-64">
-          <DropdownMenuLabel>Stores</DropdownMenuLabel>
+        <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-72 p-1.5">
           {stores.length === 0 ? (
-            <DropdownMenuItem onSelect={() => setIsAddOpen(true)}>
-              <Store className="size-4" />
-              Add your first store
+            <DropdownMenuItem onSelect={() => setIsAddOpen(true)} className="gap-3 rounded-lg p-2.5">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                <Store className="size-4" />
+              </div>
+              <div>
+                <div className="text-[13px] font-semibold">Add your first store</div>
+                <div className="text-[12px] text-muted-foreground">Track leads for your product</div>
+              </div>
             </DropdownMenuItem>
           ) : (
-            stores.map((store) => (
-              <DropdownMenuItem key={store.id} onSelect={() => void selectStore(store.id)}>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{storeDisplayName(store)}</div>
-                </div>
-                {store.id === activeStore?.id && <Check className="size-4" />}
-              </DropdownMenuItem>
-            ))
+            stores.map((store) => {
+              const name = storeDisplayName(store);
+              const scan = lastScanLabel(store.lastSyncedAt);
+              return (
+                <DropdownMenuItem key={store.id} onSelect={() => void selectStore(store.id)} className="gap-3 rounded-lg p-2.5">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-[13px] font-semibold text-foreground">
+                    {name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-[13px] font-semibold">{name}</span>
+                      <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+                    </div>
+                    {scan && <div className="text-[12px] text-muted-foreground">Last scan {scan}</div>}
+                  </div>
+                  {store.id === activeStore?.id && <Check className="size-4 shrink-0 text-foreground" />}
+                </DropdownMenuItem>
+              );
+            })
           )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setIsAddOpen(true)}>
-            <Plus className="size-4" />
-            Add store
+          <DropdownMenuSeparator className="my-1.5" />
+          <DropdownMenuItem onSelect={() => setIsAddOpen(true)} className="gap-3 rounded-lg p-2.5">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <Plus className="size-4" />
+            </div>
+            <div>
+              <div className="text-[13px] font-semibold">Add product</div>
+              <div className="text-[12px] text-muted-foreground">Track leads for another product</div>
+            </div>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -642,13 +685,8 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="dashboard-sidebar border-r-0 bg-sidebar text-sidebar-foreground shadow-none">
-      <SidebarHeader className="px-4 pb-3 pt-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <StoreSwitcher />
-          </div>
-          <ChevronsUpDown className="size-3.5 shrink-0 text-[#9CA3AF] group-data-[collapsible=icon]:hidden" />
-        </div>
+      <SidebarHeader className="px-2 pb-3 pt-3">
+        <StoreSwitcher />
       </SidebarHeader>
 
       <SidebarContent className="px-3">

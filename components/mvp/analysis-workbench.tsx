@@ -299,6 +299,56 @@ const emptyAdSet = (): AdSetInput => ({
   add_to_cart: 0, purchases: 0, revenue: 0, product_price: 0, cost: 0,
 });
 
+function ApiTokenBlock() {
+  const [token, setToken] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setToken(localStorage.getItem("operon_token"));
+  }, []);
+
+  function copyToken() {
+    if (!token) return;
+    void navigator.clipboard.writeText(token).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  if (!token) return null;
+
+  const masked = token.slice(0, 12) + "••••••••••••••••••••••••" + token.slice(-6);
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-muted-foreground">Your API token</div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setVisible((v) => !v)}
+            className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            {visible ? "Hide" : "Show"}
+          </button>
+          <button
+            onClick={copyToken}
+            className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </div>
+      <div className="mt-1.5 break-all font-mono text-[11px] text-foreground">
+        {visible ? token : masked}
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Вставьте этот токен в Chrome-расширение Operon.
+      </p>
+    </div>
+  );
+}
+
 const dashboardTabs = new Set(["analysis", "integrations", "budget", "scenario", "settings"]);
 type SettingsSection = "account" | "billing" | "integrations" | "api" | "notifications" | "data";
 
@@ -1951,6 +2001,7 @@ export function AnalysisWorkbench() {
                     <CardContent className="px-6 py-6">
                       <h2 className="text-[19px] font-semibold tracking-normal">API</h2>
                       <div className="mt-5 space-y-3 text-xs">
+                        <ApiTokenBlock />
                         <div className="rounded-lg border border-border p-3">
                           <div className="text-muted-foreground">Base URL</div>
                           <div className="mt-1 font-mono">{apiBaseUrl}</div>

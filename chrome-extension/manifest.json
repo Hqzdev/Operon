@@ -20,19 +20,19 @@
   },
 
   "background": {
-    "service_worker": "background.js",
+    "service_worker": "src/background/service-worker.js",
     "type": "module"
   },
 
   "content_scripts": [
     {
       "matches": ["https://adsmanager.facebook.com/*", "https://business.facebook.com/*", "https://ads.facebook.com/*"],
-      "js": ["content/meta.js"],
+      "js": ["src/content/meta.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["https://ads.tiktok.com/*", "https://business.tiktok.com/*"],
-      "js": ["content/tiktok.js"],
+      "js": ["src/content/tiktok.js"],
       "run_at": "document_idle"
     }
   ],
