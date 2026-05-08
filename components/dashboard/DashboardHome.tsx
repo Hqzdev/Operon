@@ -66,6 +66,28 @@ type MetricsResponse = {
   latestInput: AnalysisInput | null;
 };
 
+type RecommendationTrackRecord = {
+  accuracyPct: number | null;
+  evaluatedCount: number;
+  pendingCount: number;
+  moneySaved: number;
+  moneyEarned: number;
+  calibrationAdjustment: number;
+  recent: Array<{
+    id: string;
+    verdict: string;
+    confidence: number | null;
+    horizonDays: number;
+    wasRight: boolean | null;
+    status: string;
+    moneySaved: number;
+    moneyEarned: number;
+    issuedAt: string;
+    evaluatedAt: string | null;
+    entityName: string | null;
+  }>;
+};
+
 const COLUMN_HINTS: Record<string, string> = {
   product:   "The name of the product or ad campaign you were running",
   revenue:   "Total money earned from sales of this product in the selected period",
@@ -190,6 +212,7 @@ export function DashboardHome() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [latestInput, setLatestInput] = useState<AnalysisInput | null>(null);
+  const [trackRecord, setTrackRecord] = useState<RecommendationTrackRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>(7);
 
@@ -204,10 +227,11 @@ export function DashboardHome() {
       }
 
       try {
-        const [profileRes, historyRes, metricsRes] = await Promise.all([
+        const [profileRes, historyRes, metricsRes, trackRecordRes] = await Promise.all([
           fetch(`${apiBaseUrl}/users/me`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/analysis`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/integrations/metrics`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiBaseUrl}/recommendation-outcomes`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
         if (!isMounted) return;
@@ -226,6 +250,9 @@ export function DashboardHome() {
           const data = await metricsRes.json() as MetricsResponse;
           setSnapshots(data.snapshots);
           setLatestInput(data.latestInput);
+        }
+        if (trackRecordRes.ok) {
+          setTrackRecord(await trackRecordRes.json() as RecommendationTrackRecord);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -416,6 +443,72 @@ export function DashboardHome() {
           platform={filteredSnapshots[0]?.provider ?? snapshots[0]?.provider ?? "META"}
           metrics={benchmarkMetrics}
         />
+
+        <section className="rounded-xl border border-border bg-card p-5">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Target className="size-4 text-muted-foreground" />
+                <h2 className="text-[14px] font-semibold text-foreground">Operon track record</h2>
+              </div>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Verdict accuracy is recomputed nightly from connected ad account outcomes.
+              </p>
+            </div>
+            <div className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              Last 60 days
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div>
+              <div className="text-[12px] text-muted-foreground">Accuracy</div>
+              <div className="mt-1 text-[26px] font-semibold leading-none">
+                {trackRecord?.accuracyPct === null || !trackRecord ? "—" : `${trackRecord.accuracyPct}%`}
+              </div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                {trackRecord?.evaluatedCount ?? 0} evaluated
+              </div>
+            </div>
+            <div>
+              <div className="text-[12px] text-muted-foreground">Money saved</div>
+              <div className="mt-1 text-[26px] font-semibold leading-none">${fmt(trackRecord?.moneySaved ?? 0)}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">Right KILL/FIX calls</div>
+            </div>
+            <div>
+              <div className="text-[12px] text-muted-foreground">Money earned</div>
+              <div className="mt-1 text-[26px] font-semibold leading-none">${fmt(trackRecord?.moneyEarned ?? 0)}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">Right SCALE calls</div>
+            </div>
+            <div>
+              <div className="text-[12px] text-muted-foreground">Pending checks</div>
+              <div className="mt-1 text-[26px] font-semibold leading-none">{trackRecord?.pendingCount ?? 0}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                Confidence calibration {trackRecord && trackRecord.calibrationAdjustment > 0 ? "+" : ""}{trackRecord?.calibrationAdjustment ?? 0}
+              </div>
+            </div>
+          </div>
+          {trackRecord?.recent?.length ? (
+            <div className="mt-4 grid gap-2 border-t border-border pt-3">
+              {trackRecord.recent.slice(0, 3).map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-3 text-[12px]">
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {item.entityName ?? "Unknown ad set"} · {item.verdict} · {item.horizonDays}d
+                  </span>
+                  <span className={cn(
+                    "shrink-0 rounded-full border px-2 py-0.5 font-medium",
+                    item.status === "pending"
+                      ? "border-border bg-muted text-muted-foreground"
+                      : item.wasRight
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400"
+                        : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400",
+                  )}>
+                    {item.status === "pending" ? "Pending" : item.wasRight ? "Right" : "Wrong"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
 
         <section className="grid gap-4 md:grid-cols-2">
           {[

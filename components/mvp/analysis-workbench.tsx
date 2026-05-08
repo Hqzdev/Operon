@@ -888,14 +888,15 @@ export function AnalysisWorkbench() {
   return (
     <main className="relative h-full overflow-y-auto bg-background text-foreground">
       <div className="flex min-h-full flex-col px-6 py-5 sm:px-8 lg:px-8">
-          <header className="mb-4 shrink-0">
-            <div className="text-[20px] font-semibold text-foreground">Operon Analysis Workbench</div>
-            <div className="mt-0.5 text-[13px] text-muted-foreground">
-              Decision engine, diagnosis, action plan, and product validation
-            </div>
-          </header>
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+        <div className="mb-6 shrink-0">
+          <h1 className="text-[20px] font-semibold leading-tight tracking-normal sm:text-[24px]">
+            Operon Analysis Workbench
+          </h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            Decision engine, diagnosis, action plan, and product validation
+          </p>
+        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
           {/* ── Integrations tab ── */}
           <TabsContent value="integrations">
             <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
@@ -1339,7 +1340,7 @@ export function AnalysisWorkbench() {
                         <div className="rounded-2xl border border-border p-4">
                           <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Continue testing</div>
                           <div className="mt-2 text-lg font-medium">{result.validation.shouldContinueTesting ? "Yes" : "No"}</div>
-                          <div className="mt-3 text-sm text-muted-foreground">Break-even ROAS: {result.derived.breakEvenRoas}</div>
+                          <div className="mt-3 text-sm text-muted-foreground">Active break-even ROAS: {result.derived.breakEvenRoas}</div>
                         </div>
                       </div>
 
@@ -1363,19 +1364,19 @@ export function AnalysisWorkbench() {
                           <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground mb-3">LTV adjustment · Shopify data</div>
                           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                             <div>
-                              <div className="text-xs text-muted-foreground">First-order break-even ROAS</div>
+                              <div className="text-xs text-muted-foreground">First-order ROAS</div>
                               <div className="mt-1 font-mono">{result.ltvAdjustment.firstOrderBreakEvenRoas}x</div>
                             </div>
                             <div>
-                              <div className="text-xs text-muted-foreground">LTV-adjusted break-even ROAS</div>
+                              <div className="text-xs text-muted-foreground">LTV-adjusted ROAS</div>
                               <div className="mt-1 font-mono text-green-600">{result.ltvAdjustment.ltvBreakEvenRoas}x</div>
                             </div>
                             <div>
-                              <div className="text-xs text-muted-foreground">First-order break-even CPA</div>
+                              <div className="text-xs text-muted-foreground">First-order CPA</div>
                               <div className="mt-1 font-mono">${result.ltvAdjustment.firstOrderBreakEvenCpa}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-muted-foreground">LTV-adjusted break-even CPA</div>
+                              <div className="text-xs text-muted-foreground">LTV-adjusted CPA</div>
                               <div className="mt-1 font-mono text-green-600">${result.ltvAdjustment.ltvBreakEvenCpa}</div>
                             </div>
                             <div>
@@ -1383,12 +1384,20 @@ export function AnalysisWorkbench() {
                               <div className="mt-1 font-mono">${result.ltvAdjustment.ltv}</div>
                             </div>
                             <div>
-                              <div className="text-xs text-muted-foreground">Repeat purchase rate</div>
-                              <div className="mt-1 font-mono">{(result.ltvAdjustment.repeatPurchaseRate * 100).toFixed(1)}%</div>
+                              <div className="text-xs text-muted-foreground">Expected repeats</div>
+                              <div className="mt-1 font-mono">{(result.ltvAdjustment.expectedRepeats ?? 1).toFixed(2)}x</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">90-day repeat rate</div>
+                              <div className="mt-1 font-mono">{((result.ltvAdjustment.repeatPurchaseRate90 ?? result.ltvAdjustment.repeatPurchaseRate) * 100).toFixed(1)}%</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">180-day repeat rate</div>
+                              <div className="mt-1 font-mono">{((result.ltvAdjustment.repeatPurchaseRate180 ?? result.ltvAdjustment.repeatPurchaseRate) * 100).toFixed(1)}%</div>
                             </div>
                           </div>
                           <div className="mt-3 text-xs text-muted-foreground">
-                            Based on {result.ltvAdjustment.ordersAnalyzed} orders from {result.ltvAdjustment.customersAnalyzed} customers (90-day window).
+                            Based on {result.ltvAdjustment.ordersAnalyzed} matched product orders from {result.ltvAdjustment.customersAnalyzed} customers ({result.ltvAdjustment.windowDays ?? 180}-day Shopify window).
                           </div>
                         </div>
                       ) : null}

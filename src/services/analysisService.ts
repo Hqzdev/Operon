@@ -4,6 +4,10 @@ import { prisma } from "../models/prisma";
 import { runAiAnalysis, deriveMetrics, type AiAnalysisResult } from "./aiService";
 import { getShopifyConnectionCredentials } from "./integrationService";
 import { computeLtvFromConnection, type LtvComputeResult } from "./shopifyLtvService";
+import {
+  getUserConfidenceCalibration,
+  recordRecommendationOutcomes,
+} from "./recommendationOutcomeService";
 
 export const analysisInputSchema = z.object({
   product_name: z.string().min(2).max(120).optional(),
@@ -450,6 +454,92 @@ function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" 
   };
 }
 
+function applyLtvAdjustment(
+  result: Omit<AnalysisResult, "saved" | "savedId">,
+  input: AnalysisPayload,
+  ltv: LtvComputeResult,
+  confidenceScore: number,
+): Omit<AnalysisResult, "saved" | "savedId"> {
+  const ltvBreakEvenRoas = ltv.ltvBreakEvenRoas;
+  const ltvBreakEvenCpa = ltv.ltvBreakEvenCpa;
+  const conversionRate = result.derived.conversionRate;
+  const maxCpcAtCurrentConversion =
+    conversionRate > 0 ? round(ltvBreakEvenCpa * (conversionRate / 100), 2) : 0;
+  const currentCpa = result.derived.currentCpa;
+  const firstOrderProfitable =
+    result.derived.roas >= ltv.firstOrderBreakEvenRoas ||
+    (currentCpa !== null && currentCpa <= ltv.firstOrderBreakEvenCpa);
+  const ltvProfitable =
+    result.derived.roas >= ltvBreakEvenRoas ||
+    (currentCpa !== null && currentCpa <= ltvBreakEvenCpa);
+  const ltvChangesCall = !firstOrderProfitable && ltvProfitable;
+  const isProfitable = currentCpa !== null && currentCpa <= ltvBreakEvenCpa;
+
+  let finalDecision = result.decision.finalDecision;
+  let shortReason = result.decision.shortReason;
+  let validation = result.validation;
+  let continueDecision = result.continueDecision;
+
+  if (ltvChangesCall) {
+    const note =
+      `LTV adjustment changed the call: current ROAS ${result.derived.roas}x is below first-order break-even ` +
+      `${ltv.firstOrderBreakEvenRoas}x but above LTV-adjusted break-even ${ltvBreakEvenRoas}x.`;
+    shortReason = `${shortReason} ${note}`;
+
+    if (confidenceScore >= 50 && input.purchases >= 2 && input.ctr >= 1.2) {
+      finalDecision = "SCALE";
+      continueDecision = {
+        decision: "CONTINUE",
+        reason: "LTV-adjusted economics are viable, so this can continue with careful budget monitoring.",
+        minimumAdditionalTestNeeded: "Scale gradually and watch whether repeat-order economics hold.",
+      };
+    } else if (confidenceScore >= 50 && finalDecision === "KILL") {
+      finalDecision = "TEST AGAIN";
+      continueDecision = {
+        decision: "TEST MORE",
+        reason: "First-order economics look weak, but Shopify repeat purchase data keeps the setup viable.",
+        minimumAdditionalTestNeeded: "Run one more controlled test before stopping this product.",
+      };
+    }
+
+    validation = {
+      verdict: validation.verdict === "low potential" ? "unclear" : validation.verdict,
+      reason: `${validation.reason} Shopify LTV data lowers break-even from ${ltv.firstOrderBreakEvenRoas}x to ${ltvBreakEvenRoas}x.`,
+      shouldContinueTesting: true,
+    };
+  }
+
+  return {
+    ...result,
+    decision: {
+      ...result.decision,
+      finalDecision,
+      shortReason,
+    },
+    validation,
+    profitability: {
+      ...result.profitability,
+      breakEvenCpa: ltvBreakEvenCpa,
+      breakEvenRoas: ltvBreakEvenRoas,
+      maxCpcAtCurrentConversion,
+      isProfitable,
+      why:
+        currentCpa === null
+          ? `No purchases yet, so acquisition cost is unproven. LTV-adjusted break-even CPA is ${ltvBreakEvenCpa}.`
+          : isProfitable
+            ? `Current CPA is below the LTV-adjusted break-even CPA (${ltvBreakEvenCpa}), so the setup can support profit over customer lifetime.`
+            : `Current CPA exceeds the LTV-adjusted break-even CPA (${ltvBreakEvenCpa}), so repeat purchases do not cover acquisition cost yet.`,
+    },
+    continueDecision,
+    derived: {
+      ...result.derived,
+      breakEvenRoas: ltvBreakEvenRoas,
+      breakEvenCpa: ltvBreakEvenCpa,
+      maxCpcAtCurrentConversion,
+    },
+  };
+}
+
 export async function createAnalysis(userId: string, payload: AnalysisPayload) {
   const normalizedStage =
     payload.stage === "testing"
@@ -471,19 +561,39 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
     payload,
     await getRecentComparableInputs(userId, payload),
   );
+  const calibration = await getUserConfidenceCalibration(userId);
+  const calibratedConfidence = {
+    ...confidence,
+    score: Math.max(0, Math.min(100, confidence.score + calibration.adjustment)),
+  };
+  calibratedConfidence.level = confidenceLevel(calibratedConfidence.score);
+  if (calibration.adjustment !== 0) {
+    calibratedConfidence.signals = [
+      ...calibratedConfidence.signals,
+      {
+        label: "Account accuracy calibration",
+        detail:
+          calibration.accuracyPct === null
+            ? "No account-level accuracy history yet"
+            : `Recent Operon verdict accuracy is ${calibration.accuracyPct}% across ${calibration.evaluatedCount} evaluated outcomes`,
+        score: calibration.adjustment > 0 ? 85 : 35,
+        weight: 10,
+      },
+    ].slice(0, 4);
+  }
 
   partialResult = {
     ...partialResult,
     decision: {
       ...partialResult.decision,
-      finalDecision: confidence.score < 50 ? "TEST AGAIN" : partialResult.decision.finalDecision,
+      finalDecision: calibratedConfidence.score < 50 ? "TEST AGAIN" : partialResult.decision.finalDecision,
       shortReason:
-        confidence.score < 50
+        calibratedConfidence.score < 50
           ? `Confidence is below 50%, so this is surfaced as Watch until more signal is available. ${partialResult.decision.shortReason}`
           : partialResult.decision.shortReason,
-      confidence: confidence.level,
-      confidenceScore: confidence.score,
-      confidenceSignals: confidence.signals,
+      confidence: calibratedConfidence.level,
+      confidenceScore: calibratedConfidence.score,
+      confidenceSignals: calibratedConfidence.signals,
     },
   };
 
@@ -496,24 +606,11 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
         creds.accessToken,
         payload.product_price,
         payload.cost,
+        payload.product_name,
       );
       if (ltvResult?.hasEnoughHistory) {
         ltvAdjustment = { ...ltvResult, shopifyConnected: true };
-        const derived = partialResult.derived;
-        // Append LTV note to shortReason when LTV changes the verdict
-        if (
-          derived.roas >= ltvResult.ltvBreakEvenRoas &&
-          derived.roas < ltvResult.firstOrderBreakEvenRoas
-        ) {
-          partialResult = {
-            ...partialResult,
-            decision: {
-              ...partialResult.decision,
-              shortReason:
-                `${partialResult.decision.shortReason} LTV adjustment: your current ROAS (${derived.roas}x) is below the first-order break-even (${ltvResult.firstOrderBreakEvenRoas}x) but above the LTV-adjusted break-even (${ltvResult.ltvBreakEvenRoas}x), so this setup is already profitable over the customer lifetime.`,
-            },
-          };
-        }
+        partialResult = applyLtvAdjustment(partialResult, payload, ltvResult, calibratedConfidence.score);
       }
     }
   } catch {
@@ -529,6 +626,10 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
       inputData: payload as Prisma.InputJsonValue,
       result: result as Prisma.InputJsonValue,
     },
+  });
+
+  await recordRecommendationOutcomes(userId, analysis.id, payload, result).catch((error) => {
+    console.error("[recommendation-outcomes] Failed to record recommendation outcome:", error);
   });
 
   // Attach the DB id so the frontend can reference it

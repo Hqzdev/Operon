@@ -83,6 +83,9 @@ export type AnalysisOutput = {
     ltv: number;
     aov: number;
     repeatPurchaseRate: number;
+    repeatPurchaseRate90?: number;
+    repeatPurchaseRate180?: number;
+    expectedRepeats?: number;
     ltvBreakEvenRoas: number;
     ltvBreakEvenCpa: number;
     firstOrderBreakEvenRoas: number;
@@ -91,6 +94,8 @@ export type AnalysisOutput = {
     ordersAnalyzed: number;
     customersAnalyzed: number;
     hasEnoughHistory: boolean;
+    productMatched?: boolean;
+    windowDays?: number;
   };
   derived: {
     spend: number;

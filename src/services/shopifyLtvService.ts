@@ -17,6 +17,14 @@ type ShopifyOrder = {
   customer?: { id: number };
   total_price: string;
   financial_status?: string;
+  created_at?: string;
+  line_items?: Array<{
+    product_id?: number;
+    title?: string;
+    name?: string;
+    price?: string;
+    quantity?: number;
+  }>;
 };
 
 type ShopifyOrdersPage = {
@@ -149,6 +157,9 @@ export type LtvComputeResult = {
   ltv: number;
   aov: number;
   repeatPurchaseRate: number;
+  repeatPurchaseRate90: number;
+  repeatPurchaseRate180: number;
+  expectedRepeats: number;
   ltvBreakEvenRoas: number;
   ltvBreakEvenCpa: number;
   firstOrderBreakEvenRoas: number;
@@ -156,62 +167,153 @@ export type LtvComputeResult = {
   ordersAnalyzed: number;
   customersAnalyzed: number;
   hasEnoughHistory: boolean;
+  productMatched: boolean;
+  windowDays: number;
 };
 
 type ShopifyOrderWithDate = ShopifyOrder & { created_at?: string };
+
+type ProductOrder = {
+  customerKey: string;
+  revenue: number;
+  createdAt: Date;
+};
+
+async function fetchOrdersSince(
+  storeUrl: string,
+  accessToken: string,
+  since: Date,
+): Promise<ShopifyOrderWithDate[]> {
+  const apiVersion = env.SHOPIFY_API_VERSION;
+  const orders: ShopifyOrderWithDate[] = [];
+  let pageUrl: string | null =
+    `https://${storeUrl}/admin/api/${apiVersion}/orders.json` +
+    `?status=any&financial_status=paid&limit=250&created_at_min=${encodeURIComponent(since.toISOString())}` +
+    `&fields=id,email,customer,total_price,created_at,line_items`;
+  let pages = 0;
+
+  while (pageUrl && pages < 3) {
+    const response: Response = await fetch(pageUrl, {
+      headers: { "X-Shopify-Access-Token": accessToken },
+    });
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as { orders?: ShopifyOrderWithDate[] };
+    const page = data.orders ?? [];
+    orders.push(...page);
+
+    const linkHeader: string = response.headers.get("link") ?? "";
+    const nextMatch: RegExpMatchArray | null = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+    pageUrl = nextMatch ? nextMatch[1] : null;
+    if (page.length < 250) break;
+    pages += 1;
+  }
+
+  return orders;
+}
+
+function normalizeProductName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function customerKey(order: ShopifyOrder) {
+  return order.customer?.id
+    ? `id:${order.customer.id}`
+    : order.email
+      ? `email:${order.email.toLowerCase()}`
+      : `anon:${order.id}`;
+}
+
+function lineItemRevenue(item: NonNullable<ShopifyOrder["line_items"]>[number]) {
+  const price = Number.parseFloat(item.price ?? "0");
+  const quantity = item.quantity ?? 1;
+  return Number.isFinite(price) ? price * quantity : 0;
+}
+
+function extractProductOrders(orders: ShopifyOrderWithDate[], productName: string, windowDays: number) {
+  const normalizedTarget = normalizeProductName(productName);
+  if (normalizedTarget.length < 2) return [];
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const productOrders: ProductOrder[] = [];
+
+  for (const order of orders) {
+    const createdAt = order.created_at ? new Date(order.created_at) : null;
+    if (!createdAt || createdAt < since) continue;
+    const matchingItems = (order.line_items ?? []).filter((item) => {
+      const text = normalizeProductName(`${item.title ?? ""} ${item.name ?? ""}`);
+      return text.length >= 2 && (text.includes(normalizedTarget) || normalizedTarget.includes(text));
+    });
+    if (!matchingItems.length) continue;
+
+    const revenue = matchingItems.reduce((sum, item) => sum + lineItemRevenue(item), 0);
+    productOrders.push({
+      customerKey: customerKey(order),
+      revenue: revenue > 0 ? revenue : Number.parseFloat(order.total_price ?? "0") || 0,
+      createdAt,
+    });
+  }
+
+  return productOrders;
+}
+
+function computeProductWindowMetrics(productOrders: ProductOrder[]) {
+  const customerOrders = new Map<string, ProductOrder[]>();
+  let totalRevenue = 0;
+  for (const order of productOrders) {
+    totalRevenue += order.revenue;
+    const existing = customerOrders.get(order.customerKey) ?? [];
+    existing.push(order);
+    customerOrders.set(order.customerKey, existing);
+  }
+
+  const ordersAnalyzed = productOrders.length;
+  const customersAnalyzed = customerOrders.size;
+  const aov = ordersAnalyzed > 0 ? totalRevenue / ordersAnalyzed : 0;
+  const customerCounts = [...customerOrders.values()].map((orders) => orders.length);
+  const repeatCustomers = customerCounts.filter((count) => count >= 2).length;
+  const repeatPurchaseRate = customersAnalyzed > 0 ? repeatCustomers / customersAnalyzed : 0;
+  const expectedRepeats = repeatCustomers > 0
+    ? customerCounts.filter((count) => count >= 2).reduce((sum, count) => sum + (count - 1), 0) / repeatCustomers
+    : 1;
+
+  return {
+    aov,
+    ordersAnalyzed,
+    customersAnalyzed,
+    repeatPurchaseRate,
+    expectedRepeats,
+  };
+}
 
 export async function computeLtvFromConnection(
   storeUrl: string,
   accessToken: string,
   productPrice: number,
   cost: number,
+  productName?: string,
 ): Promise<LtvComputeResult | null> {
-  const apiVersion = env.SHOPIFY_API_VERSION;
-  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-  const url =
-    `https://${storeUrl}/admin/api/${apiVersion}/orders.json` +
-    `?status=any&financial_status=paid&limit=250&created_at_min=${encodeURIComponent(since)}&fields=id,email,customer,total_price,created_at`;
-
-  const response = await fetch(url, {
-    headers: { "X-Shopify-Access-Token": accessToken },
-  });
-  if (!response.ok) return null;
-
-  const data = (await response.json()) as { orders?: ShopifyOrderWithDate[] };
-  const orders = data.orders ?? [];
+  const since = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+  const orders = await fetchOrdersSince(storeUrl, accessToken, since);
   if (orders.length === 0) return null;
 
+  if (!productName?.trim()) return null;
+
+  const productOrders90 = extractProductOrders(orders, productName, 90);
+  const productOrders180 = extractProductOrders(orders, productName, 180);
+  if (!productOrders180.length) return null;
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const hasEnoughHistory = orders.some(
-    (o) => o.created_at && new Date(o.created_at) < thirtyDaysAgo,
-  );
+  const hasEnoughHistory = productOrders180.some((order) => order.createdAt < thirtyDaysAgo);
 
-  const customerOrders = new Map<string, number[]>();
-  let totalRevenue = 0;
-
-  for (const order of orders) {
-    const key = order.customer?.id
-      ? `id:${order.customer.id}`
-      : order.email
-        ? `email:${order.email}`
-        : "anon";
-    const price = parseFloat(order.total_price ?? "0");
-    totalRevenue += Number.isFinite(price) ? price : 0;
-    const existing = customerOrders.get(key) ?? [];
-    existing.push(price);
-    customerOrders.set(key, existing);
-  }
-
-  const totalOrders = orders.length;
-  const totalCustomers = customerOrders.size;
-  const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-  let repeatCustomers = 0;
-  for (const orderPrices of customerOrders.values()) {
-    if (orderPrices.length >= 2) repeatCustomers += 1;
-  }
-  const repeatPurchaseRate = totalCustomers > 0 ? repeatCustomers / totalCustomers : 0;
-  const ltv = aov * (1 + repeatPurchaseRate);
+  const metrics90 = computeProductWindowMetrics(productOrders90);
+  const metrics180 = computeProductWindowMetrics(productOrders180);
+  const repeatPurchaseRate = metrics180.repeatPurchaseRate;
+  const expectedRepeats = metrics180.expectedRepeats;
+  const aov = metrics180.aov || productPrice;
+  const ltv = aov * (1 + expectedRepeats * repeatPurchaseRate);
 
   const margin = Math.max(productPrice - cost, 0.01);
   const firstOrderBreakEvenRoas = round2(productPrice / margin);
@@ -225,19 +327,28 @@ export async function computeLtvFromConnection(
   return {
     ltv: round2(ltv),
     aov: round2(aov),
-    repeatPurchaseRate: round2(repeatPurchaseRate * 100) / 100,
+    repeatPurchaseRate: round4(repeatPurchaseRate),
+    repeatPurchaseRate90: round4(metrics90.repeatPurchaseRate),
+    repeatPurchaseRate180: round4(metrics180.repeatPurchaseRate),
+    expectedRepeats: round2(expectedRepeats),
     ltvBreakEvenRoas,
     ltvBreakEvenCpa,
     firstOrderBreakEvenRoas,
     firstOrderBreakEvenCpa,
-    ordersAnalyzed: totalOrders,
-    customersAnalyzed: totalCustomers,
+    ordersAnalyzed: metrics180.ordersAnalyzed,
+    customersAnalyzed: metrics180.customersAnalyzed,
     hasEnoughHistory,
+    productMatched: true,
+    windowDays: 180,
   };
 }
 
 function round2(v: number) {
   return Math.round(v * 100) / 100;
+}
+
+function round4(v: number) {
+  return Math.round(v * 10000) / 10000;
 }
 
 /**

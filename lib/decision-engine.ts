@@ -10,14 +10,21 @@ function round(value: number, precision = 2) {
   return Number(value.toFixed(precision));
 }
 
-export function deriveMetrics(input: AnalysisInput) {
+export type LtvBreakEvenOverride = {
+  ltvBreakEvenRoas: number;
+  ltvBreakEvenCpa: number;
+};
+
+export function deriveMetrics(input: AnalysisInput, ltvOverride?: LtvBreakEvenOverride) {
   const spend = input.clicks * input.cpc;
   const roas = spend > 0 ? input.revenue / spend : 0;
   const conversionRate = input.clicks > 0 ? (input.purchases / input.clicks) * 100 : 0;
   const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
   const margin = Math.max(input.product_price - input.cost, 0.01);
-  const breakEvenRoas = input.product_price / margin;
-  const breakEvenCpa = margin;
+  const firstOrderBreakEvenRoas = input.product_price / margin;
+  const firstOrderBreakEvenCpa = margin;
+  const breakEvenRoas = ltvOverride?.ltvBreakEvenRoas ?? firstOrderBreakEvenRoas;
+  const breakEvenCpa = ltvOverride?.ltvBreakEvenCpa ?? firstOrderBreakEvenCpa;
   const currentCpa = input.purchases > 0 ? spend / input.purchases : null;
   const maxCpcAtCurrentConversion =
     conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
@@ -267,7 +274,7 @@ function detectFunnelLeak(input: AnalysisInput) {
   ].sort((a, b) => a.score - b.score);
 
   const weakest = stages[0];
-  const severity =
+  const severity: "low" | "medium" | "high" =
     weakest.score < 0.1 ? "high" : weakest.score < 0.25 ? "medium" : "low";
 
   return {
@@ -349,8 +356,11 @@ function decideContinueOrStop(
   };
 }
 
-export function runRuleAnalysis(input: AnalysisInput): Omit<AnalysisOutput, "saved" | "savedId"> {
-  const derived = deriveMetrics(input);
+export function runRuleAnalysis(
+  input: AnalysisInput,
+  ltvOverride?: LtvBreakEvenOverride,
+): Omit<AnalysisOutput, "saved" | "savedId"> {
+  const derived = deriveMetrics(input, ltvOverride);
   const baseDecision = decide(input, derived);
   const confidence = confidenceFromSingleInput(input, derived);
   const decision = {

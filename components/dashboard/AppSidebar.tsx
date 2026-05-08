@@ -239,6 +239,42 @@ function SidebarBottomBlock() {
                       </span>
                       <div className="min-w-0">
                         <div className="text-[13px] font-semibold leading-snug">
+                          Verdict track record
+                        </div>
+                        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                          See Operon's accuracy, money saved, money earned, and pending 7/14/30-day checks.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">Today</span>
+                  </div>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                        IMPROVED
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold leading-snug">
+                          LTV-adjusted break-even
+                        </div>
+                        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                          Shopify repeat purchases now adjust ROAS and CPA break-even for DTC brands.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">Today</span>
+                  </div>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        NEW
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold leading-snug">
                           Reddit acquisition engine
                         </div>
                         <p className="mt-1 text-[11px] leading-4 text-muted-foreground">

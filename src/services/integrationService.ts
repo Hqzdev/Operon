@@ -36,7 +36,7 @@ export type ProviderKey = z.infer<typeof providerSchema>;
 const OAUTH_SCOPES: Record<ProviderKey, string[]> = {
   META: ["ads_read", "read_insights", "business_management", "ads_management"],
   TIKTOK: ["advertiser.read", "report.read", "ad.write"],
-  SHOPIFY: ["read_orders", "read_products", "read_inventory"],
+  SHOPIFY: ["read_orders", "read_all_orders", "read_products", "read_inventory"],
 };
 
 type OAuthState = {

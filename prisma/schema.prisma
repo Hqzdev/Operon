@@ -79,6 +79,12 @@ enum AdActionStatus {
   undone
 }
 
+enum RecommendationOutcomeStatus {
+  pending
+  evaluated
+  unavailable
+}
+
 model User {
   id                  String             @id @default(cuid())
   email               String             @unique
@@ -106,6 +112,7 @@ model User {
   fatigueAlerts       FatigueAlert[]
   simulationLogs      SimulationLog[]
   adActionLogs        AdActionLog[]
+  recommendationOutcomes RecommendationOutcome[]
   stores              Store[]            @relation("UserStores")
   activeStore         Store?             @relation("ActiveStore", fields: [activeStoreId], references: [id], onDelete: SetNull)
 }
@@ -227,8 +234,44 @@ model Analysis {
   createdAt DateTime      @default(now())
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   adActionLogs AdActionLog[]
+  recommendationOutcomes RecommendationOutcome[]
 
   @@index([userId, createdAt])
+}
+
+model RecommendationOutcome {
+  id                     String                      @id @default(cuid())
+  userId                 String
+  analysisId             String
+  connectionId           String?
+  provider               IntegrationProvider?
+  externalAccountId      String?
+  externalEntityId       String?
+  entityName             String?
+  inputSnapshot          Json
+  verdict                String
+  confidence             Int?
+  breakEvenRoas          Float
+  breakEvenCpa           Float?
+  evaluationHorizonDays  Int
+  scheduledFor           DateTime
+  status                 RecommendationOutcomeStatus @default(pending)
+  actualMetrics          Json?
+  wasRight               Boolean?
+  moneySaved             Float                       @default(0)
+  moneyEarned            Float                       @default(0)
+  evaluatedAt            DateTime?
+  issuedAt               DateTime                    @default(now())
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  user                   User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis               Analysis                    @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  connection             IntegrationConnection?      @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@unique([analysisId, evaluationHorizonDays])
+  @@index([userId, issuedAt])
+  @@index([userId, status, scheduledFor])
+  @@index([connectionId, externalEntityId, scheduledFor])
 }
 
 model Payment {
@@ -271,6 +314,7 @@ model IntegrationConnection {
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   metrics           IntegrationMetricSnapshot[]
   adActionLogs      AdActionLog[]
+  recommendationOutcomes RecommendationOutcome[]
 
   @@unique([userId, provider, externalAccountId])
   @@index([userId, provider])

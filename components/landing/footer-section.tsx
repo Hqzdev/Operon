@@ -4,7 +4,17 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { AnimatedWave } from "./animated-wave";
 
-const footerLinks = [
+type FooterLink = {
+  name: string;
+  href: string;
+  badge?: string;
+};
+
+const footerLinks: Array<{
+  title: string;
+  href: string;
+  links: FooterLink[];
+}> = [
   {
     title: "Product",
     href: "/product",
