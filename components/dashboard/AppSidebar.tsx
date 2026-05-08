@@ -15,7 +15,15 @@ import {
   UserCircle02Icon,
 } from "hugeicons-react";
 import { formatDistanceToNow } from "date-fns";
-import { Check, ChevronsUpDown, Plus, Store } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  ChevronsUpDown,
+  PanelLeftClose,
+  Plus,
+  Sparkles,
+  Store,
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -23,12 +31,10 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import {
   Popover,
@@ -108,6 +114,9 @@ type StoreSummary = {
 };
 
 type SidebarProfile = {
+  name?: string | null;
+  email?: string | null;
+  plan?: string | null;
   storeName?: string | null;
   storeUrl?: string | null;
   activeStoreId?: string | null;
@@ -131,6 +140,105 @@ function storeDisplayName(store?: Pick<StoreSummary, "name" | "url"> | null) {
       .replace(/\.[a-z]{2,}(?:\.[a-z]{2,})?$/i, "")
       .replace(/\/$/, "");
   }
+}
+
+function SidebarBottomBlock() {
+  const [profile, setProfile] = useState<SidebarProfile | null>(null);
+  const apiBaseUrl = getApiBaseUrl();
+
+  useEffect(() => {
+    const raw = localStorage.getItem("operon_user");
+    if (raw) {
+      try {
+        setProfile(JSON.parse(raw) as SidebarProfile);
+      } catch {
+        // ignore stale local profile
+      }
+    }
+
+    const token = localStorage.getItem("operon_token");
+    if (!token) return;
+
+    fetch(`${apiBaseUrl}/users/me`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => response.ok ? response.json() : null)
+      .then((nextProfile) => {
+        if (!nextProfile) return;
+        setProfile(nextProfile);
+        localStorage.setItem("operon_user", JSON.stringify(nextProfile));
+      })
+      .catch(() => {
+        // footer can render from cached profile
+      });
+  }, [apiBaseUrl]);
+
+  const displayName = profile?.name || profile?.email?.split("@")[0] || "User";
+  const plan = profile?.plan === "STARTER" ? "FREE" : profile?.plan ?? "FREE";
+  const initial = displayName.trim().charAt(0).toUpperCase() || "U";
+
+  return (
+    <div className="space-y-4 group-data-[collapsible=icon]:hidden">
+      <div className="space-y-2 px-3">
+        <div className="flex items-center justify-between text-[13px] text-sidebar-foreground/70">
+          <span>Usage</span>
+          <Link href="/dashboard?tab=settings" className="font-medium text-sidebar-foreground hover:text-sidebar-foreground">
+            Upgrade
+          </Link>
+        </div>
+        <div className="h-1.5 rounded-full bg-destructive" />
+      </div>
+
+      <div className="space-y-1">
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            asChild
+            size="default"
+            tooltip="What's New"
+            className="h-10 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4"
+          >
+            <Link href="/docs" className="justify-between">
+              <span className="flex items-center gap-3">
+                <Sparkles size={16} />
+                <span>What's New</span>
+              </span>
+              <PanelLeftClose size={15} className="text-muted-foreground" />
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            asChild
+            size="default"
+            tooltip="Talk to a founder"
+            className="h-10 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4"
+          >
+            <Link href="mailto:founder@operon.app">
+              <CalendarDays size={16} />
+              <span>Talk to a founder</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </div>
+
+      <Link
+        href="/dashboard?tab=settings"
+        className="flex items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-sidebar-accent"
+      >
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-lg font-medium text-white">
+          {initial}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-medium text-sidebar-foreground">{displayName}</span>
+          <span className="mt-1 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            {plan}
+          </span>
+        </span>
+        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+      </Link>
+    </div>
+  );
 }
 
 function NotificationBell() {
@@ -507,17 +615,9 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t-0 px-3 py-2">
-        <SidebarMenu className="gap-0.5">
-          <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
-            <div className="px-3 py-0.5">
-              <div className="mb-1 flex items-center justify-between text-[12px] text-muted-foreground">
-                <span>Usage</span>
-                <span className="font-medium text-foreground">Upgrade</span>
-              </div>
-              <div className="h-1 rounded-full bg-destructive" />
-            </div>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
+        <SidebarMenu>
+          <SidebarBottomBlock />
+          <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
             <SidebarMenuButton
               asChild
               tooltip="Profile"
