@@ -17,47 +17,42 @@ const footerLinks: Array<{
 }> = [
   {
     title: "Product",
-    href: "/product",
+    href: "/#features",
     links: [
-      { name: "Features", href: "/features" },
-      { name: "How it works", href: "/how-it-works" },
-      { name: "FAQ", href: "/faq" },
+      { name: "Features", href: "/#features" },
+      { name: "How it works", href: "/#how-it-works" },
+      { name: "FAQ", href: "/#developers" },
+      { name: "Trending ad problems", href: "/trending-ad-problems" },
     ],
   },
   {
-    title: "Support",
-    href: "/support",
+    title: "Account",
+    href: "/register",
     links: [
-      { name: "FAQ", href: "/faq" },
-      { name: "How it works", href: "/how-it-works" },
-      { name: "Contact", href: "/contact" },
+      { name: "Create free account", href: "/register" },
+      { name: "Log in", href: "/login" },
     ],
   },
   {
-    title: "Market",
-    href: "/market",
+    title: "Compare",
+    href: "/alternatives/triple-whale",
     links: [
-      { name: "Shopify sellers", href: "/shopify-sellers" },
-      { name: "DTC brands", href: "/dtc-brands" },
-      { name: "Dropshipping stores", href: "/dropshipping-stores" },
-      { name: "Agencies", href: "/agencies" },
+      { name: "vs Triple Whale", href: "/vs/triple-whale" },
+      { name: "Triple Whale alternative", href: "/alternatives/triple-whale" },
+      { name: "Madgicx alternative", href: "/alternatives/madgicx" },
     ],
   },
   {
-    title: "Trust",
-    href: "/trust",
+    title: "Legal",
+    href: "/privacy",
     links: [
-      { name: "Why it works", href: "/why-it-works" },
-      { name: "Clear guidance", href: "/clear-guidance" },
+      { name: "Privacy policy", href: "/privacy" },
+      { name: "Terms of service", href: "/terms" },
     ],
   },
 ];
 
-const socialLinks = [
-  { name: "X / Twitter", href: "#" },
-  { name: "GitHub", href: "#" },
-  { name: "Telegram", href: "#" },
-];
+const socialLinks: Array<{ name: string; href: string }> = [];
 
 export function FooterSection() {
   return (
@@ -82,19 +77,20 @@ export function FooterSection() {
                 Clear direction for e-commerce sellers who want to stop wasting money on weak ads and uncertain decisions.
               </p>
 
-              {/* Social Links */}
-              <div className="flex gap-6">
-                {socialLinks.map((link) => (
-                  <a
-                    key={link.name}
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 group"
-                  >
-                    {link.name}
-                    <ArrowUpRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                  </a>
-                ))}
-              </div>
+              {socialLinks.length > 0 && (
+                <div className="flex gap-6">
+                  {socialLinks.map((link) => (
+                    <a
+                      key={link.name}
+                      href={link.href}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 group"
+                    >
+                      {link.name}
+                      <ArrowUpRight className="w-3 h-3 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Link Columns */}

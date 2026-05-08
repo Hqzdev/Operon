@@ -11,7 +11,8 @@ import { AutopilotPanel } from "@/components/dashboard/AutopilotPanel";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
-  title: "Home | Operon",
+  title: "Dashboard | Operon",
+  robots: { index: false, follow: false },
 };
 
 export default function DashboardLayout({

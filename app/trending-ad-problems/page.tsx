@@ -4,16 +4,51 @@ import { listTrendingAdProblems } from "@/src/services/redditAcquisitionService"
 
 export const dynamic = "force-dynamic";
 
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://operons.vercel.app";
+
 export const metadata: Metadata = {
   title: "Trending Ad Problems Today | Operon",
-  description: "An anonymized daily feed of ecommerce and paid ads problems marketers are discussing on Reddit.",
+  description:
+    "A public, anonymized daily feed of ecommerce and paid ads problems sellers are discussing on Reddit — r/FacebookAds, r/TikTokAds, r/dropship, r/ecommerce, and more.",
   alternates: {
-    canonical: "/trending-ad-problems",
+    canonical: `${BASE_URL}/trending-ad-problems`,
+  },
+  openGraph: {
+    title: "Trending Ad Problems Today | Operon",
+    description:
+      "A daily feed of real ad problems from Meta, TikTok, and Shopify sellers — updated from Reddit every day.",
+    url: `${BASE_URL}/trending-ad-problems`,
+    siteName: "Operon",
+    type: "website",
   },
   robots: {
     index: true,
     follow: true,
   },
+};
+
+const pageJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  name: "Trending Ad Problems Today",
+  description:
+    "A public, anonymized daily feed of ecommerce and paid advertising problems sellers are discussing on Reddit. Sourced from r/FacebookAds, r/PPC, r/TikTokAds, r/ecommerce, r/dropship, r/GoogleAds, and r/shopify. Updated daily.",
+  url: `${BASE_URL}/trending-ad-problems`,
+  publisher: {
+    "@type": "Organization",
+    name: "Operon",
+    url: BASE_URL,
+  },
+  temporalCoverage: "2024/..",
+  keywords: [
+    "Meta ads problems",
+    "TikTok ads problems",
+    "Facebook ads not converting",
+    "dropshipping ad issues",
+    "ecommerce ad optimization",
+    "ROAS problems",
+    "ad creative fatigue",
+  ],
 };
 
 function intentLabel(intent: string) {
@@ -33,6 +68,10 @@ export default async function TrendingAdProblemsPage() {
 
   return (
     <main className="min-h-screen bg-white text-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pageJsonLd) }}
+      />
       <section className="border-b border-slate-200">
         <div className="mx-auto max-w-5xl px-6 py-14">
           <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-950">

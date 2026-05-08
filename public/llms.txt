@@ -1,0 +1,59 @@
+# Operon
+
+> Operon is an AI-powered ad decision engine for dropshippers and DTC sellers running campaigns on Meta (Facebook/Instagram) and TikTok. You enter your campaign numbers and get a clear verdict — Scale, Fix, or Kill — with exact next steps. No guesswork, no dashboard staring.
+
+## Who it's for
+
+Beginner to mid-level dropshippers, DTC brand founders, and media buyers spending $50–$10,000/month on Meta and TikTok ads. Designed for people without in-house analytics expertise who need to make faster, more confident campaign decisions.
+
+## Core value proposition
+
+Instead of interpreting raw metrics yourself, Operon reads your numbers and tells you exactly what to do:
+
+- **Scale** — ROAS is strong, margins are healthy. Increase budget now.
+- **Fix** — There's potential but one thing is broken (creative, offer, or product). Here's what to change.
+- **Kill** — This campaign won't be profitable. Cut it and reallocate.
+- **Test again** — Not enough data yet. Here's what to test next.
+
+Every verdict includes: the root cause diagnosis (is it the ad creative, the offer, or the product?), a confidence score, and 3 specific next steps.
+
+## How the decision engine works
+
+1. User inputs: product price, cost, CTR, CPC, impressions, clicks, add-to-carts, purchases, revenue
+2. Engine calculates: ROAS, break-even ROAS, net profit margin, spend efficiency
+3. AI evaluates: data volume, CTR strength, conversion rate, margin health, signal quality
+4. Output: Scale / Fix / Kill / Test Again verdict + confidence score + 3-step action plan
+
+## Features
+
+- **Ad decision engine** — Scale / Fix / Kill / Test Again verdict on every campaign analysis
+- **Root cause diagnosis** — Identifies whether the issue is the creative, the offer, or the product
+- **Decision history** — All past verdicts saved so you can track what changed and whether it worked
+- **Budget allocation tool** — Spread budget optimally across ad sets based on ROAS (Pro plan)
+- **Scenario simulator** — Preview what happens to CPA, revenue, ROAS if budget changes (Pro plan)
+- **Chrome extension** — Auto-fills campaign data from Meta Ads Manager or TikTok Ads Manager (no API key required)
+- **Autopilot** — Extension scans open Ads Manager tabs every 24 hours and sends Chrome notifications when decisions change
+
+## Integrations
+
+- Meta Ads Manager (Facebook, Instagram) — via Chrome extension scraping or manual input
+- TikTok Ads Manager — via Chrome extension scraping or manual input
+- Shopify — store data connection
+- Manual input — enter numbers directly, no integration required to start
+
+## Pricing
+
+- **Starter** — Free forever, 10 campaign analyses per month
+- **Basic** — $9/month, unlimited analyses, full decision history
+- **Pro** — $19/month, all Basic features + Budget Allocation tool + Scenario Simulator + weekly digest email + Autopilot
+
+No credit card required to start. Cancel anytime.
+
+## Key pages
+
+- Homepage: https://operons.vercel.app
+- Register (free): https://operons.vercel.app/register
+- Log in: https://operons.vercel.app/login
+- Trending ad problems (free public feed): https://operons.vercel.app/trending-ad-problems
+- Privacy policy: https://operons.vercel.app/privacy
+- Terms of service: https://operons.vercel.app/terms

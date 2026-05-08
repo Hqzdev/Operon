@@ -3,14 +3,14 @@
 import { useEffect, useState, useRef } from "react";
 
 const integrations = [
-  { name: "YooKassa", category: "Trusted payments" },
-  { name: "Bank cards", category: "Fast checkout" },
-  { name: "Local payment methods", category: "Easy to pay" },
-  { name: "Instant access", category: "Start right away" },
-  { name: "Safe checkout", category: "Protected payment flow" },
-  { name: "Simple billing", category: "No complicated setup" },
-  { name: "Quick confirmation", category: "Smooth purchase" },
-  { name: "Reliable payment flow", category: "Built for trust" },
+  { name: "Meta Ads Manager", category: "Campaigns & ad sets" },
+  { name: "TikTok Ads", category: "Performance data" },
+  { name: "Shopify", category: "Store revenue" },
+  { name: "Chrome Extension", category: "Auto-fill from Ads Manager" },
+  { name: "Manual input", category: "No integration needed to start" },
+  { name: "Decision history", category: "Every verdict saved" },
+  { name: "Scale / Fix / Kill", category: "Clear verdict every time" },
+  { name: "Action plan", category: "3 next steps per analysis" },
 ];
 
 export function IntegrationsSection() {
@@ -40,16 +40,16 @@ export function IntegrationsSection() {
         >
           <span className="inline-flex items-center gap-3 text-sm font-mono text-muted-foreground mb-6">
             <span className="w-8 h-px bg-foreground/30" />
-            Payments
+            Integrations
             <span className="w-8 h-px bg-foreground/30" />
           </span>
           <h2 className="text-4xl lg:text-6xl font-display tracking-tight mb-6">
-            Simple and
+            Works with
             <br />
-            trusted payments.
+            your existing setup.
           </h2>
           <p className="text-xl text-muted-foreground">
-            Pay with YooKassa using bank cards and local payment methods. Checkout is safe, simple, and gives you instant access after payment.
+            Connect Meta, TikTok, or Shopify — or just enter numbers manually. You can get your first verdict today without connecting anything.
           </p>
         </div>
 

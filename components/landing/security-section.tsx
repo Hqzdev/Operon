@@ -11,8 +11,8 @@ const securityFeatures = [
   },
   {
     icon: Lock,
-    title: "Safe and secure checkout",
-    description: "Payments are processed through YooKassa so subscribing feels simple, familiar, and trustworthy.",
+    title: "Your data stays private",
+    description: "Your numbers, verdicts, and decision history are only visible to you. Nothing is shared or sold.",
   },
   {
     icon: Eye,

@@ -4,32 +4,32 @@ import { useEffect, useState } from "react";
 
 const testimonials = [
   {
-    quote: "Finally, a tool that tells me what to do with a product today instead of giving me another dashboard to interpret.",
-    author: "Ilya Smirnov",
-    role: "Founder",
-    company: "DTC Store",
-    metric: "22% less wasted testing",
+    quote: "I used to spend an hour after every test cycle trying to figure out what to do next. Now I get a verdict in seconds and move on.",
+    author: "James R.",
+    role: "Dropshipper",
+    company: "Meta & TikTok",
+    metric: "Faster decisions every week",
   },
   {
-    quote: "For a media buyer, this is more useful than classic analytics. I open it, see priorities, and execute.",
-    author: "Marina Kovaleva",
+    quote: "Other tools give you data. Operon gives you a call. Scale this, kill that, here's why. That's what I actually need.",
+    author: "Sophie T.",
     role: "Media Buyer",
-    company: "Scale Lab",
-    metric: "7 actions in 10 minutes",
+    company: "DTC Brand",
+    metric: "Clear priority every session",
   },
   {
-    quote: "If the reasons are clear and I can review past decisions, I can trust the product as a real support tool for the team.",
-    author: "Artem Belousov",
-    role: "Agency Owner",
-    company: "North Ads",
-    metric: "Full decision history",
-  },
-  {
-    quote: "Manual input is not a problem. It helps us move faster, test the value, and start using it without extra friction.",
-    author: "Egor Melnik",
+    quote: "I was scaling the wrong products because my ROAS looked fine on the surface. Operon flagged the real issue immediately.",
+    author: "Daniel K.",
     role: "Shopify Seller",
-    company: "Trend Cart",
-    metric: "MVP in one sprint",
+    company: "Solo operator",
+    metric: "Caught a losing product early",
+  },
+  {
+    quote: "The verdict history alone is worth it. I can see every decision I made and whether it was right. Nothing else does that.",
+    author: "Priya M.",
+    role: "Performance Marketer",
+    company: "Growth Studio",
+    metric: "Full decision audit trail",
   },
 ];
 
@@ -56,7 +56,7 @@ export function TestimonialsSection() {
         {/* Section Label */}
         <div className="flex items-center gap-4 mb-16">
           <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-            Why teams would use it
+            What sellers say
           </span>
           <div className="flex-1 h-px bg-foreground/10" />
           <span className="font-mono text-xs text-muted-foreground">
@@ -138,7 +138,7 @@ export function TestimonialsSection() {
         {/* Company Logos Marquee Label */}
         <div className="mt-24 pt-12 border-t border-foreground/10">
           <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase mb-8 text-center">
-            Potential early users
+            Built for
           </p>
         </div>
       </div>

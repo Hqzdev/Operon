@@ -1,0 +1,65 @@
+# Pricing — Operon
+
+Last updated: 2026-05-08
+
+## Starter (Free)
+
+- Price: $0/month
+- Credit card required: No
+- Analyses: 10 campaign analyses per month
+- Users: 1
+
+### Included features
+- Scale / Fix / Kill / Test Again verdict on every analysis
+- Root cause diagnosis (creative, offer, or product)
+- 3 actionable next steps per verdict
+- Decision history (recent analyses)
+- Manual data entry (enter campaign numbers directly)
+- Chrome extension (auto-fill from Meta or TikTok Ads Manager)
+
+---
+
+## Basic
+
+- Price: $9/month (billed monthly)
+- Credit card required: Yes
+- Analyses: Unlimited
+- Users: 1
+
+### Included features
+- Everything in Starter
+- Unlimited campaign analyses
+- Full decision history (all past verdicts)
+- Priority processing
+
+---
+
+## Pro
+
+- Price: $19/month (billed monthly)
+- Credit card required: Yes
+- Analyses: Unlimited
+- Users: 1
+
+### Included features
+- Everything in Basic
+- Budget Allocation tool (spread budget across ad sets by ROAS)
+- Scenario Simulator (preview ROAS and revenue if budget changes)
+- Weekly digest email (summary of all campaign decisions)
+- Autopilot (Chrome extension scans open Ads Manager tabs every 24h, notifies on decision changes)
+
+---
+
+## Notes
+
+- No credit card required for Starter plan
+- Cancel anytime, no long-term contracts
+- Plans are per-user (individual seller workspace)
+- Payments processed securely via major credit and debit cards
+- Access starts immediately after payment
+
+## Contact
+
+- Support: founder@operon.app
+- Homepage: https://operons.vercel.app
+- Register: https://operons.vercel.app/register

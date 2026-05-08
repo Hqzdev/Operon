@@ -45,29 +45,29 @@ function AnimatedCounter({ end, suffix = "", prefix = "" }: { end: number; suffi
 }
 
 const metrics = [
-  { 
-    value: 3, 
-    suffix: "", 
+  {
+    value: 3,
+    suffix: "",
     prefix: "",
-    label: "clear actions instead of endless guessing",
+    label: "actionable next steps with every verdict",
   },
-  { 
-    value: 1, 
-    suffix: "%", 
+  {
+    value: 10,
+    suffix: "",
     prefix: "",
-    label: "place to review what matters most",
+    label: "free analyses per month on the Starter plan",
   },
-  { 
-    value: 2, 
-    suffix: "-", 
-    prefix: "",
-    label: "3 practical next steps after each review",
+  {
+    value: 30,
+    suffix: "s",
+    prefix: "<",
+    label: "to go from raw numbers to a Scale, Fix, or Kill call",
   },
-  { 
-    value: 0, 
-    suffix: "", 
+  {
+    value: 100,
+    suffix: "%",
     prefix: "",
-    label: "need for complex analysis on your side",
+    label: "of verdicts explained in plain language — not just a score",
   },
 ];
 

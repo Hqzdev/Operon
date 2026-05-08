@@ -17,7 +17,7 @@ const faqItems = [
   },
   {
     label: "How do payments work?",
-    text: "Payments go through YooKassa. You can use bank cards and local payment methods, and access starts right after payment is completed.",
+    text: "Payments are processed securely. You can use major credit and debit cards, and your Pro access starts immediately after payment completes. Cancel anytime.",
   },
 ];
 
@@ -167,12 +167,12 @@ export function DevelopersSection() {
             
             {/* Links */}
             <div className="mt-6 flex items-center gap-6 text-sm">
-              <a href="#pricing" className="text-foreground hover:underline underline-offset-4">
-                See pricing
+              <a href="/register" className="text-foreground hover:underline underline-offset-4">
+                Start free
               </a>
               <span className="text-foreground/20">|</span>
-              <a href="#integrations" className="text-muted-foreground hover:text-foreground">
-                Payment details
+              <a href="/login" className="text-muted-foreground hover:text-foreground">
+                Log in
               </a>
             </div>
           </div>

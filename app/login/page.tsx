@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import { AuthShell } from "@/components/mvp/auth-shell";
+
+export const metadata: Metadata = {
+  title: "Log in | Operon",
+  robots: { index: false, follow: false },
+};
 
 export default function LoginPage() {
   return (

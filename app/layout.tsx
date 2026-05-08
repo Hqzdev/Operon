@@ -5,11 +5,21 @@ import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Operon',
-  description: 'Clear direction for e-commerce sellers who want to stop wasting money on weak ads, low-converting products, and uncertain decisions.',
+  title: {
+    default: 'Operon — Ad Decision Engine for Meta & TikTok Sellers',
+    template: '%s | Operon',
+  },
+  description: 'Enter your campaign numbers. Get a clear Scale, Fix, or Kill verdict with exact next steps. Built for dropshippers and DTC brands on Meta and TikTok.',
   icons: {
     icon: '/icon.png',
     apple: '/apple-icon.png',
+  },
+  openGraph: {
+    siteName: 'Operon',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
   },
 }
 

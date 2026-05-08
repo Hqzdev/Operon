@@ -6,7 +6,7 @@ const steps = [
   {
     number: "I",
     title: "Enter your numbers",
-    description: "Add your product and ad results in a few minutes so you can stop guessing and start reviewing real performance.",
+    description: "Add your product price, cost, and ad metrics in under two minutes. No integrations required to get started.",
     code: `Product price: $29.99
 Cost: $10
 CTR: 2.5%
@@ -18,7 +18,7 @@ Purchases: 1`,
   {
     number: "II",
     title: "Get a clear diagnosis",
-    description: "The product reviews the numbers, finds the main issue, and cuts through the confusion fast.",
+    description: "Operon reads your numbers, identifies the real issue — creative, offer, or product — and tells you exactly what went wrong.",
     code: `Main problem:
 Offer problem
 
@@ -31,7 +31,7 @@ Strong interest, weak sales`,
   {
     number: "III",
     title: "Take the next action",
-    description: "Get a direct call on what to scale, fix, test again, or stop, plus the next steps to take right away.",
+    description: "You get a verdict — Scale, Fix, or Kill — plus three concrete next steps. No interpretation needed. Just act on it.",
     code: `Decision:
 FIX
 

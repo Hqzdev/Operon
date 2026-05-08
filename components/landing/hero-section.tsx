@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { AnimatedSphere } from "./animated-sphere";
 
-const words = ["scale", "fix", "stop", "grow"];
+const words = ["scale", "fix", "stop", "test"];
 
 export function HeroSection() {
   const [isVisible, setIsVisible] = useState(false);
@@ -65,7 +65,7 @@ export function HeroSection() {
         >
           <span className="inline-flex items-center gap-3 text-sm font-mono text-muted-foreground">
             <span className="w-8 h-px bg-foreground/30" />
-            For small e-commerce and dropshipping sellers
+            Ad decision engine for Meta and TikTok sellers
           </span>
         </div>
         
@@ -109,7 +109,7 @@ export function HeroSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            See which products to push, which ads to fix, and which tests to stop before they waste more of your budget.
+            Enter your campaign numbers. Get a clear verdict — Scale, Fix, or Kill — plus the exact steps to act on it. No more staring at dashboards wondering what it all means.
           </p>
           
           {/* CTAs */}
@@ -123,18 +123,18 @@ export function HeroSection() {
               size="lg" 
               className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group"
             >
-              <Link href="/dashboard">
-                Start Your Trial
+              <Link href="/register">
+                Start free
                 <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
               </Link>
             </Button>
-            <Button 
+            <Button
               asChild
-              size="lg" 
-              variant="outline" 
+              size="lg"
+              variant="outline"
               className="h-14 px-8 text-base rounded-full border-foreground/20 hover:bg-foreground/5"
             >
-              <Link href="/register">Create Account</Link>
+              <Link href="#how-it-works">See how it works</Link>
             </Button>
           </div>
         </div>
@@ -151,10 +151,10 @@ export function HeroSection() {
           {[...Array(2)].map((_, i) => (
             <div key={i} className="flex gap-16">
               {[
-                { value: "Clear calls", label: "on what to do next", company: "NO GUESSWORK" },
-                { value: "Faster action", label: "when campaigns turn weak", company: "LESS WASTE" },
-                { value: "Better focus", label: "on what can actually win", company: "SMARTER TESTS" },
-                { value: "More control", label: "over your ad spend", company: "OPERON" },
+                { value: "Scale, Fix, or Kill", label: "decided in seconds", company: "NO GUESSWORK" },
+                { value: "Catch losing ads", label: "before they drain your budget", company: "LESS WASTE" },
+                { value: "Know what's broken", label: "ad, offer, or product", company: "CLEAR DIAGNOSIS" },
+                { value: "Act with confidence", label: "not gut feeling", company: "OPERON" },
               ].map((stat) => (
                 <div key={`${stat.company}-${i}`} className="flex items-baseline gap-4">
                   <span className="text-4xl lg:text-5xl font-display">{stat.value}</span>

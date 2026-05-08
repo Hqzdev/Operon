@@ -5,26 +5,26 @@ import { useEffect, useRef, useState } from "react";
 const features = [
   {
     number: "01",
-    title: "Make decisions faster",
-    description: "Stop spending hours trying to figure out what your numbers mean. See the next move clearly and act on it.",
+    title: "A verdict, not a report",
+    description: "You get a clear call — Scale, Fix, or Kill — not another chart to interpret. Operon reads your numbers and tells you the move.",
     visual: "deploy",
   },
   {
     number: "02",
-    title: "Catch weak ads earlier",
-    description: "Spot losing campaigns before they drain more of your budget and keep your focus on what still has potential.",
+    title: "Catch losing ads before they drain you",
+    description: "Most sellers let weak campaigns run too long because they're not sure. Operon flags them early so you cut losses, not budgets.",
     visual: "ai",
   },
   {
     number: "03",
-    title: "Know what is actually broken",
-    description: "See whether the real issue is the ad, the offer, or the product itself so you stop making random changes.",
+    title: "Know exactly what's broken",
+    description: "Is it the ad creative, the offer, or the product? Operon pinpoints the real problem so you stop changing the wrong thing.",
     visual: "collab",
   },
   {
     number: "04",
-    title: "Reduce wasted testing",
-    description: "Put more time and money into better opportunities instead of repeating tests that are already telling you to move on.",
+    title: "Stop repeating the same bad tests",
+    description: "When the data says move on, move on. Operon tracks your decisions so you build on what works instead of looping back to what doesn't.",
     visual: "security",
   },
 ];
@@ -332,9 +332,9 @@ export function FeaturesSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            Everything you need.
+            Know what to do.
             <br />
-            <span className="text-muted-foreground">Nothing you don&apos;t.</span>
+            <span className="text-muted-foreground">Not what might work.</span>
           </h2>
         </div>
 

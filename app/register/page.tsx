@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import { AuthShell } from "@/components/mvp/auth-shell";
+
+export const metadata: Metadata = {
+  title: "Create your free account | Operon",
+  description: "Sign up for Operon and get clear Scale, Fix, or Kill verdicts on your Meta and TikTok campaigns. Free to start.",
+  robots: { index: false, follow: false },
+};
 
 export default function RegisterPage() {
   return (
