@@ -33,6 +33,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -213,6 +220,49 @@ type IntegrationSnapshot = {
   metrics: Record<string, unknown>;
 };
 
+type BudgetSimulationScenario = {
+  kind: string;
+  label: string;
+  expected: {
+    cpa: number | null;
+    revenue: number;
+    roas: number;
+    spend: number;
+  };
+  delta: {
+    cpaPct: number | null;
+    revenuePct: number | null;
+    roasPct: number | null;
+  };
+  riskLevel: "Low" | "Medium" | "High" | string;
+};
+
+type BudgetSimulationResult = {
+  campaign: {
+    provider: string;
+    externalAccountId: string;
+    externalEntityId: string;
+    entityName: string;
+  };
+  period: {
+    historyDays: number;
+    baselineDays: number;
+    horizonDays: number;
+  };
+  baseline: {
+    days: number;
+    spend: number;
+    revenue: number;
+    purchases: number;
+    cpa: number | null;
+    roas: number;
+  };
+  scenarios: BudgetSimulationScenario[];
+  confidence: number;
+  signalBreakdown: Array<{ label: string; detail: string; score: number }>;
+  basedOn: string[];
+};
+
 const emptyAdSet = (): AdSetInput => ({
   name: "", spend: 0, impressions: 0, clicks: 0,
   add_to_cart: 0, purchases: 0, revenue: 0, product_price: 0, cost: 0,
@@ -228,6 +278,27 @@ function parseNumberInput(value: string, integer = false) {
   if (value.trim() === "") return 0;
   const parsed = integer ? Number.parseInt(value, 10) : Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoney(value: number | null) {
+  if (value === null || Number.isNaN(value)) return "n/a";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value >= 100 ? 0 : 2,
+  }).format(value);
+}
+
+function formatMetricDelta(value: number | null) {
+  if (value === null) return "n/a";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value}%`;
+}
+
+function riskClass(level: string) {
+  if (level === "High") return "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300";
+  if (level === "Medium") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300";
 }
 
 export function AnalysisWorkbench() {
@@ -284,6 +355,10 @@ export function AnalysisWorkbench() {
   const [shopifyShop, setShopifyShop] = useState("");
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
   const [integrationsMsg, setIntegrationsMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [simulationOpen, setSimulationOpen] = useState(false);
+  const [simulationLoading, setSimulationLoading] = useState(false);
+  const [simulationError, setSimulationError] = useState<string | null>(null);
+  const [simulationResult, setSimulationResult] = useState<BudgetSimulationResult | null>(null);
 
   const apiBaseUrl = getApiBaseUrl();
 
@@ -599,6 +674,38 @@ export function AnalysisWorkbench() {
     }
   }
 
+  async function simulateCampaign(snapshot: IntegrationSnapshot) {
+    const token = getToken();
+    if (!token) { router.push("/login"); return; }
+
+    setSimulationOpen(true);
+    setSimulationLoading(true);
+    setSimulationError(null);
+    setSimulationResult(null);
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/campaign-simulations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          externalEntityId: snapshot.externalEntityId,
+          externalAccountId: snapshot.externalAccountId,
+          provider: snapshot.provider === "SHOPIFY" ? undefined : snapshot.provider,
+        }),
+      });
+      const data = await res.json() as BudgetSimulationResult | { message?: string };
+      if (!res.ok) {
+        setSimulationError("message" in data && data.message ? data.message : "Simulation failed");
+        return;
+      }
+      setSimulationResult(data as BudgetSimulationResult);
+    } catch {
+      setSimulationError("Network error");
+    } finally {
+      setSimulationLoading(false);
+    }
+  }
+
   async function disconnectIntegration(connectionId: string) {
     const token = getToken();
     if (!token) return;
@@ -760,17 +867,30 @@ export function AnalysisWorkbench() {
                               {snapshot.provider} · {new Date(snapshot.date).toLocaleDateString()}
                             </div>
                           </div>
-                          <Button
-                            size="sm"
-                            className="rounded-full"
-                            onClick={() => {
-                              setForm(snapshot.analysisInput);
-                              setActiveTab("analysis");
-                            }}
-                          >
-                            Continue with this data
-                            <ArrowRight className="size-4" />
-                          </Button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {snapshot.provider !== "SHOPIFY" ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() => simulateCampaign(snapshot)}
+                              >
+                                <TrendingUp className="size-4" />
+                                Simulate budget
+                              </Button>
+                            ) : null}
+                            <Button
+                              size="sm"
+                              className="rounded-full"
+                              onClick={() => {
+                                setForm(snapshot.analysisInput);
+                                setActiveTab("analysis");
+                              }}
+                            >
+                              Continue with this data
+                              <ArrowRight className="size-4" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
                           <div>
@@ -1609,6 +1729,114 @@ export function AnalysisWorkbench() {
             </section>
           </TabsContent>
           </Tabs>
+          <Dialog open={simulationOpen} onOpenChange={setSimulationOpen}>
+            <DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Budget change prediction</DialogTitle>
+                <DialogDescription>
+                  Expected next 7 days before you change a campaign budget.
+                </DialogDescription>
+              </DialogHeader>
+
+              {simulationLoading ? (
+                <div className="flex min-h-[260px] items-center justify-center">
+                  <LoaderCircle className="size-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : simulationError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                  {simulationError}
+                </div>
+              ) : simulationResult ? (
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-border p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold">{simulationResult.campaign.entityName}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {simulationResult.campaign.provider} · {simulationResult.period.historyDays} daily snapshots · estimated model
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="rounded-full">
+                        Confidence: {simulationResult.confidence}%
+                      </Badge>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-sm sm:grid-cols-4">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Baseline spend</div>
+                        <div className="font-medium tabular-nums">{formatMoney(simulationResult.baseline.spend)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Baseline CPA</div>
+                        <div className="font-medium tabular-nums">{formatMoney(simulationResult.baseline.cpa)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Baseline revenue</div>
+                        <div className="font-medium tabular-nums">{formatMoney(simulationResult.baseline.revenue)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Baseline ROAS</div>
+                        <div className="font-medium tabular-nums">{simulationResult.baseline.roas.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    {simulationResult.scenarios.map((scenario) => (
+                      <div key={scenario.kind} className="rounded-2xl border border-border p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-sm font-semibold">If you choose: {scenario.label}</div>
+                          <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${riskClass(scenario.riskLevel)}`}>
+                            Risk: {scenario.riskLevel}
+                          </span>
+                        </div>
+                        <div className="mt-3 text-xs font-medium text-muted-foreground">
+                          Expected outcome, next {simulationResult.period.horizonDays} days
+                        </div>
+                        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+                          <div className="rounded-xl bg-muted/40 p-3">
+                            <div className="text-xs text-muted-foreground">CPA</div>
+                            <div className="mt-1 font-medium tabular-nums">
+                              {formatMetricDelta(scenario.delta.cpaPct)} ({formatMoney(simulationResult.baseline.cpa)} -> {formatMoney(scenario.expected.cpa)})
+                            </div>
+                          </div>
+                          <div className="rounded-xl bg-muted/40 p-3">
+                            <div className="text-xs text-muted-foreground">Revenue</div>
+                            <div className="mt-1 font-medium tabular-nums">
+                              {formatMetricDelta(scenario.delta.revenuePct)} ({formatMoney(simulationResult.baseline.revenue)} -> {formatMoney(scenario.expected.revenue)})
+                            </div>
+                          </div>
+                          <div className="rounded-xl bg-muted/40 p-3">
+                            <div className="text-xs text-muted-foreground">ROAS</div>
+                            <div className="mt-1 font-medium tabular-nums">
+                              {formatMetricDelta(scenario.delta.roasPct)} ({simulationResult.baseline.roas.toFixed(2)} -> {scenario.expected.roas.toFixed(2)})
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-2xl border border-border p-4">
+                    <div className="flex items-center justify-between gap-3 text-sm font-semibold">
+                      <span>Confidence signal breakdown</span>
+                      <span>{simulationResult.confidence}%</span>
+                    </div>
+                    <Progress value={simulationResult.confidence} className="mt-3" />
+                    <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                      {simulationResult.signalBreakdown.slice(0, 4).map((signal) => (
+                        <li key={`${signal.label}-${signal.score}`}>
+                          <span className="font-medium text-foreground">{signal.label}</span>: {signal.detail}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-4 text-xs text-muted-foreground">
+                      Based on: {simulationResult.basedOn.join(", ")}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
       </div>
     </main>
   );

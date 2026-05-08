@@ -23,6 +23,8 @@ const envSchema = z.object({
   GIGACHAT_OAUTH_URL: z.string().default("https://ngw.devices.sberbank.ru:9443/api/v2/oauth"),
   INTEGRATION_TOKEN_SECRET: z.string().optional(),
   INTEGRATION_SYNC_SECRET: z.string().optional(),
+  ACQUISITION_CRON_SECRET: z.string().optional(),
+  REDDIT_USER_AGENT: z.string().default("OperonLeadScanner/1.0"),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_API_VERSION: z.string().default("v22.0"),

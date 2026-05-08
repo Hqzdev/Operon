@@ -60,6 +60,12 @@ enum FatigueAlertStatus {
   snoozed
 }
 
+enum RedditIntentLevel {
+  high
+  medium
+  low
+}
+
 model User {
   id                  String             @id @default(cuid())
   email               String             @unique
@@ -84,6 +90,7 @@ model User {
   notifications       Notification[]
   digestLogs          DigestLog[]
   fatigueAlerts       FatigueAlert[]
+  simulationLogs      SimulationLog[]
   stores              Store[]            @relation("UserStores")
   activeStore         Store?             @relation("ActiveStore", fields: [activeStoreId], references: [id], onDelete: SetNull)
 }
@@ -151,6 +158,49 @@ model FatigueAlert {
   @@index([userId, status, detectedAt])
   @@index([userId, externalEntityId, detectedAt])
   @@index([provider, externalAccountId, externalEntityId])
+}
+
+model SimulationLog {
+  id                String              @id @default(cuid())
+  userId            String
+  provider          IntegrationProvider
+  externalAccountId String
+  externalEntityId  String
+  entityName        String?
+  scenarios         Json
+  baseline          Json
+  confidence        Int
+  signalBreakdown   Json
+  actualOutcome     Json?
+  createdAt         DateTime            @default(now())
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, externalEntityId, createdAt])
+  @@index([provider, externalAccountId, externalEntityId])
+}
+
+model RedditLead {
+  id             String            @id @default(cuid())
+  redditPostId   String            @unique
+  username       String
+  subreddit      String
+  postUrl        String
+  title          String
+  body           String?           @db.Text
+  problemSummary String
+  intentLevel    RedditIntentLevel
+  outreachAngle  String            @db.Text
+  painSignals    String[]
+  score          Int               @default(0)
+  upvotes        Int               @default(0)
+  commentCount   Int               @default(0)
+  postedAt       DateTime
+  collectedAt    DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([postedAt, score])
+  @@index([intentLevel, postedAt])
+  @@index([subreddit, postedAt])
 }
 
 model Analysis {

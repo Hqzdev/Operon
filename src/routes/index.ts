@@ -3,10 +3,12 @@ import { analysisRoutes } from "./analysisRoutes";
 import { analyticsRoutes } from "./analyticsRoutes";
 import { authRoutes } from "./authRoutes";
 import { budgetRoutes } from "./budgetRoutes";
+import { campaignSimulationRoutes } from "./campaignSimulationRoutes";
 import { fatigueRoutes } from "./fatigueRoutes";
 import { notificationRoutes } from "./notificationRoutes";
 import { onboardingRoutes } from "./onboardingRoutes";
 import { paymentRoutes } from "./paymentRoutes";
+import { redditAcquisitionRoutes } from "./redditAcquisitionRoutes";
 import { scenarioRoutes } from "./scenarioRoutes";
 import { userRoutes } from "./userRoutes";
 
@@ -22,5 +24,7 @@ router.use("/payments", paymentRoutes);
 router.use("/budget", budgetRoutes);
 router.use("/scenario", scenarioRoutes);
 router.use("/fatigue-alerts", fatigueRoutes);
+router.use("/campaign-simulations", campaignSimulationRoutes);
+router.use("/acquisition/reddit-leads", redditAcquisitionRoutes);
 
 export { router as apiRoutes };
