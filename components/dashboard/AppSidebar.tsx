@@ -196,7 +196,7 @@ function SidebarBottomBlock() {
   }
 
   return (
-    <div className="space-y-4 group-data-[collapsible=icon]:hidden">
+    <div className="space-y-2 group-data-[collapsible=icon]:hidden">
       <div className="space-y-1">
         <SidebarMenuItem>
           <Popover>
@@ -204,57 +204,57 @@ function SidebarBottomBlock() {
               <SidebarMenuButton
                 size="default"
                 tooltip="What's New"
-                className="h-10 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4"
+                className="h-8 rounded-md px-2.5 text-[12px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-3.5"
               >
-                <Sparkles size={16} />
+                <Sparkles size={14} />
                 <span>What's New</span>
-                <PanelLeftClose size={15} className="ml-auto text-muted-foreground" />
+                <PanelLeftClose size={13} className="ml-auto text-muted-foreground" />
               </SidebarMenuButton>
             </PopoverTrigger>
             <PopoverContent
               side="right"
               align="end"
-              sideOffset={14}
-              className="w-[340px] overflow-hidden rounded-2xl border-border p-0 shadow-xl"
+              sideOffset={10}
+              className="w-[300px] overflow-hidden rounded-xl border-border p-0 shadow-xl"
             >
-              <div className="border-b px-5 py-4">
-                <div className="text-[17px] font-semibold tracking-normal">What's New</div>
+              <div className="border-b px-4 py-3">
+                <div className="text-[15px] font-semibold tracking-normal">What's New</div>
               </div>
               <div className="divide-y">
-                <div className="px-5 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                <div className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                         NEW
                       </span>
                       <div className="min-w-0">
-                        <div className="text-[14px] font-semibold leading-snug">
+                        <div className="text-[13px] font-semibold leading-snug">
                           Reddit acquisition engine
                         </div>
-                        <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+                        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
                           Finds Reddit posts about CPM spikes, ROAS drops, CPA issues, and creative fatigue.
                         </p>
                       </div>
                     </div>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">Today</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">Today</span>
                   </div>
                 </div>
-                <div className="px-5 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
+                <div className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                         IMPROVED
                       </span>
                       <div className="min-w-0">
-                        <div className="text-[14px] font-semibold leading-snug">
+                        <div className="text-[13px] font-semibold leading-snug">
                           Budget prediction simulator
                         </div>
-                        <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+                        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
                           Preview CPA, revenue, ROAS, risk level, and confidence before budget changes.
                         </p>
                       </div>
                     </div>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">Today</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">Today</span>
                   </div>
                 </div>
               </div>
@@ -266,10 +266,10 @@ function SidebarBottomBlock() {
             asChild
             size="default"
             tooltip="Talk to a founder"
-            className="h-10 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4"
+            className="h-8 rounded-md px-2.5 text-[12px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-3.5"
           >
             <Link href="mailto:founder@operon.app">
-              <CalendarDays size={16} />
+              <CalendarDays size={14} />
               <span>Talk to a founder</span>
             </Link>
           </SidebarMenuButton>
@@ -278,81 +278,81 @@ function SidebarBottomBlock() {
 
       <Popover>
         <PopoverTrigger asChild>
-          <button className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-sidebar-accent">
-            <Avatar className="size-10 bg-emerald-800">
+          <button className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-sidebar-accent">
+            <Avatar className="size-8 bg-emerald-800">
               <AvatarImage src={profile?.avatarUrl ?? undefined} alt={displayName} />
-              <AvatarFallback className="bg-emerald-800 text-lg font-medium text-white">
+              <AvatarFallback className="bg-emerald-800 text-sm font-medium text-white">
                 {initial}
               </AvatarFallback>
             </Avatar>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-medium text-sidebar-foreground">{displayName}</span>
-              <span className="mt-1 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              <span className="block truncate text-[13px] font-medium text-sidebar-foreground">{displayName}</span>
+              <span className="mt-0.5 inline-flex rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
                 {plan}
               </span>
             </span>
-            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
           </button>
         </PopoverTrigger>
         <PopoverContent
           side="right"
           align="end"
-          sideOffset={14}
-          className="w-[330px] rounded-3xl border-border p-5 shadow-xl"
+          sideOffset={10}
+          className="w-[285px] rounded-2xl border-border p-4 shadow-xl"
         >
-          <div className="flex items-center gap-4">
-            <Avatar className="size-14 bg-emerald-800">
+          <div className="flex items-center gap-3">
+            <Avatar className="size-11 bg-emerald-800">
               <AvatarImage src={profile?.avatarUrl ?? undefined} alt={displayName} />
-              <AvatarFallback className="bg-emerald-800 text-2xl font-medium text-white">
+              <AvatarFallback className="bg-emerald-800 text-lg font-medium text-white">
                 {initial}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <div className="truncate text-[18px] font-medium text-foreground">{displayName}</div>
-              <div className="truncate text-[14px] text-muted-foreground">{profile?.email}</div>
+              <div className="truncate text-[15px] font-medium text-foreground">{displayName}</div>
+              <div className="truncate text-[12px] text-muted-foreground">{profile?.email}</div>
             </div>
           </div>
 
-          <div className="mt-7 space-y-1">
-            <Link href="/dashboard?tab=settings" className="flex items-center gap-3 rounded-xl px-1 py-2.5 text-[15px] hover:bg-muted">
-              <Settings className="size-5" />
+          <div className="mt-5 space-y-0.5">
+            <Link href="/dashboard?tab=settings" className="flex items-center gap-2.5 rounded-lg px-1.5 py-2 text-[13px] hover:bg-muted">
+              <Settings className="size-4" />
               Settings
             </Link>
-            <Link href="mailto:founder@operon.app?subject=Feature request" className="flex items-center gap-3 rounded-xl px-1 py-2.5 text-[15px] hover:bg-muted">
-              <Lightbulb className="size-5" />
+            <Link href="mailto:founder@operon.app?subject=Feature request" className="flex items-center gap-2.5 rounded-lg px-1.5 py-2 text-[13px] hover:bg-muted">
+              <Lightbulb className="size-4" />
               Request a feature
             </Link>
-            <Link href="/docs" className="flex items-center gap-3 rounded-xl px-1 py-2.5 text-[15px] hover:bg-muted">
-              <CircleHelp className="size-5" />
+            <Link href="/docs" className="flex items-center gap-2.5 rounded-lg px-1.5 py-2 text-[13px] hover:bg-muted">
+              <CircleHelp className="size-4" />
               Help
             </Link>
           </div>
 
-          <div className="mt-7 flex items-center justify-between">
-            <span className="text-[15px] text-foreground">Theme</span>
-            <div className="flex rounded-xl bg-muted p-1">
+          <div className="mt-5 flex items-center justify-between">
+            <span className="text-[13px] text-foreground">Theme</span>
+            <div className="flex rounded-lg bg-muted p-0.5">
               <button
                 onClick={() => setTheme("light")}
-                className={cn("flex size-9 items-center justify-center rounded-lg", !isDarkTheme && "bg-background shadow-sm")}
+                className={cn("flex size-8 items-center justify-center rounded-md", !isDarkTheme && "bg-background shadow-sm")}
                 aria-label="Use light theme"
               >
-                <Sun className="size-4" />
+                <Sun className="size-3.5" />
               </button>
               <button
                 onClick={() => setTheme("dark")}
-                className={cn("flex size-9 items-center justify-center rounded-lg", isDarkTheme && "bg-background shadow-sm")}
+                className={cn("flex size-8 items-center justify-center rounded-md", isDarkTheme && "bg-background shadow-sm")}
                 aria-label="Use dark theme"
               >
-                <Moon className="size-4" />
+                <Moon className="size-3.5" />
               </button>
             </div>
           </div>
 
           <button
             onClick={signOut}
-            className="mt-7 flex items-center gap-3 rounded-xl px-1 py-2.5 text-[15px] text-destructive hover:bg-destructive/10"
+            className="mt-5 flex items-center gap-2.5 rounded-lg px-1.5 py-2 text-[13px] text-destructive hover:bg-destructive/10"
           >
-            <LogOut className="size-5" />
+            <LogOut className="size-4" />
             Sign out
           </button>
         </PopoverContent>

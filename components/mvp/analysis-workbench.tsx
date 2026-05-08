@@ -1170,19 +1170,19 @@ export function AnalysisWorkbench() {
                       </div>
 
                       {executionTarget ? (
-                        <div className="rounded-2xl border border-border bg-muted/20 p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2.5">
                             <div>
-                              <div className="text-sm font-semibold">One-click execution</div>
-                              <p className="mt-1 text-xs text-muted-foreground">
+                              <div className="text-xs font-semibold">One-click execution</div>
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
                                 Target: {executionTarget.entityName ?? executionTarget.externalEntityId} · {executionTarget.provider}
                               </p>
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-1.5">
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                className="rounded-full"
+                                className="h-8 rounded-full px-3 text-xs"
                                 onClick={() => setConfirmAction("pause")}
                               >
                                 PAUSE
@@ -1190,7 +1190,7 @@ export function AnalysisWorkbench() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="rounded-full"
+                                className="h-8 rounded-full px-3 text-xs"
                                 onClick={() => setConfirmAction("increase_budget_20")}
                               >
                                 +20%
@@ -1198,7 +1198,7 @@ export function AnalysisWorkbench() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="rounded-full"
+                                className="h-8 rounded-full px-3 text-xs"
                                 onClick={() => setConfirmAction("decrease_budget_20")}
                               >
                                 -20%
@@ -1206,7 +1206,7 @@ export function AnalysisWorkbench() {
                             </div>
                           </div>
                           {adActionMsg ? (
-                            <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm ${adActionMsg.type === "ok" ? "text-emerald-600" : "text-red-600"}`}>
+                            <div className={`mt-2 flex flex-wrap items-center gap-2 text-xs ${adActionMsg.type === "ok" ? "text-emerald-600" : "text-red-600"}`}>
                               <span>{adActionMsg.text}</span>
                               {adActionMsg.actionId ? (
                                 <button
@@ -1221,7 +1221,7 @@ export function AnalysisWorkbench() {
                           ) : null}
                         </div>
                       ) : (
-                        <div className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                        <div className="rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground">
                           Choose a Meta or TikTok synced campaign first to execute actions from Operon.
                         </div>
                       )}
@@ -1762,70 +1762,70 @@ export function AnalysisWorkbench() {
           </TabsContent>
           <TabsContent value="settings">
             <section className="min-h-full bg-background">
-              <div className="border-b border-border px-4 py-8 sm:px-8">
-                <div className="mx-auto max-w-6xl">
-                  <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
-                    <h1 className="text-[28px] font-semibold tracking-normal">Settings</h1>
-                    <p className="pb-1 text-[17px] text-muted-foreground">
+              <div className="border-b border-border px-4 py-5 sm:px-6">
+                <div className="mx-auto max-w-5xl">
+                  <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+                    <h1 className="text-[22px] font-semibold tracking-normal">Settings</h1>
+                    <p className="pb-0.5 text-[14px] text-muted-foreground">
                       Account, billing, integrations, and notifications.
                     </p>
                   </div>
-                  <div className="mt-8 flex flex-wrap justify-center gap-8 text-[16px] text-muted-foreground">
-                    <button className="flex items-center gap-2 border-b-2 border-foreground pb-3 font-medium text-foreground">
-                      <UserCircle className="size-5" />
+                  <div className="mt-5 flex flex-wrap justify-center gap-5 text-[13px] text-muted-foreground">
+                    <button className="flex items-center gap-1.5 border-b-2 border-foreground pb-2 font-medium text-foreground">
+                      <UserCircle className="size-4" />
                       Account
                     </button>
-                    <button className="flex items-center gap-2 pb-3">
-                      <CreditCard className="size-5" />
+                    <button className="flex items-center gap-1.5 pb-2">
+                      <CreditCard className="size-4" />
                       Billing
                     </button>
-                    <button className="flex items-center gap-2 pb-3">
-                      <Link2 className="size-5" />
+                    <button className="flex items-center gap-1.5 pb-2">
+                      <Link2 className="size-4" />
                       Integrations
                     </button>
-                    <button className="flex items-center gap-2 pb-3">
-                      <Code2 className="size-5" />
+                    <button className="flex items-center gap-1.5 pb-2">
+                      <Code2 className="size-4" />
                       API
                     </button>
-                    <button className="flex items-center gap-2 pb-3">
-                      <Bell className="size-5" />
+                    <button className="flex items-center gap-1.5 pb-2">
+                      <Bell className="size-4" />
                       Notifications
                     </button>
-                    <button className="flex items-center gap-2 pb-3">
-                      <Database className="size-5" />
+                    <button className="flex items-center gap-1.5 pb-2">
+                      <Database className="size-4" />
                       Data
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-8">
+              <div className="mx-auto max-w-2xl space-y-5 px-4 py-6 sm:px-6">
                 <Card className="overflow-hidden rounded-xl border-border bg-card py-0 shadow-sm">
                   <CardContent className="p-0">
-                    <div className="px-8 py-8">
-                      <h2 className="text-[24px] font-semibold tracking-normal">Profile</h2>
-                      <div className="mt-8 flex items-center gap-5">
-                        <Avatar className="size-16 bg-emerald-800">
+                    <div className="px-6 py-6">
+                      <h2 className="text-[19px] font-semibold tracking-normal">Profile</h2>
+                      <div className="mt-5 flex items-center gap-4">
+                        <Avatar className="size-12 bg-emerald-800">
                           <AvatarImage src={user?.avatarUrl ?? undefined} alt={profileDisplayName} />
-                          <AvatarFallback className="bg-emerald-800 text-2xl font-medium text-white">
+                          <AvatarFallback className="bg-emerald-800 text-lg font-medium text-white">
                             {profileInitial}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <div className="truncate text-[18px] font-medium">{profileDisplayName}</div>
-                          <div className="mt-1 truncate text-[16px] text-muted-foreground">{user?.email ?? "—"}</div>
-                          <span className="mt-3 inline-flex rounded-md bg-muted px-2.5 py-1 text-[13px] font-semibold text-muted-foreground">
+                          <div className="truncate text-[15px] font-medium">{profileDisplayName}</div>
+                          <div className="mt-0.5 truncate text-[13px] text-muted-foreground">{user?.email ?? "—"}</div>
+                          <span className="mt-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
                             {profilePlan}
                           </span>
                         </div>
                       </div>
                     </div>
-                    <div className="border-t bg-muted/40 px-8 py-5">
+                    <div className="border-t bg-muted/40 px-6 py-3.5">
                       <button
                         onClick={logout}
-                        className="flex items-center gap-3 text-[15px] text-muted-foreground transition-colors hover:text-foreground"
+                        className="flex items-center gap-2.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        <LogOut className="size-4" />
+                        <LogOut className="size-3.5" />
                         Sign out
                       </button>
                     </div>
@@ -1833,41 +1833,41 @@ export function AnalysisWorkbench() {
                 </Card>
 
                 <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                  <CardContent className="px-8 py-8">
-                    <h2 className="text-[24px] font-semibold tracking-normal">Preferences</h2>
-                    <div className="mt-8 flex flex-wrap items-center justify-between gap-5">
+                  <CardContent className="px-6 py-6">
+                    <h2 className="text-[19px] font-semibold tracking-normal">Preferences</h2>
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
                       <div>
-                        <div className="text-[16px] font-medium">Timezone</div>
-                        <p className="mt-1 text-[14px] text-muted-foreground">
+                        <div className="text-[14px] font-medium">Timezone</div>
+                        <p className="mt-0.5 text-[12px] text-muted-foreground">
                           Affects email digest delivery and scheduling.
                         </p>
                       </div>
-                      <button className="flex h-12 min-w-[260px] items-center justify-between rounded-xl border border-border px-4 text-left text-[15px]">
+                      <button className="flex h-10 min-w-[220px] items-center justify-between rounded-lg border border-border px-3 text-left text-[13px]">
                         Yekaterinburg (GMT+5)
-                        <ChevronDown className="size-4 text-muted-foreground" />
+                        <ChevronDown className="size-3.5 text-muted-foreground" />
                       </button>
                     </div>
-                    <Separator className="my-7" />
-                    <div className="flex flex-wrap items-center justify-between gap-5">
+                    <Separator className="my-5" />
+                    <div className="flex flex-wrap items-center justify-between gap-4">
                       <div>
-                        <div className="text-[16px] font-medium">Theme</div>
-                        <p className="mt-1 text-[14px] text-muted-foreground">
+                        <div className="text-[14px] font-medium">Theme</div>
+                        <p className="mt-0.5 text-[12px] text-muted-foreground">
                           Choose your preferred appearance.
                         </p>
                       </div>
-                      <div className="flex rounded-xl bg-muted p-1">
+                      <div className="flex rounded-lg bg-muted p-0.5">
                         <button
                           onClick={() => setTheme("light")}
-                          className={`flex h-11 items-center gap-2 rounded-lg px-4 text-[15px] font-medium ${!isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+                          className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium ${!isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
                         >
-                          <Sun className="size-4" />
+                          <Sun className="size-3.5" />
                           Light
                         </button>
                         <button
                           onClick={() => setTheme("dark")}
-                          className={`flex h-11 items-center gap-2 rounded-lg px-4 text-[15px] font-medium ${isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+                          className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium ${isDarkTheme ? "bg-background shadow-sm" : "text-muted-foreground"}`}
                         >
-                          <Moon className="size-4" />
+                          <Moon className="size-3.5" />
                           Dark
                         </button>
                       </div>
@@ -1987,27 +1987,28 @@ export function AnalysisWorkbench() {
             </DialogContent>
           </Dialog>
           <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => !open && setConfirmAction(null)}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-sm">
               <DialogHeader>
-                <DialogTitle>Confirm ad action</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-base">Confirm ad action</DialogTitle>
+                <DialogDescription className="text-xs leading-5">
                   This will execute {actionLabel(confirmAction)} on {executionTarget?.entityName ?? executionTarget?.externalEntityId ?? "the selected ad set"}.
                 </DialogDescription>
               </DialogHeader>
-              <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+              <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
                 Pause actions change delivery immediately. Budget changes can be undone from Operon for 1 hour and are limited by the account guardrail.
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" className="rounded-full" onClick={() => setConfirmAction(null)} disabled={adActionLoading}>
+                <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={() => setConfirmAction(null)} disabled={adActionLoading}>
                   Cancel
                 </Button>
                 <Button
+                  size="sm"
                   variant={confirmAction === "pause" ? "destructive" : "default"}
-                  className="rounded-full"
+                  className="h-8 rounded-full text-xs"
                   onClick={executeConfirmedAction}
                   disabled={adActionLoading}
                 >
-                  {adActionLoading ? <LoaderCircle className="size-4 animate-spin" /> : <Zap className="size-4" />}
+                  {adActionLoading ? <LoaderCircle className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
                   Confirm
                 </Button>
               </div>
