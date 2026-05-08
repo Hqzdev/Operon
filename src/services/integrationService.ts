@@ -72,6 +72,22 @@ type RawMetrics = {
   source?: Prisma.InputJsonValue;
 };
 
+type ExtensionMetricInput = {
+  externalEntityId?: string;
+  entityName?: string;
+  date?: string;
+  spend?: number;
+  impressions?: number;
+  clicks?: number;
+  add_to_cart?: number;
+  purchases?: number;
+  revenue?: number;
+  frequency?: number;
+  product_price?: number;
+  cost?: number;
+  source?: unknown;
+};
+
 function appUrl() {
   return env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
 }
@@ -363,10 +379,151 @@ export async function listConnections(userId: string) {
       nextSyncAt: true,
       lastError: true,
       maxDailyBudgetChangePercent: true,
+      metadata: true,
       createdAt: true,
     },
     orderBy: [{ provider: "asc" }, { createdAt: "desc" }],
   });
+}
+
+async function persistMetricSnapshots(connection: IntegrationConnection, raw: RawMetrics[]) {
+  for (const metrics of raw) {
+    const analysisInput = toAnalysisInput(metrics);
+    await prisma.integrationMetricSnapshot.upsert({
+      where: {
+        userId_provider_externalAccountId_externalEntityId_date: {
+          userId: connection.userId,
+          provider: connection.provider,
+          externalAccountId: connection.externalAccountId,
+          externalEntityId: metrics.externalEntityId,
+          date: metrics.date,
+        },
+      },
+      create: {
+        userId: connection.userId,
+        connectionId: connection.id,
+        provider: connection.provider,
+        externalAccountId: connection.externalAccountId,
+        externalEntityId: metrics.externalEntityId,
+        entityName: metrics.entityName,
+        date: metrics.date,
+        metrics: metrics as unknown as Prisma.InputJsonValue,
+        analysisInput: analysisInput as unknown as Prisma.InputJsonValue,
+        source: metrics.source as Prisma.InputJsonValue | undefined,
+      },
+      update: {
+        entityName: metrics.entityName,
+        metrics: metrics as unknown as Prisma.InputJsonValue,
+        analysisInput: analysisInput as unknown as Prisma.InputJsonValue,
+        source: metrics.source as Prisma.InputJsonValue | undefined,
+      },
+    });
+  }
+}
+
+export async function createExtensionConnection(
+  userId: string,
+  provider: ProviderKey,
+  accountName?: string,
+) {
+  if (provider !== "META" && provider !== "TIKTOK" && provider !== "SHOPIFY") {
+    throw new AppError("Unsupported extension provider", 400);
+  }
+  const extensionKey = crypto.randomBytes(24).toString("hex");
+  const externalAccountId = `extension-${provider.toLowerCase()}-${userId}`;
+  const connection = await prisma.integrationConnection.upsert({
+    where: {
+      userId_provider_externalAccountId: {
+        userId,
+        provider: provider as IntegrationProvider,
+        externalAccountId,
+      },
+    },
+    create: {
+      userId,
+      provider: provider as IntegrationProvider,
+      externalAccountId,
+      accountName: accountName || `${provider} extension`,
+      accessToken: encryptToken(extensionKey),
+      scopes: ["extension_read"],
+      status: IntegrationStatus.CONNECTED,
+      metadata: { source: "extension", writeCapable: false },
+      lastSyncedAt: null,
+      nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    },
+    update: {
+      accountName: accountName || `${provider} extension`,
+      accessToken: encryptToken(extensionKey),
+      scopes: ["extension_read"],
+      status: IntegrationStatus.CONNECTED,
+      metadata: { source: "extension", writeCapable: false },
+      lastError: null,
+      nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    },
+  });
+  return { connectionId: connection.id, provider, extensionKey };
+}
+
+function extensionMetricToRaw(metric: ExtensionMetricInput, fallback: { accountName?: string; accountId: string }) {
+  const date = metric.date ? day(new Date(metric.date)) : day();
+  return {
+    externalEntityId: metric.externalEntityId || "extension-account",
+    entityName: metric.entityName || fallback.accountName || fallback.accountId,
+    date,
+    spend: asNumber(metric.spend),
+    impressions: asNumber(metric.impressions),
+    clicks: asNumber(metric.clicks),
+    add_to_cart: asNumber(metric.add_to_cart),
+    purchases: asNumber(metric.purchases),
+    revenue: asNumber(metric.revenue),
+    frequency: asNumber(metric.frequency),
+    product_price: asNumber(metric.product_price),
+    cost: asNumber(metric.cost),
+    source: (metric.source ?? metric) as Prisma.InputJsonValue,
+  } satisfies RawMetrics;
+}
+
+export async function ingestExtensionMetrics(input: {
+  provider: ProviderKey;
+  extensionKey: string;
+  externalAccountId?: string;
+  accountName?: string;
+  metrics: ExtensionMetricInput[];
+}) {
+  const provider = input.provider as IntegrationProvider;
+  const candidates = await prisma.integrationConnection.findMany({
+    where: {
+      provider,
+      status: { not: IntegrationStatus.DISCONNECTED },
+      scopes: { has: "extension_read" },
+    },
+  });
+  const connection = candidates.find((candidate) => decryptIntegrationToken(candidate.accessToken) === input.extensionKey);
+  if (!connection) throw new AppError("Invalid extension key", 401);
+
+  const accountId = input.externalAccountId || connection.externalAccountId;
+  const raw = input.metrics.map((metric) => extensionMetricToRaw(metric, {
+    accountId,
+    accountName: input.accountName || connection.accountName || undefined,
+  }));
+  await persistMetricSnapshots(connection, raw);
+  await prisma.integrationConnection.update({
+    where: { id: connection.id },
+    data: {
+      accountName: input.accountName || connection.accountName,
+      lastSyncedAt: new Date(),
+      lastError: null,
+      status: IntegrationStatus.CONNECTED,
+    },
+  });
+
+  if (connection.provider === IntegrationProvider.META || connection.provider === IntegrationProvider.TIKTOK) {
+    await runFatigueCheckForAccount(connection.id).catch((error) => {
+      console.error(`[fatigue] Extension check failed for ${connection.id}:`, error);
+    });
+  }
+
+  return { connectionId: connection.id, snapshots: raw.length };
 }
 
 export async function disconnectConnection(userId: string, connectionId: string) {
@@ -389,6 +546,18 @@ export async function syncConnection(connectionId: string) {
   });
 
   try {
+    if ((connection.metadata as { source?: string } | null)?.source === "extension") {
+      await prisma.integrationConnection.update({
+        where: { id: connection.id },
+        data: {
+          syncLockUntil: null,
+          nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          lastError: null,
+        },
+      });
+      return { connectionId: connection.id, snapshots: 0, source: "extension" };
+    }
+
     const freshConnection = await refreshIfNeeded(connection);
     const raw =
       freshConnection.provider === IntegrationProvider.META
@@ -397,38 +566,7 @@ export async function syncConnection(connectionId: string) {
           ? await fetchTikTokMetrics(freshConnection)
           : await fetchShopifyMetrics(freshConnection);
 
-    for (const metrics of raw) {
-      const analysisInput = toAnalysisInput(metrics);
-      await prisma.integrationMetricSnapshot.upsert({
-        where: {
-          userId_provider_externalAccountId_externalEntityId_date: {
-            userId: freshConnection.userId,
-            provider: freshConnection.provider,
-            externalAccountId: freshConnection.externalAccountId,
-            externalEntityId: metrics.externalEntityId,
-            date: metrics.date,
-          },
-        },
-        create: {
-          userId: freshConnection.userId,
-          connectionId: freshConnection.id,
-          provider: freshConnection.provider,
-          externalAccountId: freshConnection.externalAccountId,
-          externalEntityId: metrics.externalEntityId,
-          entityName: metrics.entityName,
-          date: metrics.date,
-          metrics: metrics as unknown as Prisma.InputJsonValue,
-          analysisInput: analysisInput as unknown as Prisma.InputJsonValue,
-          source: metrics.source,
-        },
-        update: {
-          entityName: metrics.entityName,
-          metrics: metrics as unknown as Prisma.InputJsonValue,
-          analysisInput: analysisInput as unknown as Prisma.InputJsonValue,
-          source: metrics.source,
-        },
-      });
-    }
+    await persistMetricSnapshots(freshConnection, raw);
 
     await prisma.integrationConnection.update({
       where: { id: freshConnection.id },

@@ -38,8 +38,11 @@ const footerLinks: Array<{
     href: "/alternatives/triple-whale",
     links: [
       { name: "vs Triple Whale", href: "/vs/triple-whale" },
+      { name: "vs Madgicx", href: "/vs/madgicx" },
       { name: "Triple Whale alternative", href: "/alternatives/triple-whale" },
       { name: "Madgicx alternative", href: "/alternatives/madgicx" },
+      { name: "Northbeam alternative", href: "/alternatives/northbeam" },
+      { name: "Revealbot alternative", href: "/alternatives/revealbot" },
     ],
   },
   {

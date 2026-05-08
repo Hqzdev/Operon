@@ -216,6 +216,7 @@ type IntegrationConnection = {
   nextSyncAt: string;
   lastError: string | null;
   maxDailyBudgetChangePercent?: number;
+  metadata?: { source?: string; writeCapable?: boolean } | null;
   createdAt: string;
 };
 
@@ -446,6 +447,7 @@ export function AnalysisWorkbench() {
   const [shopifyShop, setShopifyShop] = useState("");
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
   const [integrationsMsg, setIntegrationsMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [extensionKey, setExtensionKey] = useState<{ provider: IntegrationConnection["provider"]; key: string } | null>(null);
   const [simulationOpen, setSimulationOpen] = useState(false);
   const [simulationLoading, setSimulationLoading] = useState(false);
   const [simulationError, setSimulationError] = useState<string | null>(null);
@@ -695,6 +697,36 @@ export function AnalysisWorkbench() {
     }
   }
 
+  async function connectExtension(provider: IntegrationConnection["provider"]) {
+    const token = getToken();
+    if (!token) return;
+    setIntegrationsLoading(true);
+    setIntegrationsMsg(null);
+    setExtensionKey(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/integrations/extension`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          provider,
+          accountName: provider === "SHOPIFY" && shopifyShop ? shopifyShop : `${provider} extension`,
+        }),
+      });
+      const data = await res.json() as { extensionKey?: string; provider?: IntegrationConnection["provider"]; message?: string };
+      if (!res.ok || !data.extensionKey || !data.provider) {
+        setIntegrationsMsg({ type: "err", text: data.message ?? "Extension connection failed" });
+        return;
+      }
+      setExtensionKey({ provider: data.provider, key: data.extensionKey });
+      await refreshIntegrations();
+      setIntegrationsMsg({ type: "ok", text: "Extension key generated. Paste it into the Operon browser extension." });
+    } catch {
+      setIntegrationsMsg({ type: "err", text: "Network error" });
+    } finally {
+      setIntegrationsLoading(false);
+    }
+  }
+
   async function syncIntegrations() {
     const token = getToken();
     if (!token) return;
@@ -757,6 +789,8 @@ export function AnalysisWorkbench() {
       item.provider === snapshot.provider && item.externalAccountId === snapshot.externalAccountId,
     );
     if (!connection) return null;
+    const writeScope = snapshot.provider === "META" ? "ads_management" : "ad.write";
+    if (!connection.scopes.includes(writeScope)) return null;
     return {
       connectionId: connection.id,
       provider: snapshot.provider,
@@ -914,28 +948,40 @@ export function AnalysisWorkbench() {
                 <CardHeader className="border-b border-foreground/10 py-6">
                   <CardTitle className="text-[15px] font-semibold tracking-normal">Connections</CardTitle>
                   <CardDescription>
-                    Read-only OAuth for ad and store data.
+                    Use the Operon browser extension as the main data connector. OAuth write access is optional for one-click actions.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="px-6 py-6">
+                  <div className="mb-5 rounded-xl border border-border bg-muted/40 p-4">
+                    <div className="text-[13px] font-semibold">Extension-first setup</div>
+                    <p className="mt-1 text-[12px] leading-5 text-muted-foreground">
+                      Generate a key, paste it into the extension, then open Meta Ads, TikTok Ads, or Shopify. The extension sends snapshots into Operon without platform API approval.
+                    </p>
+                    {extensionKey ? (
+                      <div className="mt-3 rounded-lg border border-border bg-background p-3">
+                        <div className="text-[11px] font-medium text-muted-foreground">{extensionKey.provider} extension key</div>
+                        <div className="mt-1 break-all font-mono text-[12px]">{extensionKey.key}</div>
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="grid gap-3">
                     <Button
                       variant="outline"
                       className="h-11 justify-start rounded-xl"
                       disabled={integrationsLoading}
-                      onClick={() => connectProvider("META")}
+                      onClick={() => connectExtension("META")}
                     >
                       <Cable className="size-4" />
-                      Connect Meta Ads
+                      Connect Meta via extension
                     </Button>
                     <Button
                       variant="outline"
                       className="h-11 justify-start rounded-xl"
                       disabled={integrationsLoading}
-                      onClick={() => connectProvider("TIKTOK")}
+                      onClick={() => connectExtension("TIKTOK")}
                     >
                       <Cable className="size-4" />
-                      Connect TikTok Ads
+                      Connect TikTok via extension
                     </Button>
                     <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                       <Input
@@ -948,13 +994,25 @@ export function AnalysisWorkbench() {
                         variant="outline"
                         className="h-11 rounded-xl"
                         disabled={integrationsLoading || !shopifyShop}
-                        onClick={() => connectProvider("SHOPIFY")}
+                        onClick={() => connectExtension("SHOPIFY")}
                       >
                         <Store className="size-4" />
-                        Connect Shopify
+                        Connect Shopify extension
                       </Button>
                     </div>
                   </div>
+
+                  <details className="mt-4 rounded-xl border border-border px-4 py-3">
+                    <summary className="cursor-pointer text-[12px] font-medium">Optional OAuth for write actions</summary>
+                    <div className="mt-3 grid gap-2">
+                      <Button variant="ghost" className="h-9 justify-start rounded-lg text-xs" onClick={() => connectProvider("META")} disabled={integrationsLoading}>
+                        Connect Meta OAuth for PAUSE / budget changes
+                      </Button>
+                      <Button variant="ghost" className="h-9 justify-start rounded-lg text-xs" onClick={() => connectProvider("TIKTOK")} disabled={integrationsLoading}>
+                        Connect TikTok OAuth for PAUSE / budget changes
+                      </Button>
+                    </div>
+                  </details>
 
                   <Separator className="my-6" />
 
@@ -989,8 +1047,8 @@ export function AnalysisWorkbench() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="font-medium">{connection.accountName ?? connection.externalAccountId}</div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {connection.provider} · {connection.status}
+                              <div className="mt-1 text-xs text-muted-foreground">
+                              {connection.provider} · {connection.metadata?.source === "extension" ? "EXTENSION" : "OAUTH"} · {connection.status}
                             </div>
                             {connection.lastSyncedAt ? (
                               <div className="mt-1 text-xs text-muted-foreground">
@@ -1114,16 +1172,16 @@ export function AnalysisWorkbench() {
                         <div className="max-w-sm">
                           <div className="text-[20px] font-semibold">No synced metrics</div>
                           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                            Connect an account and run sync to populate daily snapshots.
+                            Connect the browser extension and open your ad account or store to send snapshots into Operon.
                           </p>
                           <div className="mt-5 flex justify-center">
                             <Button
                               className="rounded-full"
-                              onClick={integrations.length ? syncIntegrations : () => connectProvider("META")}
+                              onClick={integrations.length ? syncIntegrations : () => connectExtension("META")}
                               disabled={integrationsLoading}
                             >
                               {integrationsLoading ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
-                              {integrations.length ? "Continue: sync data" : "Continue: connect Meta Ads"}
+                              {integrations.length ? "Refresh snapshots" : "Continue: connect extension"}
                             </Button>
                           </div>
                         </div>
@@ -1370,7 +1428,7 @@ export function AnalysisWorkbench() {
                         </div>
                       ) : (
                         <div className="rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground">
-                          Choose a Meta or TikTok synced campaign first to execute actions from Operon.
+                          Extension data is read-only. Connect optional Meta/TikTok OAuth write access to execute PAUSE or budget changes from Operon.
                         </div>
                       )}
 
