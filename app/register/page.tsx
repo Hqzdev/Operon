@@ -20,7 +20,7 @@ export default function RegisterPage() {
         {
           id: "name",
           label: "Full name",
-          placeholder: "Yaroslav Fairfield",
+          placeholder: "John Doe",
         },
         {
           id: "email",
