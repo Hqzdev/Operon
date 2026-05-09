@@ -61,6 +61,10 @@ export function RedditLeadsWidget({
   const newPosts = visiblePosts.filter((post) => post.status !== "Contacted");
   const contactedPosts = visiblePosts.filter((post) => post.status === "Contacted");
   const selectedPost = visiblePosts.find((post) => post.id === selectedId) ?? visiblePosts[0] ?? null;
+  const previewKeywords = useMemo(
+    () => extractShopKeywords(storage.productDescription).slice(0, 12),
+    [storage.productDescription],
+  );
 
   async function findLeads() {
     const keywords = extractShopKeywords(storage.productDescription);
@@ -217,6 +221,16 @@ export function RedditLeadsWidget({
         ) : null}
         {error ? <span className="text-[12px] text-red-600">{error}</span> : null}
       </div>
+      {previewKeywords.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+          <span className="self-center">Keywords used:</span>
+          {previewKeywords.map((keyword) => (
+            <span key={keyword} className="rounded-md bg-muted px-2 py-0.5">
+              {keyword}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-4 grid min-h-[520px] overflow-hidden rounded-lg border border-border lg:grid-cols-[420px_minmax(0,1fr)]">
         <Tabs defaultValue="new" className="min-h-0 border-b border-border lg:border-b-0 lg:border-r">

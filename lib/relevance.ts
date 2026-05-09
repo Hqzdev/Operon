@@ -60,6 +60,54 @@ const STOP_WORDS = new Set([
   "your",
 ]);
 
+const KEYWORD_EXPANSIONS: Array<{ triggers: string[]; keywords: string[] }> = [
+  {
+    triggers: ["dropshipping", "drop shipping", "дропшип", "дропшиппинг"],
+    keywords: [
+      "dropshipping",
+      "drop shipping",
+      "supplier",
+      "product research",
+      "winning product",
+      "fulfillment",
+      "shopify",
+    ],
+  },
+  {
+    triggers: ["ecommerce", "e-commerce", "online store", "store", "shop", "магазин", "интернет магазин"],
+    keywords: ["ecommerce", "e-commerce", "online store", "store", "shop", "conversion", "checkout", "traffic"],
+  },
+  {
+    triggers: ["marketing", "ads", "advertising", "traffic", "маркетинг", "реклама", "трафик"],
+    keywords: ["marketing", "ads", "advertising", "traffic", "facebook ads", "tiktok ads", "organic traffic"],
+  },
+  {
+    triggers: ["clothing", "fashion", "apparel", "одежда", "фэшн"],
+    keywords: ["clothing", "fashion", "apparel", "brand", "boutique"],
+  },
+  {
+    triggers: ["jewelry", "jewellery", "украшения", "ювелир"],
+    keywords: ["jewelry", "jewellery", "accessories", "gift"],
+  },
+  {
+    triggers: ["beauty", "cosmetic", "skincare", "косметика", "уход"],
+    keywords: ["beauty", "cosmetic", "skincare", "makeup"],
+  },
+];
+
+const DEFAULT_LEAD_INTENT_KEYWORDS = [
+  "dropshipping",
+  "ecommerce",
+  "shopify",
+  "store",
+  "supplier",
+  "product",
+  "traffic",
+  "marketing",
+  "ads",
+  "conversion",
+];
+
 export function normalizeShopKeywords(keywords: string[]) {
   return Array.from(
     new Set(
@@ -71,9 +119,10 @@ export function normalizeShopKeywords(keywords: string[]) {
 }
 
 export function extractShopKeywords(description: string) {
+  const normalizedDescription = description.toLowerCase();
   const words = description
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/[^\p{L}0-9\s-]/gu, " ")
     .split(/\s+/)
     .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 
@@ -83,7 +132,11 @@ export function extractShopKeywords(description: string) {
     .map((part) => part.trim())
     .filter((part) => part.split(/\s+/).length >= 2 && part.length <= 40);
 
-  return normalizeShopKeywords([...phrases, ...words]);
+  const expansions = KEYWORD_EXPANSIONS.flatMap(({ triggers, keywords }) =>
+    triggers.some((trigger) => normalizedDescription.includes(trigger)) ? keywords : [],
+  );
+
+  return normalizeShopKeywords([...phrases, ...words, ...expansions, ...DEFAULT_LEAD_INTENT_KEYWORDS]);
 }
 
 export function calculateRelevanceScore(post: Pick<RedditPostInput, "title" | "body" | "upvotes" | "comments">, shopKeywords: string[]) {
@@ -95,10 +148,10 @@ export function calculateRelevanceScore(post: Pick<RedditPostInput, "title" | "b
   let score = 0;
 
   const titleMatches = keywords.filter((keyword) => title.includes(keyword)).length;
-  score += (titleMatches / keywords.length) * 40;
+  score += Math.min(titleMatches * 10, 40);
 
   const bodyMatches = keywords.filter((keyword) => body.includes(keyword)).length;
-  score += (bodyMatches / keywords.length) * 35;
+  score += Math.min(bodyMatches * 7, 35);
 
   const problemCount = PROBLEM_KEYWORDS.filter((keyword) => body.includes(keyword) || title.includes(keyword)).length;
   if (problemCount > 0) score += 15;
