@@ -884,17 +884,23 @@ export function DashboardHome() {
                     dataKey="revenue"
                     stroke="#256FD1"
                     strokeWidth={2.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     fill="url(#operonRevenue)"
-                    activeDot={{ r: 4, strokeWidth: 0, fill: "#256FD1" }}
                     dot={false}
+                    activeDot={false}
+                    connectNulls
                   />
                   <Line
                     type="monotone"
                     dataKey="purchases"
                     stroke="#16B879"
                     strokeWidth={2.5}
-                    dot={{ r: 3, strokeWidth: 0, fill: "#16B879" }}
-                    activeDot={{ r: 4, strokeWidth: 0, fill: "#16B879" }}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    dot={false}
+                    activeDot={false}
+                    connectNulls
                   />
                 </AreaChart>
               </ResponsiveContainer>
