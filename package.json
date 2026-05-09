@@ -8,7 +8,7 @@
     "backend:dev": "tsx watch src/server.ts",
     "backend:build": "tsc -p tsconfig.backend.json",
     "backend:start": "prisma migrate deploy && node dist/server.js",
-    "build": "prisma migrate deploy && next build",
+    "build": "next build",
     "lint": "eslint .",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
