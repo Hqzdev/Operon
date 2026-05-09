@@ -36,6 +36,7 @@ export function RedditLeadsWidget({
   const [minScore, setMinScore] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [dmOpen, setDmOpen] = useState(false);
 
   useEffect(() => {
@@ -75,14 +76,23 @@ export function RedditLeadsWidget({
 
     setLoading(true);
     setError(null);
+    setWarning(null);
     try {
       const params = new URLSearchParams({
         subreddits: DEFAULT_DROPSHIPPING_SUBREDDITS.join(","),
         limit: "120",
       });
       const fetchResponse = await fetch(`/api/reddit/fetch-posts?${params.toString()}`, { cache: "no-store" });
-      const fetchData = (await fetchResponse.json()) as { posts?: RedditPostInput[]; message?: string; fetchedAt?: string };
+      const fetchData = (await fetchResponse.json()) as {
+        posts?: RedditPostInput[];
+        message?: string;
+        fetchedAt?: string;
+        warnings?: string[];
+      };
       if (!fetchResponse.ok || !fetchData.posts) throw new Error(fetchData.message ?? "Unable to fetch Reddit posts");
+      if (fetchData.warnings?.length) {
+        setWarning(fetchData.warnings.slice(0, 3).join("; "));
+      }
 
       const relevanceResponse = await fetch("/api/reddit/calculate-relevance", {
         method: "POST",
@@ -220,6 +230,7 @@ export function RedditLeadsWidget({
           </span>
         ) : null}
         {error ? <span className="text-[12px] text-red-600">{error}</span> : null}
+        {warning && !error ? <span className="text-[12px] text-amber-600">{warning}</span> : null}
       </div>
       {previewKeywords.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
