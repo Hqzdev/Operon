@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { jsonLdScript } from "@/lib/json-ld";
 import { listTrendingAdProblems } from "@/src/services/redditAcquisitionService";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export default async function TrendingAdProblemsPage() {
     <main className="min-h-screen bg-white text-slate-950">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(pageJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(pageJsonLd) }}
       />
       <section className="border-b border-slate-200">
         <div className="mx-auto max-w-5xl px-6 py-14">

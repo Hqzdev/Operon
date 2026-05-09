@@ -6,16 +6,23 @@ import {
 import { runRuleAnalysis } from "@/lib/decision-engine";
 import { runGigachatAnalysis } from "@/lib/gigachat";
 import { getRecentAnalyses, saveAnalysis } from "@/lib/storage";
+import { errorResponse, getAuthUserId } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const history = await getRecentAnalyses();
-  return NextResponse.json({ history });
+export async function GET(request: Request) {
+  try {
+    getAuthUserId(request);
+    const history = await getRecentAnalyses();
+    return NextResponse.json({ history });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function POST(request: Request) {
   try {
+    getAuthUserId(request);
     const raw = await request.json();
     const input = analysisInputSchema.parse(raw);
 
@@ -49,8 +56,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(output);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to analyze payload";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return errorResponse(error);
   }
 }

@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import { apiRateLimiter } from "./middleware/rateLimiter";
 import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";
+import { originGuard } from "./middleware/originGuard";
 import { apiRoutes } from "./routes";
 import { healthRoutes } from "./routes/healthRoutes";
 import { startScheduler } from "./services/schedulerService";
@@ -21,6 +22,7 @@ export function createApp() {
   app.use(express.json({ limit: "1mb" }));
   app.use(pinoHttp());
   app.use(apiRateLimiter);
+  app.use(originGuard);
 
   app.use("/health", healthRoutes);
 

@@ -11,6 +11,7 @@ import { DevelopersSection } from "@/components/landing/developers-section";
 import { TestimonialsSection } from "@/components/landing/testimonials-section";
 import { CtaSection } from "@/components/landing/cta-section";
 import { FooterSection } from "@/components/landing/footer-section";
+import { jsonLdScript } from "@/lib/json-ld";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://operons.vercel.app";
 
@@ -161,7 +162,7 @@ export default function Home() {
     <main className="relative min-h-screen overflow-x-hidden noise-overlay">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <Navigation />
       <HeroSection />

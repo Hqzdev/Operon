@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { BenchmarkComparePanel } from "@/components/dashboard/BenchmarkComparePanel";
 import { CreativeFatigueAlerts } from "@/components/dashboard/CreativeFatigueAlerts";
+import { RedditLeadsWidget } from "@/app/components/RedditLeadsWidget";
 
 type UserProfile = {
   name: string | null;
@@ -687,6 +688,11 @@ export function DashboardHome() {
           niche={user?.niche}
           platform={filteredSnapshots[0]?.provider ?? snapshots[0]?.provider ?? "META"}
           metrics={benchmarkMetrics}
+        />
+
+        <RedditLeadsWidget
+          defaultShopName={activeStoreName}
+          defaultProductDescription={user?.niche}
         />
 
         <section className="rounded-xl border border-border bg-card p-5">

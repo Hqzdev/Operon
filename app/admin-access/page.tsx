@@ -24,8 +24,6 @@ type AdminUser = {
   };
 };
 
-const adminPasswordKey = "operon_admin_access_password";
-
 export default function AdminAccessPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -50,13 +48,11 @@ export default function AdminAccessPage() {
 
   useEffect(() => {
     const savedToken = localStorage.getItem("operon_token");
-    const savedPassword = sessionStorage.getItem(adminPasswordKey) || "";
     if (!savedToken) {
       router.push("/login");
       return;
     }
     setToken(savedToken);
-    setPassword(savedPassword);
 
     fetch("/api/users/me", {
       headers: { Authorization: `Bearer ${savedToken}` },
@@ -92,7 +88,6 @@ export default function AdminAccessPage() {
       }
       setUsers(data.users as AdminUser[]);
       setAdminEmail(data.adminEmail as string);
-      sessionStorage.setItem(adminPasswordKey, nextPassword);
       setMessage({ type: "ok", text: "Admin access unlocked" });
     } catch (error) {
       setUsers([]);

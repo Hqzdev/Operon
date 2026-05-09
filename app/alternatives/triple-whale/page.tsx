@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Navigation } from "@/components/landing/navigation";
 import { FooterSection } from "@/components/landing/footer-section";
+import { jsonLdScript } from "@/lib/json-ld";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://operons.vercel.app";
 
@@ -72,7 +73,7 @@ export default function TripleWhaleAlternativePage() {
     <main className="min-h-screen bg-white text-slate-950">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <Navigation />
 

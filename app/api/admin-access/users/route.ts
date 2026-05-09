@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { SubscriptionStatus, UserPlan } from "@prisma/client";
-import { getAuthUserId, errorResponse, ApiError } from "@/lib/api-auth";
+import { getAuthUserId, errorResponse, ApiError, constantTimeEquals } from "@/lib/api-auth";
 import { prisma } from "@/src/models/prisma";
 
 export const dynamic = "force-dynamic";
@@ -35,15 +35,11 @@ async function requireAdmin(request: Request) {
     select: { id: true, email: true },
   });
   if (!user) throw new ApiError("User not found", 404);
-  if (providedPassword !== configuredPassword) {
+  if (!constantTimeEquals(providedPassword, configuredPassword)) {
     throw new ApiError("Admin password is incorrect", 401);
   }
   if (!configuredEmails.includes(normalizeEmail(user.email))) {
-    throw new ApiError("This account is not allowed to access admin", 403, {
-      currentEmail: user.email,
-      allowedEmails: configuredEmails,
-      hint: "Set ADMIN_ACCESS_EMAIL to this exact account email, or add it to the comma-separated list, then restart/redeploy the app.",
-    });
+    throw new ApiError("This account is not allowed to access admin", 403);
   }
 
   return user;

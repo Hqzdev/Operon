@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils'
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: '', dark: '.dark' } as const
+const CSS_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_-]*$/
+const CSS_COLOR_PATTERN =
+  /^(#[0-9a-fA-F]{3,8}|(?:rgb|hsl)a?\(\s*[\d.\s,%+-]+\)|(?:hsl|rgb)\(var\(--[a-zA-Z0-9_-]+\)\)|var\(--[a-zA-Z0-9_-]+\)|[a-zA-Z]+)$/
 
 export type ChartConfig = {
   [k in string]: {
@@ -71,7 +74,7 @@ function ChartContainer({
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme || config.color,
+    ([key, config]) => CSS_IDENTIFIER_PATTERN.test(key) && (config.theme || config.color),
   )
 
   if (!colorConfig.length) {
@@ -90,7 +93,7 @@ ${colorConfig
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    return color && CSS_COLOR_PATTERN.test(color) ? `  --color-${key}: ${color};` : null
   })
   .join('\n')}
 }

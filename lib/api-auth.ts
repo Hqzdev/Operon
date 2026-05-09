@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { AppError } from "@/src/utils/appError";
@@ -24,6 +25,16 @@ export function getAuthUserId(request: Request): string {
   }
 }
 
+export function constantTimeEquals(actual: string | null, expected: string): boolean {
+  if (!actual || !expected) return false;
+
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length) return false;
+
+  return crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
 export function errorResponse(error: unknown): NextResponse {
   if (error instanceof AppError) {
     return NextResponse.json(
@@ -32,8 +43,16 @@ export function errorResponse(error: unknown): NextResponse {
     );
   }
   if (error instanceof ZodError) {
-    return NextResponse.json({ message: "Validation error", details: error.errors }, { status: 400 });
+    return NextResponse.json(
+      {
+        message: "Validation error",
+        ...(process.env.NODE_ENV !== "production" ? { details: error.errors } : {}),
+      },
+      { status: 400 },
+    );
   }
-  const message = error instanceof Error ? error.message : "Internal server error";
+  const message = process.env.NODE_ENV !== "production" && error instanceof Error
+    ? error.message
+    : "Internal server error";
   return NextResponse.json({ message }, { status: 500 });
 }
