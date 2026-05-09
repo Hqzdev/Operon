@@ -20,7 +20,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { tab } = await searchParams;
   const label = tab ? (TAB_TITLES[tab] ?? "Home") : "Home";
-  return { title: `${label} | Operon` };
+  return { title: label };
 }
 
 export default async function DashboardPage({
