@@ -12,7 +12,6 @@ import {
   Circle,
   CircleDollarSign,
   FileText,
-  LineChart,
   LoaderCircle,
   Package,
   ShoppingBag,
@@ -24,6 +23,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Line,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
@@ -222,6 +222,41 @@ function greeting() {
 
 function fmt(value: number, options?: Intl.NumberFormatOptions) {
   return new Intl.NumberFormat("en-US", options).format(value);
+}
+
+type PerformanceTooltipPayload = {
+  dataKey?: string | number;
+  value?: number | string;
+  color?: string;
+};
+
+function PerformanceTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: PerformanceTooltipPayload[];
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+
+  const revenue = payload.find((item) => item.dataKey === "revenue");
+  const purchases = payload.find((item) => item.dataKey === "purchases");
+
+  return (
+    <div className="rounded-xl border border-border bg-white/95 px-4 py-3 text-left shadow-lg shadow-black/10 backdrop-blur dark:bg-[#171717]/95">
+      <div className="text-[16px] font-medium text-muted-foreground">{label}</div>
+      <div className="mt-2 space-y-1 text-[13px] font-semibold">
+        <div className="text-[#256FD1]">
+          ${fmt(Number(revenue?.value ?? 0), { maximumFractionDigits: 0 })} revenue
+        </div>
+        <div className="text-[#16B879]">
+          {fmt(Number(purchases?.value ?? 0), { maximumFractionDigits: 0 })} orders
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
@@ -807,40 +842,59 @@ export function DashboardHome() {
         </section>
 
         <section>
-          <div className="rounded-xl border border-border bg-card p-5">
-            <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="rounded-[18px] border border-border bg-card px-5 py-5 shadow-sm sm:px-7 sm:py-6">
+            <div className="mb-6 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <LineChart className="size-4 text-muted-foreground" />
-                <h2 className="text-[14px] font-semibold text-foreground">Revenue over time</h2>
+                <ArrowUpRight className="size-5 text-muted-foreground" />
+                <h2 className="text-[19px] font-semibold tracking-normal text-foreground">Performance over time</h2>
               </div>
             </div>
-            <div className="h-[220px] sm:h-[260px]">
+            <div className="h-[300px] sm:h-[340px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+                <AreaChart data={chartData} margin={{ left: 4, right: 16, top: 8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="operonRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#2A73D5" stopOpacity={0.28} />
+                      <stop offset="95%" stopColor="#2A73D5" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={1} />
-                  <XAxis dataKey="date" stroke="var(--color-muted-foreground)" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
-                  <YAxis stroke="var(--color-muted-foreground)" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                  <CartesianGrid vertical={false} strokeDasharray="5 5" stroke="var(--color-border)" opacity={0.85} />
+                  <XAxis
+                    dataKey="date"
+                    stroke="var(--color-muted-foreground)"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 13 }}
+                    dy={8}
+                  />
+                  <YAxis
+                    stroke="var(--color-muted-foreground)"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 13 }}
+                    width={44}
+                    allowDecimals={false}
+                  />
                   <RechartsTooltip
-                    contentStyle={{
-                      background: "var(--color-card)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                      color: "var(--color-foreground)",
-                    }}
+                    cursor={{ stroke: "var(--color-muted-foreground)", strokeWidth: 1, opacity: 0.45 }}
+                    content={<PerformanceTooltip />}
                   />
                   <Area
                     type="monotone"
                     dataKey="revenue"
-                    stroke="#3B82F6"
-                    strokeWidth={2}
+                    stroke="#256FD1"
+                    strokeWidth={2.5}
                     fill="url(#operonRevenue)"
+                    activeDot={{ r: 4, strokeWidth: 0, fill: "#256FD1" }}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="purchases"
+                    stroke="#16B879"
+                    strokeWidth={2.5}
+                    dot={{ r: 3, strokeWidth: 0, fill: "#16B879" }}
+                    activeDot={{ r: 4, strokeWidth: 0, fill: "#16B879" }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
