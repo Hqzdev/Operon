@@ -19,11 +19,24 @@ type ShopifyOrder = {
   financial_status?: string;
   created_at?: string;
   line_items?: Array<{
+    id?: number;
     product_id?: number;
     title?: string;
     name?: string;
     price?: string;
     quantity?: number;
+  }>;
+  refunds?: Array<{
+    refund_line_items?: Array<{
+      quantity?: number;
+      line_item_id?: number;
+      line_item?: {
+        id?: number;
+        title?: string;
+        name?: string;
+        quantity?: number;
+      };
+    }>;
   }>;
 };
 
@@ -189,7 +202,7 @@ async function fetchOrdersSince(
   let pageUrl: string | null =
     `https://${storeUrl}/admin/api/${apiVersion}/orders.json` +
     `?status=any&financial_status=paid&limit=250&created_at_min=${encodeURIComponent(since.toISOString())}` +
-    `&fields=id,email,customer,total_price,created_at,line_items`;
+    `&fields=id,email,customer,total_price,created_at,line_items,refunds`;
   let pages = 0;
 
   while (pageUrl && pages < 3) {
@@ -258,6 +271,62 @@ function extractProductOrders(orders: ShopifyOrderWithDate[], productName: strin
   }
 
   return productOrders;
+}
+
+export type ShopifyReturnRateResult = {
+  returnRate: number;
+  soldQuantity: number;
+  returnedQuantity: number;
+  ordersAnalyzed: number;
+  windowDays: number;
+};
+
+export async function computeReturnRateFromConnection(
+  storeUrl: string,
+  accessToken: string,
+  productName?: string,
+  windowDays = 90,
+): Promise<ShopifyReturnRateResult | null> {
+  if (!productName?.trim()) return null;
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const orders = await fetchOrdersSince(storeUrl, accessToken, since);
+  const normalizedTarget = normalizeProductName(productName);
+  let soldQuantity = 0;
+  let returnedQuantity = 0;
+  let ordersAnalyzed = 0;
+
+  for (const order of orders) {
+    const matchingItems = (order.line_items ?? []).filter((item) => {
+      const text = normalizeProductName(`${item.title ?? ""} ${item.name ?? ""}`);
+      return text.length >= 2 && (text.includes(normalizedTarget) || normalizedTarget.includes(text));
+    });
+    if (!matchingItems.length) continue;
+
+    ordersAnalyzed += 1;
+    const matchingIds = new Set(matchingItems.map((item) => item.id).filter((id): id is number => typeof id === "number"));
+    soldQuantity += matchingItems.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
+
+    for (const refund of order.refunds ?? []) {
+      for (const refundItem of refund.refund_line_items ?? []) {
+        const line = refundItem.line_item;
+        const refundText = normalizeProductName(`${line?.title ?? ""} ${line?.name ?? ""}`);
+        const matchesById = typeof refundItem.line_item_id === "number" && matchingIds.has(refundItem.line_item_id);
+        const matchesByName = refundText.length >= 2 && (refundText.includes(normalizedTarget) || normalizedTarget.includes(refundText));
+        if (matchesById || matchesByName) {
+          returnedQuantity += refundItem.quantity ?? 1;
+        }
+      }
+    }
+  }
+
+  if (soldQuantity <= 0) return null;
+  return {
+    returnRate: Math.min(1, returnedQuantity / soldQuantity),
+    soldQuantity,
+    returnedQuantity,
+    ordersAnalyzed,
+    windowDays,
+  };
 }
 
 function computeProductWindowMetrics(productOrders: ProductOrder[]) {

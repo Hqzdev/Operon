@@ -75,6 +75,52 @@ body {
 }
 .btn-icon:hover { color: var(--text); }
 
+/* ── Connected account ── */
+.connected-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  background: #fbfaf7;
+}
+.connected-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.connected-name {
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.connected-email {
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.connected-provider {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* ── Last result banner ── */
 .last-result {
   display: flex;

@@ -144,6 +144,9 @@ function recordToPayload(record: CsvRecord, headers: string[]): ImportPreview | 
     add_to_cart: addToCart,
     purchases,
     revenue: round(revenue),
+    return_rate: 0,
+    total_spend: round(spend || cpc * clicks),
+    days_active: 1,
     stage: "testing",
   });
 

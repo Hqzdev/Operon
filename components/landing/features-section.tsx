@@ -23,8 +23,8 @@ const features = [
   },
   {
     number: "04",
-    title: "Stop repeating the same bad tests",
-    description: "When the data says move on, move on. Operon tracks your decisions so you build on what works instead of looping back to what doesn't.",
+    title: "Quiet by design",
+    description: "Set confidence and spend thresholds. On calm days Operon sends one short note: nothing urgent, don't touch anything.",
     visual: "security",
   },
 ];

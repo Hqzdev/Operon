@@ -13,6 +13,10 @@ export const analysisInputSchema = z.object({
   add_to_cart: z.coerce.number().int().min(0),
   purchases: z.coerce.number().int().min(0),
   revenue: z.coerce.number().min(0),
+  return_rate: z.coerce.number().min(0).max(100).default(0),
+  net_revenue: z.coerce.number().min(0).optional(),
+  total_spend: z.coerce.number().min(0).optional(),
+  days_active: z.coerce.number().int().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]),
 });
 
@@ -99,6 +103,10 @@ export type AnalysisOutput = {
   };
   derived: {
     spend: number;
+    grossRevenue?: number;
+    effectiveRevenue?: number;
+    grossRoas?: number;
+    returnRate?: number;
     roas: number;
     conversionRate: number;
     addToCartRate: number;

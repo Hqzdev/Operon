@@ -25,6 +25,10 @@ const analysisInputSchema = z.object({
   add_to_cart: z.coerce.number().int().min(0),
   purchases: z.coerce.number().int().min(0),
   revenue: z.coerce.number().min(0),
+  return_rate: z.coerce.number().min(0).max(100).default(0),
+  net_revenue: z.coerce.number().min(0).optional(),
+  total_spend: z.coerce.number().min(0).optional(),
+  days_active: z.coerce.number().int().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]),
 });
 
@@ -66,9 +70,13 @@ type RawMetrics = {
   add_to_cart: number;
   purchases: number;
   revenue: number;
+  return_rate?: number;
+  net_revenue?: number;
   frequency?: number;
   product_price?: number;
   cost?: number;
+  total_spend?: number;
+  days_active?: number;
   source?: Prisma.InputJsonValue;
 };
 
@@ -82,10 +90,21 @@ type ExtensionMetricInput = {
   add_to_cart?: number;
   purchases?: number;
   revenue?: number;
+  return_rate?: number;
+  net_revenue?: number;
   frequency?: number;
   product_price?: number;
   cost?: number;
+  total_spend?: number;
+  days_active?: number;
   source?: unknown;
+};
+
+type ExtensionMetadata = {
+  source?: string;
+  writeCapable?: boolean;
+  autopilotEnabled?: boolean;
+  autopilotUpdatedAt?: string;
 };
 
 function appUrl() {
@@ -147,7 +166,7 @@ function round(value: number, precision = 2) {
 }
 
 function toAnalysisInput(metrics: RawMetrics): AnalysisInput {
-  const spend = metrics.spend;
+  const spend = metrics.total_spend && metrics.total_spend > 0 ? metrics.total_spend : metrics.spend;
   const productPrice =
     metrics.product_price && metrics.product_price > 0
       ? metrics.product_price
@@ -167,6 +186,10 @@ function toAnalysisInput(metrics: RawMetrics): AnalysisInput {
     add_to_cart: Math.round(metrics.add_to_cart),
     purchases: Math.round(metrics.purchases),
     revenue: round(metrics.revenue),
+    return_rate: round(metrics.return_rate ?? 0),
+    net_revenue: metrics.net_revenue !== undefined ? round(metrics.net_revenue) : undefined,
+    total_spend: round(spend),
+    days_active: metrics.days_active ?? 1,
     stage: "testing",
   };
   return analysisInputSchema.parse(input);
@@ -447,7 +470,7 @@ export async function createExtensionConnection(
       accessToken: encryptToken(extensionKey),
       scopes: ["extension_read"],
       status: IntegrationStatus.CONNECTED,
-      metadata: { source: "extension", writeCapable: false },
+      metadata: { source: "extension", writeCapable: false, autopilotEnabled: false },
       lastSyncedAt: null,
       nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
@@ -456,12 +479,111 @@ export async function createExtensionConnection(
       accessToken: encryptToken(extensionKey),
       scopes: ["extension_read"],
       status: IntegrationStatus.CONNECTED,
-      metadata: { source: "extension", writeCapable: false },
+      metadata: { source: "extension", writeCapable: false, autopilotEnabled: false },
       lastError: null,
       nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
   });
   return { connectionId: connection.id, provider, extensionKey };
+}
+
+async function findExtensionConnectionByKey(extensionKey: string) {
+  const candidates = await prisma.integrationConnection.findMany({
+    where: {
+      status: { not: IntegrationStatus.DISCONNECTED },
+      scopes: { has: "extension_read" },
+    },
+    include: {
+      user: {
+        select: {
+          email: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  return candidates.find((candidate) => decryptIntegrationToken(candidate.accessToken) === extensionKey) ?? null;
+}
+
+function extensionMetadata(metadata: unknown): ExtensionMetadata {
+  return typeof metadata === "object" && metadata !== null ? metadata as ExtensionMetadata : {};
+}
+
+export async function getExtensionConnectionStatus(extensionKey: string) {
+  const connection = await findExtensionConnectionByKey(extensionKey);
+  if (!connection) throw new AppError("Invalid extension key", 401);
+
+  const metadata = extensionMetadata(connection.metadata);
+  return {
+    connectionId: connection.id,
+    provider: connection.provider,
+    accountName: connection.accountName,
+    userEmail: connection.user.email,
+    userName: connection.user.name,
+    autopilotEnabled: Boolean(metadata.autopilotEnabled),
+    lastSyncedAt: connection.lastSyncedAt,
+  };
+}
+
+export async function updateExtensionAutopilot(extensionKey: string, enabled: boolean) {
+  const connection = await findExtensionConnectionByKey(extensionKey);
+  if (!connection) throw new AppError("Invalid extension key", 401);
+
+  const metadata = extensionMetadata(connection.metadata);
+  const updated = await prisma.integrationConnection.update({
+    where: { id: connection.id },
+    data: {
+      metadata: {
+        ...metadata,
+        source: "extension",
+        writeCapable: false,
+        autopilotEnabled: enabled,
+        autopilotUpdatedAt: new Date().toISOString(),
+      },
+      nextSyncAt: enabled ? new Date() : connection.nextSyncAt,
+    },
+  });
+
+  return {
+    connectionId: updated.id,
+    provider: updated.provider,
+    accountName: updated.accountName,
+    autopilotEnabled: enabled,
+  };
+}
+
+export async function updateUserExtensionAutopilot(userId: string, enabled: boolean) {
+  const connections = await prisma.integrationConnection.findMany({
+    where: {
+      userId,
+      status: { not: IntegrationStatus.DISCONNECTED },
+      scopes: { has: "extension_read" },
+    },
+    select: {
+      id: true,
+      metadata: true,
+    },
+  });
+
+  await Promise.all(connections.map((connection) => {
+    const metadata = extensionMetadata(connection.metadata);
+    return prisma.integrationConnection.update({
+      where: { id: connection.id },
+      data: {
+        metadata: {
+          ...metadata,
+          source: "extension",
+          writeCapable: false,
+          autopilotEnabled: enabled,
+          autopilotUpdatedAt: new Date().toISOString(),
+        },
+        nextSyncAt: enabled ? new Date() : undefined,
+      },
+    });
+  }));
+
+  return { autopilotEnabled: enabled, updatedConnections: connections.length };
 }
 
 function extensionMetricToRaw(metric: ExtensionMetricInput, fallback: { accountName?: string; accountId: string }) {
@@ -476,9 +598,13 @@ function extensionMetricToRaw(metric: ExtensionMetricInput, fallback: { accountN
     add_to_cart: asNumber(metric.add_to_cart),
     purchases: asNumber(metric.purchases),
     revenue: asNumber(metric.revenue),
+    return_rate: asNumber(metric.return_rate),
+    net_revenue: metric.net_revenue !== undefined ? asNumber(metric.net_revenue) : undefined,
     frequency: asNumber(metric.frequency),
     product_price: asNumber(metric.product_price),
     cost: asNumber(metric.cost),
+    total_spend: asNumber(metric.total_spend || metric.spend),
+    days_active: asNumber(metric.days_active || 1),
     source: (metric.source ?? metric) as Prisma.InputJsonValue,
   } satisfies RawMetrics;
 }
@@ -491,15 +617,9 @@ export async function ingestExtensionMetrics(input: {
   metrics: ExtensionMetricInput[];
 }) {
   const provider = input.provider as IntegrationProvider;
-  const candidates = await prisma.integrationConnection.findMany({
-    where: {
-      provider,
-      status: { not: IntegrationStatus.DISCONNECTED },
-      scopes: { has: "extension_read" },
-    },
-  });
-  const connection = candidates.find((candidate) => decryptIntegrationToken(candidate.accessToken) === input.extensionKey);
+  const connection = await findExtensionConnectionByKey(input.extensionKey);
   if (!connection) throw new AppError("Invalid extension key", 401);
+  if (connection.provider !== provider) throw new AppError("Extension key provider mismatch", 400);
 
   const accountId = input.externalAccountId || connection.externalAccountId;
   const raw = input.metrics.map((metric) => extensionMetricToRaw(metric, {
@@ -514,6 +634,11 @@ export async function ingestExtensionMetrics(input: {
       lastSyncedAt: new Date(),
       lastError: null,
       status: IntegrationStatus.CONNECTED,
+      metadata: {
+        ...extensionMetadata(connection.metadata),
+        source: "extension",
+        writeCapable: false,
+      },
     },
   });
 

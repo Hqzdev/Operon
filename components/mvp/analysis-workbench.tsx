@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -68,6 +69,10 @@ const initialForm: AnalysisInput = {
   add_to_cart: 0,
   purchases: 0,
   revenue: 0,
+  return_rate: 0,
+  net_revenue: 0,
+  total_spend: 0,
+  days_active: 0,
   stage: "testing",
 };
 
@@ -82,6 +87,10 @@ const fields: Array<{ key: keyof AnalysisInput; label: string; step?: string }> 
   { key: "add_to_cart", label: "Add to cart", step: "1" },
   { key: "purchases", label: "Purchases", step: "1" },
   { key: "revenue", label: "Revenue", step: "0.01" },
+  { key: "return_rate", label: "Return rate %", step: "0.01" },
+  { key: "net_revenue", label: "Net revenue", step: "0.01" },
+  { key: "total_spend", label: "Total spend", step: "0.01" },
+  { key: "days_active", label: "Days active", step: "1" },
 ];
 
 function badgeVariant(decision: string) {
@@ -109,8 +118,8 @@ function recBadgeVariant(rec: string) {
 
 function confidencePercent(result?: AnalysisOutput | null) {
   if (!result) return 0;
-  if (typeof result.decision.confidenceScore === "number") return result.decision.confidenceScore;
-  return result.decision.confidence === "high" ? 85 : result.decision.confidence === "medium" ? 65 : 35;
+  if (typeof result.decision?.confidenceScore === "number") return result.decision.confidenceScore;
+  return result.decision?.confidence === "high" ? 85 : result.decision?.confidence === "medium" ? 65 : 35;
 }
 
 function ConfidenceBadge({ result }: { result: AnalysisOutput }) {
@@ -155,7 +164,26 @@ type UserProfile = {
   subscriptionEndDate: string | null;
   usageCount: number;
   usageResetAt: string;
+  quietModeEnabled?: boolean;
+  quietMinConfidence?: "low" | "medium" | "high" | "";
+  quietMinSpendImpact?: number;
 };
+
+function quietDefaultsForPlan(plan?: string) {
+  if (plan === "SCALE") return { confidence: "high" as const, spendImpact: 1000 };
+  if (plan === "PRO") return { confidence: "medium" as const, spendImpact: 500 };
+  return { confidence: "medium" as const, spendImpact: 0 };
+}
+
+function quietConfidenceValue(user?: UserProfile | null) {
+  return user?.quietMinConfidence || quietDefaultsForPlan(user?.plan).confidence;
+}
+
+function quietSpendValue(user?: UserProfile | null) {
+  return typeof user?.quietMinSpendImpact === "number" && user.quietMinSpendImpact >= 0
+    ? user.quietMinSpendImpact
+    : quietDefaultsForPlan(user?.plan).spendImpact;
+}
 
 type AdSetInput = {
   name: string;
@@ -393,6 +421,77 @@ function riskClass(level: string) {
   return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300";
 }
 
+function normalizeAnalysisOutput(raw: unknown): AnalysisOutput {
+  const input = (raw ?? {}) as Partial<AnalysisOutput>;
+  const decision = (input.decision ?? {}) as Partial<AnalysisOutput["decision"]>;
+  const diagnosis = (input.diagnosis ?? {}) as Partial<AnalysisOutput["diagnosis"]>;
+  const validation = (input.validation ?? {}) as Partial<AnalysisOutput["validation"]>;
+  const profitability = (input.profitability ?? {}) as Partial<AnalysisOutput["profitability"]>;
+  const funnelLeak = (input.funnelLeak ?? {}) as Partial<AnalysisOutput["funnelLeak"]>;
+  const continueDecision = (input.continueDecision ?? {}) as Partial<AnalysisOutput["continueDecision"]>;
+  const derived = (input.derived ?? {}) as Partial<AnalysisOutput["derived"]>;
+
+  return {
+    decision: {
+      finalDecision: decision.finalDecision ?? "TEST AGAIN",
+      shortReason: decision.shortReason ?? "Not enough stable signal yet. Keep testing until more data comes in.",
+      confidence: decision.confidence ?? "low",
+      confidenceScore: decision.confidenceScore,
+      confidenceSignals: Array.isArray(decision.confidenceSignals) ? decision.confidenceSignals : [],
+    },
+    diagnosis: {
+      mainProblem: diagnosis.mainProblem ?? "Creative problem",
+      why: diagnosis.why ?? "Operon needs more complete campaign metrics to identify the strongest bottleneck.",
+      proofMetric: diagnosis.proofMetric ?? "Insufficient signal",
+    },
+    actionPlan: Array.isArray(input.actionPlan) ? input.actionPlan : [],
+    validation: {
+      verdict: validation.verdict ?? "unclear",
+      reason: validation.reason ?? "The current data is not strong enough to validate or reject the product.",
+      shouldContinueTesting: validation.shouldContinueTesting ?? true,
+    },
+    profitability: {
+      breakEvenCpa: profitability.breakEvenCpa ?? 0,
+      breakEvenRoas: profitability.breakEvenRoas ?? 0,
+      maxCpcAtCurrentConversion: profitability.maxCpcAtCurrentConversion ?? 0,
+      currentCpa: profitability.currentCpa ?? null,
+      isProfitable: profitability.isProfitable ?? false,
+      why: profitability.why ?? "Profitability could not be fully calculated from this response.",
+    },
+    funnelLeak: {
+      weakestStage: funnelLeak.weakestStage ?? "impressions → clicks",
+      explanation: funnelLeak.explanation ?? "No clear funnel leak detected yet.",
+      severity: funnelLeak.severity ?? "low",
+    },
+    creativeAngles: Array.isArray(input.creativeAngles) ? input.creativeAngles : [],
+    continueDecision: {
+      decision: continueDecision.decision ?? "TEST MORE",
+      reason: continueDecision.reason ?? "Collect more data before changing the campaign.",
+      minimumAdditionalTestNeeded: continueDecision.minimumAdditionalTestNeeded ?? "Run until the dataset has enough clicks and purchase signal.",
+    },
+    ltvAdjustment: input.ltvAdjustment,
+    derived: {
+      spend: derived.spend ?? 0,
+      grossRevenue: derived.grossRevenue ?? 0,
+      effectiveRevenue: derived.effectiveRevenue ?? derived.grossRevenue ?? 0,
+      grossRoas: derived.grossRoas ?? derived.roas ?? 0,
+      returnRate: derived.returnRate ?? 0,
+      roas: derived.roas ?? 0,
+      conversionRate: derived.conversionRate ?? 0,
+      addToCartRate: derived.addToCartRate ?? 0,
+      breakEvenRoas: derived.breakEvenRoas ?? 0,
+      breakEvenCpa: derived.breakEvenCpa ?? 0,
+      currentCpa: derived.currentCpa ?? null,
+      maxCpcAtCurrentConversion: derived.maxCpcAtCurrentConversion ?? 0,
+      profit: derived.profit ?? 0,
+      netProfitMargin: derived.netProfitMargin ?? 0,
+    },
+    provider: input.provider ?? "rules",
+    saved: input.saved ?? false,
+    savedId: input.savedId,
+  };
+}
+
 export function AnalysisWorkbench() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -417,6 +516,7 @@ export function AnalysisWorkbench() {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
   const [digestEnabled, setDigestEnabled] = useState(true);
   const [actionEmailsEnabled, setActionEmailsEnabled] = useState(true);
+  const [quietSaving, setQuietSaving] = useState(false);
 
   // Settings state
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -432,6 +532,7 @@ export function AnalysisWorkbench() {
   const [scenarioBase, setScenarioBase] = useState({
     product_price: 0, cost: 0, impressions: 0, clicks: 0,
     add_to_cart: 0, purchases: 0, revenue: 0, ctr: 0, cpc: 0, cpm: 0,
+    return_rate: 0, net_revenue: 0, total_spend: 0, days_active: 0,
   });
   const [scenarioCtrDelta, setScenarioCtrDelta] = useState(0);
   const [scenarioConvDelta, setScenarioConvDelta] = useState(0);
@@ -464,6 +565,24 @@ export function AnalysisWorkbench() {
     localStorage.removeItem("operon_token");
     localStorage.removeItem("operon_user");
     router.push("/login");
+  }
+
+  async function updateQuietSettings(next: Partial<Pick<UserProfile, "quietModeEnabled" | "quietMinConfidence" | "quietMinSpendImpact">>) {
+    const token = getToken();
+    if (!token) return;
+    const optimistic = user ? { ...user, ...next } : user;
+    if (optimistic) setUser(optimistic);
+    setQuietSaving(true);
+    try {
+      const res = await fetch(`${apiBaseUrl}/users/me`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(next),
+      });
+      if (res.ok) setUser(await res.json() as UserProfile);
+    } finally {
+      setQuietSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -506,7 +625,7 @@ export function AnalysisWorkbench() {
 
         if (historyRes.ok) {
           const data = await historyRes.json() as Array<{ id: string; createdAt: string; inputData: AnalysisInput; result: AnalysisOutput }>;
-          const mapped = data.map((item) => ({ id: item.id, createdAt: item.createdAt, input: item.inputData, output: item.result }));
+          const mapped = data.map((item) => ({ id: item.id, createdAt: item.createdAt, input: item.inputData, output: normalizeAnalysisOutput(item.result) }));
           if (mapped.length > 0) {
             setHistory(mapped);
             setResult(mapped[0].output);
@@ -562,7 +681,7 @@ export function AnalysisWorkbench() {
         return;
       }
 
-      const output = data.result as AnalysisOutput;
+      const output = normalizeAnalysisOutput(data.result);
       setResult(output);
 
       // Auto-fill scenario base from last analysis input
@@ -571,6 +690,8 @@ export function AnalysisWorkbench() {
         impressions: form.impressions, clicks: form.clicks,
         add_to_cart: form.add_to_cart, purchases: form.purchases,
         revenue: form.revenue, ctr: form.ctr, cpc: form.cpc, cpm: form.cpm,
+        return_rate: form.return_rate ?? 0, net_revenue: form.net_revenue ?? 0,
+        total_spend: form.total_spend ?? 0, days_active: form.days_active ?? 0,
       });
 
       // Refresh profile to get updated usageCount
@@ -587,7 +708,7 @@ export function AnalysisWorkbench() {
       });
       if (historyResponse.ok) {
         const historyData = await historyResponse.json() as Array<{ id: string; createdAt: string; inputData: AnalysisInput; result: AnalysisOutput }>;
-        setHistory(historyData.map((item) => ({ id: item.id, createdAt: item.createdAt, input: item.inputData, output: item.result })));
+        setHistory(historyData.map((item) => ({ id: item.id, createdAt: item.createdAt, input: item.inputData, output: normalizeAnalysisOutput(item.result) })));
       }
     } catch {
       setError("Unable to reach the analysis endpoint.");
@@ -1597,7 +1718,11 @@ export function AnalysisWorkbench() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       {[
                         ["Spend", `$${result.derived.spend}`],
-                        ["ROAS", String(result.derived.roas)],
+                        ["Gross revenue", `$${result.derived.grossRevenue ?? result.derived.effectiveRevenue ?? 0}`],
+                        ["Net revenue", `$${result.derived.effectiveRevenue ?? result.derived.grossRevenue ?? 0}`],
+                        ["Return rate", `${result.derived.returnRate ?? 0}%`],
+                        ["Gross ROAS", String(result.derived.grossRoas ?? result.derived.roas)],
+                        ["Net ROAS", String(result.derived.roas)],
                         ["Conversion rate", `${result.derived.conversionRate}%`],
                         ["Add-to-cart rate", `${result.derived.addToCartRate}%`],
                         ["Break-even ROAS", String(result.derived.breakEvenRoas)],
@@ -2240,6 +2365,51 @@ export function AnalysisWorkbench() {
                     <CardContent className="px-6 py-6">
                       <h2 className="text-[19px] font-semibold tracking-normal">Notifications</h2>
                       <div className="mt-5 space-y-3">
+                        <div className="rounded-xl border border-border p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="text-[14px] font-semibold">Quiet mode</div>
+                              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                                Only surface verdicts that clear your confidence and spend-impact thresholds. Most quiet days should stay quiet.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={user?.quietModeEnabled ?? true}
+                              onCheckedChange={(checked) => updateQuietSettings({ quietModeEnabled: checked })}
+                              disabled={quietSaving}
+                            />
+                          </div>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label className="text-xs">Minimum confidence</Label>
+                              <select
+                                value={quietConfidenceValue(user)}
+                                onChange={(event) => updateQuietSettings({ quietMinConfidence: event.target.value as "low" | "medium" | "high" })}
+                                className="border-input bg-background h-10 w-full rounded-xl border px-3 text-sm outline-none"
+                                disabled={quietSaving}
+                              >
+                                <option value="low">Low and above</option>
+                                <option value="medium">Medium and above</option>
+                                <option value="high">High only</option>
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs">Minimum spend impact (₽/day)</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step="100"
+                                value={quietSpendValue(user)}
+                                onChange={(event) => updateQuietSettings({ quietMinSpendImpact: Number(event.target.value) || 0 })}
+                                className="h-10 rounded-xl"
+                                disabled={quietSaving}
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground">
+                            Example: high-confidence verdicts on ad sets spending more than ₽1,000/day.
+                          </div>
+                        </div>
                         {[
                           ["Weekly digest", digestEnabled, setDigestEnabled],
                           ["Action confirmations", actionEmailsEnabled, setActionEmailsEnabled],

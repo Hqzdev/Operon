@@ -21,8 +21,15 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const userId = getAuthUserId(request);
-    const { name, storeName, niche } = await request.json();
-    const profile = await updateUserProfile(userId, { name, storeName, niche });
+    const { name, storeName, niche, quietModeEnabled, quietMinConfidence, quietMinSpendImpact } = await request.json();
+    const profile = await updateUserProfile(userId, {
+      name,
+      storeName,
+      niche,
+      quietModeEnabled,
+      quietMinConfidence,
+      quietMinSpendImpact,
+    });
     return NextResponse.json(profile);
   } catch (error) {
     return errorResponse(error);

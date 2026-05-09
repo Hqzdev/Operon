@@ -109,7 +109,7 @@ export function HeroSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            Enter your campaign numbers. Get a clear verdict — Scale, Fix, or Kill — plus the exact steps to act on it. No more staring at dashboards wondering what it all means.
+            Enter your campaign numbers. Get a clear verdict — Scale, Fix, or Kill — only when confidence and spend impact justify your attention. Most days, Operon should simply say nothing urgent.
           </p>
           
           {/* CTAs */}

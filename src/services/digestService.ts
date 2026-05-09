@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { UserPlan } from "@prisma/client";
 import { prisma } from "../models/prisma";
 import { completeGigaChatJson } from "./aiService";
 import { env } from "../utils/env";
@@ -9,6 +10,68 @@ export interface DigestSummary {
   takeaways: string[];
   actionItems: string[];
   alert: string | null;
+}
+
+const confidenceRank = { low: 0, medium: 1, high: 2 } as const;
+
+type QuietSettings = {
+  quietModeEnabled: boolean;
+  quietMinConfidence: string;
+  quietMinSpendImpact: number;
+  quietNoUrgentDigestAt: Date | null;
+};
+
+const QUIET_TIER_DEFAULTS: Record<UserPlan, Pick<QuietSettings, "quietMinConfidence" | "quietMinSpendImpact">> = {
+  STARTER: { quietMinConfidence: "medium", quietMinSpendImpact: 0 },
+  PRO: { quietMinConfidence: "medium", quietMinSpendImpact: 500 },
+  SCALE: { quietMinConfidence: "high", quietMinSpendImpact: 1000 },
+};
+
+function confidenceScoreToLevel(score?: number, fallback?: string) {
+  if (typeof score === "number") {
+    if (score >= 75) return "high";
+    if (score >= 50) return "medium";
+    return "low";
+  }
+  return fallback === "high" || fallback === "medium" || fallback === "low" ? fallback : "low";
+}
+
+function passesQuietThresholds(
+  result: { decision?: { confidence?: string; confidenceScore?: number }; derived?: { spend?: number } },
+  settings: QuietSettings,
+) {
+  if (!settings.quietModeEnabled) return true;
+  const minConfidence = settings.quietMinConfidence === "high" || settings.quietMinConfidence === "medium" || settings.quietMinConfidence === "low"
+    ? settings.quietMinConfidence
+    : "medium";
+  const level = confidenceScoreToLevel(result.decision?.confidenceScore, result.decision?.confidence);
+  const spend = Number(result.derived?.spend ?? 0);
+  return confidenceRank[level] >= confidenceRank[minConfidence] && spend >= settings.quietMinSpendImpact;
+}
+
+function shouldSendNoUrgentDigest(lastSent: Date | null) {
+  if (!lastSent) return true;
+  return Date.now() - lastSent.getTime() >= 7 * 24 * 60 * 60 * 1000;
+}
+
+function readSpendImpact(metrics: unknown) {
+  if (!metrics || typeof metrics !== "object") return 0;
+  const values = metrics as { spend?: unknown; dailySpend?: unknown; totalSpend?: unknown; spendImpact?: unknown };
+  return Number(values.spendImpact ?? values.dailySpend ?? values.spend ?? values.totalSpend ?? 0) || 0;
+}
+
+function quietDigestSummary(storeName: string, threshold: string): DigestSummary {
+  return {
+    title: `Nothing urgent — ${storeName || "Operon"}`,
+    body: `Nothing crossed your ${threshold} threshold. Don't touch anything today.`,
+    takeaways: [
+      "No high-impact verdicts need action right now",
+      "Quiet mode is filtering low-confidence noise",
+      "Your time is better spent away from the dashboard today",
+    ],
+    actionItems: ["No action needed"],
+    alert: null,
+  };
 }
 
 async function generateDigestContent(storeUrl: string, storeName: string): Promise<DigestSummary> {
@@ -136,22 +199,89 @@ function getTransport(): nodemailer.Transporter {
 export async function generateAndSendDigest(userId: string): Promise<DigestSummary> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, storeUrl: true, storeName: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      storeUrl: true,
+      storeName: true,
+      quietModeEnabled: true,
+      quietMinConfidence: true,
+      quietMinSpendImpact: true,
+      quietNoUrgentDigestAt: true,
+      plan: true,
+    },
   });
   if (!user) throw new Error(`User ${userId} not found`);
 
   const storeUrl = user.storeUrl ?? user.email;
   const storeName = user.storeName ?? "";
 
+  const tierDefaults = QUIET_TIER_DEFAULTS[user.plan];
+  const settings: QuietSettings = {
+    quietModeEnabled: user.quietModeEnabled,
+    quietMinConfidence: user.quietMinConfidence || tierDefaults.quietMinConfidence,
+    quietMinSpendImpact: user.quietMinSpendImpact >= 0 ? user.quietMinSpendImpact : tierDefaults.quietMinSpendImpact,
+    quietNoUrgentDigestAt: user.quietNoUrgentDigestAt,
+  };
+
+  const recentAnalyses = await prisma.analysis.findMany({
+    where: {
+      userId,
+      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { result: true },
+  });
+  const urgentAnalyses = recentAnalyses.filter((analysis) =>
+    passesQuietThresholds(analysis.result as Parameters<typeof passesQuietThresholds>[0], settings)
+  );
+
+  const thresholdText = `${settings.quietMinConfidence || "medium"} confidence / ₽${Math.round(settings.quietMinSpendImpact || 0)}`;
+  if (settings.quietModeEnabled && urgentAnalyses.length === 0) {
+    if (!shouldSendNoUrgentDigest(settings.quietNoUrgentDigestAt)) {
+      return quietDigestSummary(storeName, thresholdText);
+    }
+
+    const summary = quietDigestSummary(storeName, thresholdText);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { quietNoUrgentDigestAt: new Date() },
+    });
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: summary.title,
+        body: summary.body,
+        type: "digest",
+      },
+    });
+    await prisma.digestLog.create({ data: { userId, summary: summary as object } });
+    if (env.SMTP_USER) {
+      await getTransport().sendMail({
+        from: env.SMTP_FROM,
+        to: user.email,
+        subject: summary.title,
+        html: buildEmailHtml(summary, user.name ?? ""),
+      }).catch((err) => console.error(`[digest] Quiet email delivery failed for ${userId}:`, err));
+    }
+    return summary;
+  }
+
   const summary = await generateDigestContent(storeUrl, storeName);
   const fatigueAlerts = await prisma.fatigueAlert.findMany({
     where: { userId, status: "active" },
     orderBy: { detectedAt: "desc" },
-    take: 3,
+    take: 10,
   });
+  const visibleFatigueAlerts = settings.quietModeEnabled
+    ? fatigueAlerts.filter((alert) => readSpendImpact(alert.triggeredMetrics) >= settings.quietMinSpendImpact)
+    : fatigueAlerts;
 
-  if (fatigueAlerts.length > 0) {
-    const fatigueSummary = fatigueAlerts
+  if (visibleFatigueAlerts.length > 0) {
+    const fatigueSummary = visibleFatigueAlerts
+      .slice(0, 3)
       .map((alert) => `Creative fatigue: ${alert.creativeName}`)
       .join("; ");
     summary.alert = summary.alert ? `${summary.alert} ${fatigueSummary}` : fatigueSummary;

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bot, Zap, RefreshCw, Bell, TrendingUp, Puzzle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { getApiBaseUrl } from "@/lib/api-base-url";
 
 const steps = [
   {
@@ -31,6 +32,59 @@ const steps = [
 
 export function AutopilotPanel() {
   const [enabled, setEnabled] = useState(false);
+  const [connectedAccount, setConnectedAccount] = useState<string | null>(null);
+  const apiBaseUrl = getApiBaseUrl();
+
+  async function refreshAutopilotState() {
+    const token = localStorage.getItem("operon_token");
+    if (!token) return;
+
+    const res = await fetch(`${apiBaseUrl}/integrations`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+
+    const connections = await res.json() as Array<{
+      accountName?: string | null;
+      provider: string;
+      scopes?: string[];
+      metadata?: { source?: string; autopilotEnabled?: boolean } | null;
+    }>;
+    const extensionConnection = connections.find((connection) =>
+      connection.scopes?.includes("extension_read") || connection.metadata?.source === "extension"
+    );
+    if (!extensionConnection) {
+      setConnectedAccount(null);
+      setEnabled(false);
+      return;
+    }
+
+    setConnectedAccount(`${extensionConnection.accountName || "Extension"} · ${extensionConnection.provider}`);
+    setEnabled(Boolean(extensionConnection.metadata?.autopilotEnabled));
+  }
+
+  async function updateAutopilot(nextEnabled: boolean) {
+    setEnabled(nextEnabled);
+    const token = localStorage.getItem("operon_token");
+    if (!token) return;
+
+    await fetch(`${apiBaseUrl}/integrations/autopilot`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ autopilotEnabled: nextEnabled }),
+    }).catch(() => undefined);
+  }
+
+  useEffect(() => {
+    refreshAutopilotState();
+    const interval = window.setInterval(refreshAutopilotState, 10000);
+    return () => window.clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Popover>
@@ -56,7 +110,7 @@ export function AutopilotPanel() {
             <span className="text-[11px] text-muted-foreground">{enabled ? "On" : "Off"}</span>
             <Switch
               checked={enabled}
-              onCheckedChange={setEnabled}
+              onCheckedChange={updateAutopilot}
               aria-label="Toggle Autopilot"
             />
           </div>
@@ -70,7 +124,7 @@ export function AutopilotPanel() {
             : "bg-muted text-muted-foreground"
         )}>
           {enabled
-            ? "Autopilot is running. Your campaigns are being monitored."
+            ? `Autopilot is running${connectedAccount ? ` for ${connectedAccount}` : ""}.`
             : "Enable Autopilot to start monitoring your campaigns automatically."}
         </div>
 
@@ -105,7 +159,9 @@ export function AutopilotPanel() {
               </span>
             </div>
             <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-              Install the extension to let Autopilot scrape Meta & TikTok Ads Manager directly from your browser — no API keys needed.
+              {connectedAccount
+                ? `Connected: ${connectedAccount}.`
+                : "Install the extension to let Autopilot scrape Meta, TikTok, and Shopify directly from your browser."}
             </p>
           </div>
         </div>

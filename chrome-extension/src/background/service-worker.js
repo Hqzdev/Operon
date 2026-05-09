@@ -72,11 +72,15 @@ function normalizeMetric(provider, row, index) {
     entityName: name,
     date: row.date || todayIsoDate(),
     spend,
+    total_spend: Number(row.total_spend || row.totalSpend || spend),
+    days_active: Number(row.days_active || row.daysActive || 1),
     impressions,
     clicks,
     add_to_cart: Number(row.add_to_cart || row.addToCart || 0),
     purchases,
     revenue,
+    return_rate: Number(row.return_rate || row.returnRate || 0),
+    net_revenue: Number(row.net_revenue || row.netRevenue || 0) || undefined,
     frequency: Number(row.frequency || 0),
     product_price: Number(row.product_price || row.productPrice || (purchases > 0 ? revenue / purchases : 0)),
     cost: Number(row.cost || 0),
@@ -110,6 +114,21 @@ async function sendExtensionMetrics(provider, rows, accountName = "") {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || "Operon sync failed");
+  return data;
+}
+
+async function updateRemoteAutopilot(enabled) {
+  const { apiBase, extensionKey } = await getExtensionSettings();
+  if (!extensionKey) throw new Error("Extension key is missing");
+
+  const res = await fetch(`${apiBase}/integrations/extension/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ extensionKey, autopilotEnabled: enabled }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || "Autopilot sync failed");
+  chrome.storage.local.set({ operon_connection_status: data });
   return data;
 }
 
@@ -150,7 +169,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     } else {
       chrome.alarms.clear(ALARM_NAME);
     }
-    sendResponse({ ok: true });
+    updateRemoteAutopilot(Boolean(msg.enabled))
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, message: error.message }));
+    return true;
   }
 
   if (msg.type === "MANUAL_SYNC") {

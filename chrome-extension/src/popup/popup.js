@@ -54,6 +54,39 @@ function setAutopilot(enabled) {
   );
 }
 
+async function getConnectionStatus() {
+  const settings = await getSettings();
+  if (!settings.extensionKey) throw new Error("Paste extension key first");
+
+  const res = await fetch(`${settings.apiBase}/integrations/extension/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ extensionKey: settings.extensionKey }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || "Connection check failed");
+  chrome.storage.local.set({ operon_connection_status: data });
+  return data;
+}
+
+function renderConnectionStatus(status) {
+  if (!status) {
+    hide("connected-account");
+    return;
+  }
+
+  $("connected-account-name").textContent = status.accountName || `${status.provider || "Operon"} extension`;
+  $("connected-account-email").textContent = status.userEmail ? `Operon: ${status.userEmail}` : "";
+  $("connected-provider").textContent = status.provider || "EXT";
+  show("connected-account");
+
+  if (typeof status.autopilotEnabled === "boolean") {
+    $("autopilot-switch").checked = status.autopilotEnabled;
+    $("autopilot-dot").className = `status-dot ${status.autopilotEnabled ? "on" : "off"}`;
+    setAutopilot(status.autopilotEnabled);
+  }
+}
+
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -80,11 +113,15 @@ async function syncMetrics(provider, rows, accountName = "") {
       entityName: name,
       date: todayIsoDate(),
       spend: Number(row.spend || 0),
+      total_spend: Number(row.total_spend || row.totalSpend || row.spend || 0),
+      days_active: Number(row.days_active || row.daysActive || 1),
       impressions: Number(row.impressions || 0),
       clicks: Number(row.clicks || 0),
       add_to_cart: Number(row.add_to_cart || row.addToCart || 0),
       purchases,
       revenue,
+      return_rate: Number(row.return_rate || row.returnRate || 0),
+      net_revenue: Number(row.net_revenue || row.netRevenue || 0) || undefined,
       frequency: Number(row.frequency || 0),
       product_price: Number(row.product_price || (purchases ? revenue / purchases : 0)),
       cost: Number(row.cost || 0),
@@ -158,6 +195,8 @@ $("btn-save-token").addEventListener("click", async () => {
 // ── logout ────────────────────────────────────────────────────────────────────
 $("btn-logout").addEventListener("click", async () => {
   await setSettings({ extensionKey: "", apiBase: DEFAULT_API_BASE, accountName: "" });
+  await new Promise((resolve) => chrome.storage.local.remove(["operon_connection_status", "autopilot_enabled"], resolve));
+  renderConnectionStatus(null);
   showScreen("auth");
 });
 
@@ -177,6 +216,15 @@ async function onMainLoaded() {
   const autopilotOn = await getAutopilot();
   $("autopilot-switch").checked = autopilotOn;
   $("autopilot-dot").className = `status-dot ${autopilotOn ? "on" : "off"}`;
+
+  try {
+    renderConnectionStatus(await getConnectionStatus());
+  } catch (error) {
+    $("connected-account-name").textContent = "Connection check failed";
+    $("connected-account-email").textContent = error.message;
+    $("connected-provider").textContent = "ERR";
+    show("connected-account");
+  }
 
   chrome.storage.local.get("last_sync", (r) => {
     $("last-sync-time").textContent = r.last_sync
@@ -433,7 +481,18 @@ $("autopilot-switch").addEventListener("change", async (e) => {
   const enabled = e.target.checked;
   await setAutopilot(enabled);
   $("autopilot-dot").className = `status-dot ${enabled ? "on" : "off"}`;
-  chrome.runtime.sendMessage({ type: "AUTOPILOT_TOGGLE", enabled });
+  chrome.runtime.sendMessage({ type: "AUTOPILOT_TOGGLE", enabled }, (response) => {
+    if (response?.ok && response.result) {
+      renderConnectionStatus(response.result);
+      return;
+    }
+    if (!response?.ok) {
+      const reverted = !enabled;
+      setAutopilot(reverted);
+      $("autopilot-switch").checked = reverted;
+      $("autopilot-dot").className = `status-dot ${reverted ? "on" : "off"}`;
+    }
+  });
 });
 
 // ── sync now ─────────────────────────────────────────────────────────────────

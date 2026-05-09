@@ -11,6 +11,10 @@ const profileSelect = {
   storeName: true,
   storeUrl: true,
   niche: true,
+  quietModeEnabled: true,
+  quietMinConfidence: true,
+  quietMinSpendImpact: true,
+  quietNoUrgentDigestAt: true,
   activeStoreId: true,
   onboardingCompleted: true,
   plan: true,
@@ -63,10 +67,27 @@ export async function getUserProfile(userId: string) {
   };
 }
 
-export async function updateUserProfile(userId: string, input: { name?: string; storeName?: string; niche?: string }) {
+export async function updateUserProfile(userId: string, input: {
+  name?: string;
+  storeName?: string;
+  niche?: string;
+  quietModeEnabled?: boolean;
+  quietMinConfidence?: string;
+  quietMinSpendImpact?: number;
+}) {
+  const quietMinConfidence = input.quietMinConfidence && ["low", "medium", "high"].includes(input.quietMinConfidence)
+    ? input.quietMinConfidence
+    : undefined;
   const user = await prisma.user.update({
     where: { id: userId },
-    data: { name: input.name, storeName: input.storeName, niche: input.niche },
+    data: {
+      name: input.name,
+      storeName: input.storeName,
+      niche: input.niche,
+      quietModeEnabled: input.quietModeEnabled,
+      quietMinConfidence,
+      quietMinSpendImpact: input.quietMinSpendImpact,
+    },
     select: profileSelect,
   });
   return user;

@@ -117,6 +117,10 @@ const SYSTEM =
 
 export type DerivedMetrics = {
   spend: number;
+  grossRevenue?: number;
+  effectiveRevenue?: number;
+  grossRoas?: number;
+  returnRate?: number;
   roas: number;
   conversionRate: number;
   addToCartRate: number;
@@ -179,9 +183,22 @@ import type { AnalysisPayload } from "./analysisService";
 
 function round(n: number, p = 2) { return Number(n.toFixed(p)); }
 
+function normalizedReturnRate(input: AnalysisPayload) {
+  const raw = input.return_rate ?? 0;
+  const decimal = raw > 1 ? raw / 100 : raw;
+  return Math.max(0, Math.min(1, decimal));
+}
+
+function effectiveRevenue(input: AnalysisPayload) {
+  if (typeof input.net_revenue === "number" && input.net_revenue > 0) return input.net_revenue;
+  return input.revenue * (1 - normalizedReturnRate(input));
+}
+
 export function deriveMetrics(input: AnalysisPayload): DerivedMetrics {
-  const spend = input.clicks * input.cpc;
-  const roas = spend > 0 ? input.revenue / spend : 0;
+  const spend = input.total_spend && input.total_spend > 0 ? input.total_spend : input.clicks * input.cpc;
+  const netRevenue = effectiveRevenue(input);
+  const grossRoas = spend > 0 ? input.revenue / spend : 0;
+  const roas = spend > 0 ? netRevenue / spend : 0;
   const conversionRate = input.clicks > 0 ? (input.purchases / input.clicks) * 100 : 0;
   const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
   const margin = Math.max(input.product_price - input.cost, 0.01);
@@ -189,10 +206,14 @@ export function deriveMetrics(input: AnalysisPayload): DerivedMetrics {
   const breakEvenCpa = margin;
   const currentCpa = input.purchases > 0 ? spend / input.purchases : null;
   const maxCpcAtCurrentConversion = conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
-  const profit = input.revenue - spend - input.purchases * input.cost;
-  const netProfitMargin = input.revenue > 0 ? (profit / input.revenue) * 100 : 0;
+  const profit = netRevenue - spend - input.purchases * input.cost;
+  const netProfitMargin = netRevenue > 0 ? (profit / netRevenue) * 100 : 0;
   return {
     spend: round(spend),
+    grossRevenue: round(input.revenue),
+    effectiveRevenue: round(netRevenue),
+    grossRoas: round(grossRoas),
+    returnRate: round(normalizedReturnRate(input) * 100),
     roas: round(roas),
     conversionRate: round(conversionRate),
     addToCartRate: round(addToCartRate),

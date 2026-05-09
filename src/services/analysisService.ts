@@ -3,7 +3,11 @@ import { z } from "zod";
 import { prisma } from "../models/prisma";
 import { runAiAnalysis, deriveMetrics, type AiAnalysisResult } from "./aiService";
 import { getShopifyConnectionCredentials } from "./integrationService";
-import { computeLtvFromConnection, type LtvComputeResult } from "./shopifyLtvService";
+import {
+  computeLtvFromConnection,
+  computeReturnRateFromConnection,
+  type LtvComputeResult,
+} from "./shopifyLtvService";
 import {
   getUserConfidenceCalibration,
   recordRecommendationOutcomes,
@@ -22,6 +26,10 @@ export const analysisInputSchema = z.object({
   add_to_cart: z.number().int().min(0),
   purchases: z.number().int().min(0),
   revenue: z.number().min(0),
+  return_rate: z.number().min(0).max(100).default(0),
+  net_revenue: z.number().min(0).optional(),
+  total_spend: z.number().min(0).optional(),
+  days_active: z.number().int().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]).default("testing"),
 });
 
@@ -42,6 +50,7 @@ type ConfidencePoint = {
   ctr: number;
   cpm: number;
   roas: number;
+  breakEvenCpa: number;
   breakEvenRoas: number;
 };
 
@@ -55,6 +64,30 @@ function round(value: number, precision = 0) {
   return Number(value.toFixed(precision));
 }
 
+function spendTarget(breakEvenCpa: number, breakEvenRoas: number) {
+  return Math.max(150, breakEvenCpa * 3, breakEvenRoas * 50);
+}
+
+function evidenceMaturity(input: AnalysisPayload, derived: { spend: number; breakEvenCpa: number; breakEvenRoas: number }) {
+  const spend = input.total_spend && input.total_spend > 0 ? input.total_spend : derived.spend;
+  const target = spendTarget(derived.breakEvenCpa, derived.breakEvenRoas);
+  const days = input.days_active ?? 0;
+  const lowSpend = spend < Math.min(100, target * 0.35);
+  const enoughSpend = spend >= target;
+  const enoughTime = days === 0 || days >= 3;
+  return {
+    spend,
+    target,
+    days,
+    lowSpend,
+    enoughSpend,
+    enoughTime,
+    enoughEvidence: enoughSpend && enoughTime,
+    needsSpend: Math.max(0, Math.ceil(target - spend)),
+    needsDays: Math.max(0, 3 - days),
+  };
+}
+
 function toConfidencePoint(input: AnalysisPayload): ConfidencePoint {
   const derived = deriveMetrics(input);
   return {
@@ -63,6 +96,7 @@ function toConfidencePoint(input: AnalysisPayload): ConfidencePoint {
     ctr: input.ctr,
     cpm: input.cpm,
     roas: derived.roas,
+    breakEvenCpa: derived.breakEvenCpa,
     breakEvenRoas: derived.breakEvenRoas,
   };
 }
@@ -87,6 +121,7 @@ function computeRecommendationConfidence(
 ): { score: number; level: "low" | "medium" | "high"; signals: ConfidenceSignal[] } {
   const points = [...historyInputs, input].slice(-4).map(toConfidencePoint);
   const current = points[points.length - 1];
+  const maturity = evidenceMaturity(input, current);
   const previous = points.slice(0, -1);
   const previousAvg = (values: number[]) =>
     values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
@@ -180,19 +215,26 @@ function computeRecommendationConfidence(
       weight: 25,
     });
   } else {
-    const enoughSpend = current.spend >= Math.max(current.breakEvenRoas, 1) * 50 || input.clicks >= 80;
+    const enoughSpend = maturity.enoughEvidence;
     signals.push({
-      label: enoughSpend ? "Spend has enough sample" : "Spend sample is thin",
-      detail: `Current spend is ${round(current.spend, 2)} from ${input.clicks} clicks`,
-      score: enoughSpend ? 55 : 30,
+      label: enoughSpend ? "Spend and time sample are mature" : "Spend or time sample is thin",
+      detail:
+        `Current spend is ${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days; ` +
+        `target is about ${round(maturity.target, 2)} and 3 active days`,
+      score: enoughSpend ? 75 : maturity.lowSpend ? 20 : 40,
       weight: 25,
     });
   }
 
-  const score = Math.max(
+  let score = Math.max(
     0,
     Math.min(100, Math.round(signals.reduce((sum, signal) => sum + signal.score * signal.weight, 0) / 100)),
   );
+  if (maturity.lowSpend || !maturity.enoughTime) {
+    score = Math.min(score, 45);
+  } else if (maturity.enoughEvidence && input.clicks >= 80) {
+    score = Math.min(100, score + 8);
+  }
 
   return {
     score,
@@ -225,13 +267,19 @@ async function getRecentComparableInputs(userId: string, payload: AnalysisPayloa
 
 function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" | "savedId"> {
   const derived = deriveMetrics(input);
+  const maturity = evidenceMaturity(input, derived);
 
   // Decision
-  const enoughTraffic = input.clicks >= 80 || input.impressions >= 5000;
+  const enoughTraffic = (input.clicks >= 80 || input.impressions >= 5000) && maturity.enoughEvidence;
   const weakCreative = input.ctr < 1;
   const expensiveTraffic = input.cpm > 60;
-  const weakPurchaseSignal = input.clicks >= 60 && input.purchases === 0;
-  const weakDemand = input.clicks >= 80 && input.add_to_cart <= 1;
+  const weakPurchaseSignal = input.clicks >= 60 && input.purchases === 0 && maturity.enoughEvidence;
+  const weakDemand = input.clicks >= 80 && input.add_to_cart <= 1 && maturity.enoughEvidence;
+  const returnDrag =
+    maturity.enoughEvidence &&
+    ((input.return_rate ?? 0) > 0 || (input.net_revenue ?? 0) > 0) &&
+    (derived.grossRoas ?? derived.roas) >= derived.breakEvenRoas &&
+    derived.roas < derived.breakEvenRoas;
   const goodEconomics =
     input.purchases >= 2 &&
     derived.roas >= derived.breakEvenRoas &&
@@ -242,7 +290,13 @@ function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" 
   let shortReason = "The sample is still thin. More data is needed before a hard call.";
   let confidence: "low" | "medium" | "high" = "low";
 
-  if (goodEconomics) {
+  if (returnDrag) {
+    finalDecision = derived.profit < 0 ? "KILL" : "FIX";
+    shortReason =
+      `Gross ROAS looks scalable (${derived.grossRoas ?? derived.roas}x), but net ROAS drops to ${derived.roas}x after ${derived.returnRate ?? 0}% returns. ` +
+      "Do not scale until returns/refunds are fixed.";
+    confidence = "high";
+  } else if (goodEconomics) {
     finalDecision = "SCALE";
     shortReason = "The setup is profitable and engagement is healthy. Budget can be increased.";
     confidence = "high";
@@ -250,9 +304,17 @@ function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" 
     finalDecision = "FIX";
     shortReason = "CTR is too low for the traffic volume already collected. Creative-level issue.";
     confidence = "high";
+  } else if (input.clicks >= 80 && input.add_to_cart <= 1 && !maturity.enoughEvidence) {
+    finalDecision = "TEST AGAIN";
+    shortReason =
+      `Intent is weak, but this is too early to call it structurally broken: spend is $${round(maturity.spend, 2)} over ` +
+      `${maturity.days || "unknown"} days. Wait for about $${round(maturity.target, 2)} spend and 3 active days before killing it.`;
+    confidence = "low";
   } else if (weakDemand) {
     finalDecision = "KILL";
-    shortReason = "Product is not generating enough intent after meaningful traffic.";
+    shortReason =
+      `Product is not generating enough intent after meaningful spend ($${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days). ` +
+      "This looks structurally broken rather than early noise.";
     confidence = "high";
   } else if (weakPurchaseSignal && input.add_to_cart >= 3) {
     finalDecision = "FIX";
@@ -329,7 +391,7 @@ function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" 
   if (input.ctr >= 1.5 && (input.add_to_cart >= 3 || input.purchases >= 1)) {
     verdict = "high potential";
     validationReason = "The setup shows engagement and at least one commercial signal worth building on.";
-  } else if (mainProblem === "Product problem" && input.clicks >= 80) {
+  } else if (mainProblem === "Product problem" && input.clicks >= 80 && maturity.enoughEvidence) {
     verdict = "low potential";
     validationReason = "Product consumed enough traffic to judge demand. Intent signal remains weak.";
     shouldContinueTesting = false;
@@ -404,10 +466,10 @@ function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" 
 
   // Continue decision
   let continueDecision: AiAnalysisResult["continueDecision"];
-  if (derived.spend >= derived.breakEvenCpa * 3 && input.purchases === 0) {
+  if (maturity.enoughEvidence && input.purchases === 0) {
     continueDecision = {
       decision: "STOP",
-      reason: "Spend is already high relative to break-even and there are still no purchases.",
+      reason: `Spend is already high relative to break-even ($${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days) and there are still no purchases.`,
       minimumAdditionalTestNeeded: "Change the offer, product angle, or creative first.",
     };
   } else if (finalDecision === "SCALE") {
@@ -416,11 +478,20 @@ function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" 
       reason: "The setup shows profitable signals. Keep pushing while monitoring efficiency.",
       minimumAdditionalTestNeeded: "Increase budget gradually and watch if conversion efficiency holds.",
     };
+  } else if (!maturity.enoughEvidence) {
+    continueDecision = {
+      decision: "TEST MORE",
+      reason: `This is too early for a hard stop: current spend is $${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days.`,
+      minimumAdditionalTestNeeded:
+        `Reach about $${round(maturity.target, 2)} total spend` +
+        `${maturity.needsDays > 0 ? ` and ${maturity.needsDays} more active day${maturity.needsDays === 1 ? "" : "s"}` : ""} before making a KILL/SCALE call.`,
+    };
   } else {
     continueDecision = {
       decision: "TEST MORE",
       reason: "Not enough clarity yet for a full stop or scale. Next test should be more focused.",
-      minimumAdditionalTestNeeded: "Run one tighter iteration with clearer creative or offer changes.",
+      minimumAdditionalTestNeeded:
+        `Run one tighter iteration until at least $${round(maturity.target, 2)} total spend and 3 active days.`,
     };
   }
 
@@ -540,26 +611,130 @@ function applyLtvAdjustment(
   };
 }
 
+function applyEvidenceMaturityAdjustment(
+  result: Omit<AnalysisResult, "saved" | "savedId">,
+  input: AnalysisPayload,
+): Omit<AnalysisResult, "saved" | "savedId"> {
+  const maturity = evidenceMaturity(input, result.derived);
+  if (maturity.enoughEvidence) {
+    if (result.decision.finalDecision === "KILL") {
+      return {
+        ...result,
+        decision: {
+          ...result.decision,
+          shortReason:
+            `${result.decision.shortReason} This is based on meaningful spend ($${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days), so the issue looks structural rather than early noise.`,
+        },
+        continueDecision: {
+          ...result.continueDecision,
+          minimumAdditionalTestNeeded:
+            result.continueDecision.decision === "STOP"
+              ? "No more spend is needed before stopping this exact setup; change the offer, creative, or product angle first."
+              : result.continueDecision.minimumAdditionalTestNeeded,
+        },
+      };
+    }
+    return result;
+  }
+
+  return {
+    ...result,
+    decision: {
+      ...result.decision,
+      finalDecision: result.decision.finalDecision === "KILL" ? "TEST AGAIN" : result.decision.finalDecision,
+      shortReason:
+        `Spend/time evidence is still thin ($${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days), so this is too early for a hard KILL. ${result.decision.shortReason}`,
+      confidence: "low",
+      confidenceScore: Math.min(result.decision.confidenceScore ?? 45, 45),
+    },
+    validation: {
+      ...result.validation,
+      verdict: result.validation.verdict === "low potential" ? "unclear" : result.validation.verdict,
+      shouldContinueTesting: true,
+    },
+    continueDecision: {
+      decision: "TEST MORE",
+      reason: `This is too early for a hard stop: current spend is $${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days.`,
+      minimumAdditionalTestNeeded:
+        `Reach about $${round(maturity.target, 2)} total spend` +
+        `${maturity.needsDays > 0 ? ` and ${maturity.needsDays} more active day${maturity.needsDays === 1 ? "" : "s"}` : ""} before making a KILL/SCALE call.`,
+    },
+  };
+}
+
+function applyReturnRateAdjustment(
+  result: Omit<AnalysisResult, "saved" | "savedId">,
+): Omit<AnalysisResult, "saved" | "savedId"> {
+  const grossRoas = result.derived.grossRoas ?? result.derived.roas;
+  const returnRate = result.derived.returnRate ?? 0;
+  const returnDrag = returnRate > 0 && grossRoas >= result.derived.breakEvenRoas && result.derived.roas < result.derived.breakEvenRoas;
+  if (!returnDrag) return result;
+
+  const finalDecision = result.derived.profit < 0 ? "KILL" : "FIX";
+  return {
+    ...result,
+    decision: {
+      ...result.decision,
+      finalDecision,
+      shortReason:
+        `Gross ROAS looks scalable (${grossRoas}x), but net ROAS drops to ${result.derived.roas}x after ${returnRate}% returns. ` +
+        "Do not scale until returns/refunds are fixed.",
+    },
+    validation: {
+      ...result.validation,
+      verdict: result.validation.verdict === "high potential" ? "unclear" : result.validation.verdict,
+      shouldContinueTesting: true,
+    },
+    continueDecision: {
+      decision: "TEST MORE",
+      reason: "Returns are changing the economics enough that the gross-revenue verdict is unsafe.",
+      minimumAdditionalTestNeeded: "Fix the return/refund driver or verify a lower return rate before increasing budget.",
+    },
+  };
+}
+
 export async function createAnalysis(userId: string, payload: AnalysisPayload) {
+  let analysisPayload = payload;
   const normalizedStage =
-    payload.stage === "testing"
+    analysisPayload.stage === "testing"
       ? AnalysisStage.testing
-      : payload.stage === "scaling"
+      : analysisPayload.stage === "scaling"
         ? AnalysisStage.scaling
         : AnalysisStage.retesting;
+
+  let shopifyCreds: Awaited<ReturnType<typeof getShopifyConnectionCredentials>> | null = null;
+  try {
+    shopifyCreds = await getShopifyConnectionCredentials(userId);
+    if (shopifyCreds && !analysisPayload.net_revenue && !analysisPayload.return_rate) {
+      const returnRate = await computeReturnRateFromConnection(
+        shopifyCreds.storeUrl,
+        shopifyCreds.accessToken,
+        analysisPayload.product_name,
+        90,
+      );
+      if (returnRate && returnRate.returnedQuantity > 0) {
+        analysisPayload = {
+          ...analysisPayload,
+          return_rate: Math.round(returnRate.returnRate * 10000) / 100,
+        };
+      }
+    }
+  } catch {
+    // Return-rate enrichment is best-effort; user-supplied values still work.
+  }
 
   let partialResult: Omit<AnalysisResult, "saved" | "savedId">;
 
   try {
-    partialResult = await runAiAnalysis(payload);
+    partialResult = await runAiAnalysis(analysisPayload);
   } catch (error) {
     console.error("[analysis] GigaChat failed, using fallback logic", error);
-    partialResult = fallbackAnalysis(payload);
+    partialResult = fallbackAnalysis(analysisPayload);
   }
 
   const confidence = computeRecommendationConfidence(
-    payload,
-    await getRecentComparableInputs(userId, payload),
+    analysisPayload,
+    await getRecentComparableInputs(userId, analysisPayload),
   );
   const calibration = await getUserConfidenceCalibration(userId);
   const calibratedConfidence = {
@@ -596,21 +771,23 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
       confidenceSignals: calibratedConfidence.signals,
     },
   };
+  partialResult = applyEvidenceMaturityAdjustment(partialResult, analysisPayload);
+  partialResult = applyReturnRateAdjustment(partialResult);
 
   let ltvAdjustment: (LtvComputeResult & { shopifyConnected: boolean }) | undefined;
   try {
-    const creds = await getShopifyConnectionCredentials(userId);
+    const creds = shopifyCreds ?? await getShopifyConnectionCredentials(userId);
     if (creds) {
       const ltvResult = await computeLtvFromConnection(
         creds.storeUrl,
         creds.accessToken,
-        payload.product_price,
-        payload.cost,
-        payload.product_name,
+        analysisPayload.product_price,
+        analysisPayload.cost,
+        analysisPayload.product_name,
       );
       if (ltvResult?.hasEnoughHistory) {
         ltvAdjustment = { ...ltvResult, shopifyConnected: true };
-        partialResult = applyLtvAdjustment(partialResult, payload, ltvResult, calibratedConfidence.score);
+        partialResult = applyLtvAdjustment(partialResult, analysisPayload, ltvResult, calibratedConfidence.score);
       }
     }
   } catch {
@@ -623,12 +800,12 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
     data: {
       userId,
       stage: normalizedStage,
-      inputData: payload as Prisma.InputJsonValue,
+      inputData: analysisPayload as Prisma.InputJsonValue,
       result: result as Prisma.InputJsonValue,
     },
   });
 
-  await recordRecommendationOutcomes(userId, analysis.id, payload, result).catch((error) => {
+  await recordRecommendationOutcomes(userId, analysis.id, analysisPayload, result).catch((error) => {
     console.error("[recommendation-outcomes] Failed to record recommendation outcome:", error);
   });
 

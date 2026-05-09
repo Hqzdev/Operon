@@ -100,6 +100,10 @@ model User {
   storeName           String?
   storeUrl            String?
   niche               String?
+  quietModeEnabled    Boolean            @default(true)
+  quietMinConfidence  String             @default("")
+  quietMinSpendImpact Float              @default(-1)
+  quietNoUrgentDigestAt DateTime?
   activeStoreId       String?
   onboardingCompleted Boolean            @default(false)
   plan                UserPlan           @default(STARTER)

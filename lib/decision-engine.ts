@@ -10,14 +10,56 @@ function round(value: number, precision = 2) {
   return Number(value.toFixed(precision));
 }
 
+function normalizedReturnRate(input: AnalysisInput) {
+  const raw = input.return_rate ?? 0;
+  const decimal = raw > 1 ? raw / 100 : raw;
+  return Math.max(0, Math.min(1, decimal));
+}
+
+function effectiveRevenue(input: AnalysisInput) {
+  if (typeof input.net_revenue === "number" && input.net_revenue > 0) return input.net_revenue;
+  return input.revenue * (1 - normalizedReturnRate(input));
+}
+
+function effectiveSpend(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
+  return input.total_spend && input.total_spend > 0 ? input.total_spend : derived.spend;
+}
+
+function spendTarget(derived: ReturnType<typeof deriveMetrics>) {
+  return Math.max(150, derived.breakEvenCpa * 3, derived.breakEvenRoas * 50);
+}
+
+function evidenceMaturity(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
+  const spend = effectiveSpend(input, derived);
+  const target = spendTarget(derived);
+  const days = input.days_active ?? 0;
+  const lowSpend = spend < Math.min(100, target * 0.35);
+  const enoughSpend = spend >= target;
+  const enoughTime = days === 0 || days >= 3;
+
+  return {
+    spend,
+    target,
+    days,
+    lowSpend,
+    enoughSpend,
+    enoughTime,
+    enoughEvidence: enoughSpend && enoughTime,
+    needsSpend: Math.max(0, Math.ceil(target - spend)),
+    needsDays: Math.max(0, 3 - days),
+  };
+}
+
 export type LtvBreakEvenOverride = {
   ltvBreakEvenRoas: number;
   ltvBreakEvenCpa: number;
 };
 
 export function deriveMetrics(input: AnalysisInput, ltvOverride?: LtvBreakEvenOverride) {
-  const spend = input.clicks * input.cpc;
-  const roas = spend > 0 ? input.revenue / spend : 0;
+  const spend = input.total_spend && input.total_spend > 0 ? input.total_spend : input.clicks * input.cpc;
+  const netRevenue = effectiveRevenue(input);
+  const grossRoas = spend > 0 ? input.revenue / spend : 0;
+  const roas = spend > 0 ? netRevenue / spend : 0;
   const conversionRate = input.clicks > 0 ? (input.purchases / input.clicks) * 100 : 0;
   const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
   const margin = Math.max(input.product_price - input.cost, 0.01);
@@ -28,11 +70,15 @@ export function deriveMetrics(input: AnalysisInput, ltvOverride?: LtvBreakEvenOv
   const currentCpa = input.purchases > 0 ? spend / input.purchases : null;
   const maxCpcAtCurrentConversion =
     conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
-  const profit = input.revenue - spend - input.purchases * input.cost;
-  const netProfitMargin = input.revenue > 0 ? (profit / input.revenue) * 100 : 0;
+  const profit = netRevenue - spend - input.purchases * input.cost;
+  const netProfitMargin = netRevenue > 0 ? (profit / netRevenue) * 100 : 0;
 
   return {
     spend: round(spend),
+    grossRevenue: round(input.revenue),
+    effectiveRevenue: round(netRevenue),
+    grossRoas: round(grossRoas),
+    returnRate: round(normalizedReturnRate(input) * 100),
     roas: round(roas),
     conversionRate: round(conversionRate),
     addToCartRate: round(addToCartRate),
@@ -46,11 +92,17 @@ export function deriveMetrics(input: AnalysisInput, ltvOverride?: LtvBreakEvenOv
 }
 
 function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
-  const enoughTraffic = input.clicks >= 80 || input.impressions >= 5000;
+  const maturity = evidenceMaturity(input, derived);
+  const enoughTraffic = (input.clicks >= 80 || input.impressions >= 5000) && maturity.enoughEvidence;
   const weakCreative = input.ctr < 1;
   const expensiveTraffic = input.cpm > 60;
-  const weakPurchaseSignal = input.clicks >= 60 && input.purchases === 0;
-  const weakDemand = input.clicks >= 80 && input.add_to_cart <= 1;
+  const weakPurchaseSignal = input.clicks >= 60 && input.purchases === 0 && maturity.enoughEvidence;
+  const weakDemand = input.clicks >= 80 && input.add_to_cart <= 1 && maturity.enoughEvidence;
+  const returnDrag =
+    maturity.enoughEvidence &&
+    (input.return_rate > 0 || (input.net_revenue ?? 0) > 0) &&
+    derived.grossRoas >= derived.breakEvenRoas &&
+    derived.roas < derived.breakEvenRoas;
   const goodEconomics =
     input.purchases >= 2 &&
     derived.roas >= derived.breakEvenRoas &&
@@ -61,7 +113,13 @@ function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>)
   let shortReason = "The sample is still thin, so the setup needs more data before a hard call.";
   let confidence: ConfidenceLevel = "low";
 
-  if (goodEconomics) {
+  if (returnDrag) {
+    finalDecision = derived.profit < 0 ? "KILL" : "FIX";
+    shortReason =
+      `Gross ROAS looks scalable (${derived.grossRoas}x), but net ROAS drops to ${derived.roas}x after ${derived.returnRate}% returns. ` +
+      "Do not scale until returns/refunds are fixed.";
+    confidence = "high";
+  } else if (goodEconomics) {
     finalDecision = "SCALE";
     shortReason = "The setup is profitable and engagement is healthy, so budget can be increased without waiting.";
     confidence = "high";
@@ -69,9 +127,17 @@ function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>)
     finalDecision = "FIX";
     shortReason = "CTR is too low for the traffic volume already collected, which points to a creative-level issue.";
     confidence = "high";
+  } else if (input.clicks >= 80 && input.add_to_cart <= 1 && !maturity.enoughEvidence) {
+    finalDecision = "TEST AGAIN";
+    shortReason =
+      `Intent is weak, but this is too early to call a structural failure: spend is $${round(maturity.spend)} over ` +
+      `${maturity.days || "unknown"} days. Wait for about $${round(maturity.target)} spend and at least 3 active days before killing it.`;
+    confidence = "low";
   } else if (weakDemand) {
     finalDecision = "KILL";
-    shortReason = "The product is not generating enough intent after meaningful traffic, so keeping spend live is inefficient.";
+    shortReason =
+      `The product is not generating enough intent after meaningful spend ($${round(maturity.spend)} over ${maturity.days || "unknown"} days), ` +
+      "so this looks structurally broken rather than just early noise.";
     confidence = "high";
   } else if (weakPurchaseSignal && input.add_to_cart >= 3) {
     finalDecision = "FIX";
@@ -91,6 +157,7 @@ function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>)
 }
 
 function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
+  const maturity = evidenceMaturity(input, derived);
   const signals: ConfidenceSignal[] = [
     {
       label: derived.currentCpa ? "CPA has purchase signal" : "CPA stability has limited data",
@@ -113,13 +180,20 @@ function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typ
       weight: 20,
     },
     {
-      label: input.clicks >= 80 ? "Spend has enough sample" : "Spend sample is thin",
-      detail: `Current spend is $${derived.spend} from ${input.clicks} clicks`,
-      score: input.clicks >= 80 ? 55 : 30,
+      label: maturity.enoughEvidence ? "Spend and time sample are mature" : "Spend or time sample is thin",
+      detail:
+        `Current spend is $${round(maturity.spend)} over ${maturity.days || "unknown"} days; ` +
+        `target is about $${round(maturity.target)} and 3 active days`,
+      score: maturity.enoughEvidence ? 75 : maturity.lowSpend ? 20 : 40,
       weight: 25,
     },
   ];
-  const confidenceScore = Math.round(signals.reduce((sum, signal) => sum + signal.score * signal.weight, 0) / 100);
+  let confidenceScore = Math.round(signals.reduce((sum, signal) => sum + signal.score * signal.weight, 0) / 100);
+  if (maturity.lowSpend || !maturity.enoughTime) {
+    confidenceScore = Math.min(confidenceScore, 45);
+  } else if (maturity.enoughEvidence && input.clicks >= 80) {
+    confidenceScore = Math.min(100, confidenceScore + 8);
+  }
   const confidence: ConfidenceLevel = confidenceScore >= 75 ? "high" : confidenceScore >= 50 ? "medium" : "low";
   return { confidenceScore, confidence, confidenceSignals: signals };
 }
@@ -213,7 +287,7 @@ function validatePotential(
     };
   }
 
-  if (problem.mainProblem === "Product problem" && input.clicks >= 80) {
+  if (problem.mainProblem === "Product problem" && input.clicks >= 80 && evidenceMaturity(input, derived).enoughEvidence) {
     return {
       verdict: "low potential" as const,
       reason: "The product is consuming enough traffic to judge demand, and the intent signal remains weak.",
@@ -330,12 +404,24 @@ function decideContinueOrStop(
   derived: ReturnType<typeof deriveMetrics>,
   decision: ReturnType<typeof decide>,
 ) {
-  if (derived.spend >= derived.breakEvenCpa * 3 && input.purchases === 0) {
+  const maturity = evidenceMaturity(input, derived);
+  if (maturity.enoughEvidence && input.purchases === 0) {
     return {
       decision: "STOP" as const,
       reason:
-        "Spend is already high relative to break-even and there are still no purchases, so continuing this exact setup is hard to justify.",
+        `Spend is already high relative to break-even ($${round(maturity.spend)} over ${maturity.days || "unknown"} days) and there are still no purchases, so continuing this exact setup is hard to justify.`,
       minimumAdditionalTestNeeded: "Do not add more budget to this setup. Change the offer, product angle, or creative first.",
+    };
+  }
+
+  if (!maturity.enoughEvidence) {
+    return {
+      decision: "TEST MORE" as const,
+      reason:
+        `This is too early for a hard stop: current spend is $${round(maturity.spend)} over ${maturity.days || "unknown"} days.`,
+      minimumAdditionalTestNeeded:
+        `Reach about $${round(maturity.target)} total spend` +
+        `${maturity.needsDays > 0 ? ` and ${maturity.needsDays} more active day${maturity.needsDays === 1 ? "" : "s"}` : ""} before making a KILL/SCALE call.`,
     };
   }
 
@@ -352,7 +438,8 @@ function decideContinueOrStop(
     decision: "TEST MORE" as const,
     reason:
       "There is not enough clarity yet for a full stop or full scale, but the next test should be more focused than the last one.",
-    minimumAdditionalTestNeeded: "Run one tighter iteration with clearer creative or offer changes before making the next hard decision.",
+    minimumAdditionalTestNeeded:
+      `Run one tighter iteration until at least $${round(maturity.target)} total spend and 3 active days before making the next hard decision.`,
   };
 }
 

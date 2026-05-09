@@ -26,6 +26,8 @@ const metricSchema = z.object({
   add_to_cart: z.coerce.number().optional(),
   purchases: z.coerce.number().optional(),
   revenue: z.coerce.number().optional(),
+  return_rate: z.coerce.number().optional(),
+  net_revenue: z.coerce.number().optional(),
   frequency: z.coerce.number().optional(),
   product_price: z.coerce.number().optional(),
   cost: z.coerce.number().optional(),
