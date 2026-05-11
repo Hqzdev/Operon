@@ -6,10 +6,10 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Operon — Ad Decision Engine for Meta & TikTok Sellers',
+    default: 'Operon — Reddit Customers on Autopilot',
     template: '%s | Operon',
   },
-  description: 'Enter your campaign numbers. Get a clear Scale, Fix, or Kill verdict with exact next steps. Built for dropshippers and DTC brands on Meta and TikTok.',
+  description: 'Find high-intent Reddit posts, score every lead, and draft replies or DMs from one workspace.',
   icons: {
     icon: '/icon.png',
     apple: '/apple-icon.png',

@@ -19,7 +19,15 @@ export class PaymentRepository {
     return prisma.payment.create({ data });
   }
 
-  static async update(id: string, data: { providerPaymentId?: string; confirmationUrl?: string; status?: PaymentStatus; webhookPayload?: Prisma.InputJsonValue }) {
+  static async update(id: string, data: {
+    providerPaymentId?: string;
+    confirmationUrl?: string;
+    status?: PaymentStatus;
+    cardLast4?: string;
+    country?: string;
+    customerName?: string;
+    webhookPayload?: Prisma.InputJsonValue;
+  }) {
     return prisma.payment.update({ where: { id }, data });
   }
 

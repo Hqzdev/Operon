@@ -29,7 +29,7 @@ function mapYooKassaStatus(status: string) {
   return PaymentStatus.PENDING;
 }
 
-async function activateSubscription(payment: { userId: string; plan: UserPlan }) {
+export async function activateSubscription(payment: { userId: string; plan: UserPlan }) {
   const subscriptionEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   await UserRepository.updateSubscription(payment.userId, {
     plan: payment.plan,
@@ -153,6 +153,13 @@ export async function handlePaymentWebhook(payload: Record<string, unknown>) {
     | {
         id?: string;
         status?: string;
+        payment_method?: {
+          card?: { last4?: string };
+        };
+        metadata?: {
+          country?: string;
+          customer_name?: string;
+        };
       }
     | undefined;
 
@@ -170,6 +177,9 @@ export async function handlePaymentWebhook(payload: Record<string, unknown>) {
 
   const updated = await PaymentRepository.update(payment.id, {
     status,
+    cardLast4: object.payment_method?.card?.last4,
+    country: object.metadata?.country,
+    customerName: object.metadata?.customer_name,
     webhookPayload: payload as Prisma.InputJsonValue,
   });
 

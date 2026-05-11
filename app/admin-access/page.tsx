@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { PendingPaymentsPanel } from "@/components/admin/PendingPaymentsPanel";
 
 type AdminUser = {
   id: string;
@@ -202,6 +203,8 @@ export default function AdminAccessPage() {
             {message.text}
           </div>
         ) : null}
+
+        <PendingPaymentsPanel token={token} password={password} />
 
         <section className="rounded-2xl border border-border bg-card shadow-sm">
           <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
