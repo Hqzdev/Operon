@@ -1,58 +1,10 @@
-import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
 import { comparePassword, hashPassword } from "../utils/password";
 import { getMonthlyAnalysisLimit, getPlanMeta } from "./planService";
-
-const profileSelect = {
-  id: true,
-  email: true,
-  name: true,
-  avatarUrl: true,
-  storeName: true,
-  storeUrl: true,
-  niche: true,
-  quietModeEnabled: true,
-  quietMinConfidence: true,
-  quietMinSpendImpact: true,
-  quietNoUrgentDigestAt: true,
-  activeStoreId: true,
-  onboardingCompleted: true,
-  plan: true,
-  subscriptionStatus: true,
-  subscriptionEndDate: true,
-  usageCount: true,
-  usageResetAt: true,
-  createdAt: true,
-  stores: {
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      name: true,
-      url: true,
-      platform: true,
-      description: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  },
-  activeStore: {
-    select: {
-      id: true,
-      name: true,
-      url: true,
-      platform: true,
-      description: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  },
-} as const;
+import { UserRepository } from "../repositories/userRepository";
 
 export async function getUserProfile(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: profileSelect,
-  });
+  const user = await UserRepository.findProfileById(userId);
   if (!user) throw new AppError("User not found", 404);
   const planMeta = getPlanMeta(user.plan);
   const usageLimit = getMonthlyAnalysisLimit(user.plan);
@@ -78,26 +30,21 @@ export async function updateUserProfile(userId: string, input: {
   const quietMinConfidence = input.quietMinConfidence && ["low", "medium", "high"].includes(input.quietMinConfidence)
     ? input.quietMinConfidence
     : undefined;
-  const user = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      name: input.name,
-      storeName: input.storeName,
-      niche: input.niche,
-      quietModeEnabled: input.quietModeEnabled,
-      quietMinConfidence,
-      quietMinSpendImpact: input.quietMinSpendImpact,
-    },
-    select: profileSelect,
+  return UserRepository.updateProfile(userId, {
+    name: input.name,
+    storeName: input.storeName,
+    niche: input.niche,
+    quietModeEnabled: input.quietModeEnabled,
+    quietMinConfidence,
+    quietMinSpendImpact: input.quietMinSpendImpact,
   });
-  return user;
 }
 
 export async function changeUserPassword(
   userId: string,
   input: { currentPassword: string; newPassword: string },
 ) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await UserRepository.findById(userId);
   if (!user) throw new AppError("User not found", 404);
 
   const valid = await comparePassword(input.currentPassword, user.password);
@@ -107,19 +54,15 @@ export async function changeUserPassword(
     throw new AppError("New password must be at least 8 characters", 400);
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { password: await hashPassword(input.newPassword) },
-  });
+  await UserRepository.updatePassword(userId, await hashPassword(input.newPassword));
 }
 
 export async function deleteUserAccount(userId: string, input: { password: string }) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await UserRepository.findById(userId);
   if (!user) throw new AppError("User not found", 404);
 
   const valid = await comparePassword(input.password, user.password);
   if (!valid) throw new AppError("Password is incorrect", 400);
 
-  // Cascade deletes analyses and payments via Prisma schema onDelete: Cascade
-  await prisma.user.delete({ where: { id: userId } });
+  await UserRepository.delete(userId);
 }

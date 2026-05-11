@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { IntegrationProvider, type Prisma } from "@prisma/client";
+import type { IntegrationProvider } from "@prisma/client";
 import { analysisInputSchema } from "../../lib/analysis-schema";
-import { prisma } from "../models/prisma";
+import { IntegrationRepository } from "../repositories/integrationRepository";
+import { RecommendationOutcomeRepository } from "../repositories/recommendationOutcomeRepository";
 import type { AnalysisPayload } from "./analysisService";
 import type { AiAnalysisResult } from "./aiService";
 
@@ -20,7 +20,7 @@ type OutcomeRow = {
   externalAccountId: string | null;
   externalEntityId: string | null;
   entityName: string | null;
-  inputSnapshot: Prisma.JsonValue;
+  inputSnapshot: unknown;
   verdict: string;
   confidence: number | null;
   breakEvenRoas: number;
@@ -52,20 +52,6 @@ type TrackRecordSummary = {
   }>;
 };
 
-type RecentOutcomeRow = {
-  id: string;
-  verdict: string;
-  confidence: number | null;
-  horizonDays: number;
-  wasRight: boolean | null;
-  status: string;
-  moneySaved: number;
-  moneyEarned: number;
-  issuedAt: Date;
-  evaluatedAt: Date | null;
-  entityName: string | null;
-};
-
 const HORIZONS = [7, 14, 30] as const;
 
 function addDays(date: Date, days: number) {
@@ -86,20 +72,7 @@ function normalize(value?: string | null) {
 }
 
 async function findMatchingSnapshot(userId: string, payload: AnalysisPayload) {
-  const snapshots = await prisma.integrationMetricSnapshot.findMany({
-    where: { userId },
-    orderBy: [{ date: "desc" }, { updatedAt: "desc" }],
-    take: 75,
-    select: {
-      connectionId: true,
-      provider: true,
-      externalAccountId: true,
-      externalEntityId: true,
-      entityName: true,
-      analysisInput: true,
-      date: true,
-    },
-  });
+  const snapshots = await IntegrationRepository.findRecentSnapshotsForMatching(userId, 75);
 
   const productName = normalize(payload.product_name);
   return snapshots.find((snapshot) => {
@@ -131,50 +104,25 @@ export async function recordRecommendationOutcomes(
         : result.decision.confidence === "medium"
           ? 65
           : 35;
-  const inputJson = JSON.stringify(payload);
 
   for (const horizon of HORIZONS) {
-    await prisma.$executeRaw`
-      INSERT INTO "RecommendationOutcome" (
-        "id",
-        "userId",
-        "analysisId",
-        "connectionId",
-        "provider",
-        "externalAccountId",
-        "externalEntityId",
-        "entityName",
-        "inputSnapshot",
-        "verdict",
-        "confidence",
-        "breakEvenRoas",
-        "breakEvenCpa",
-        "evaluationHorizonDays",
-        "scheduledFor",
-        "issuedAt",
-        "updatedAt"
-      )
-      VALUES (
-        ${randomUUID()},
-        ${userId},
-        ${analysisId},
-        ${snapshot?.connectionId ?? null},
-        ${snapshot?.provider ?? null}::"IntegrationProvider",
-        ${snapshot?.externalAccountId ?? null},
-        ${snapshot?.externalEntityId ?? null},
-        ${snapshot?.entityName ?? payload.product_name ?? null},
-        ${inputJson}::jsonb,
-        ${result.decision.finalDecision},
-        ${confidence},
-        ${result.derived.breakEvenRoas},
-        ${result.derived.breakEvenCpa},
-        ${horizon},
-        ${addDays(issuedAt, horizon)},
-        ${issuedAt},
-        ${new Date()}
-      )
-      ON CONFLICT ("analysisId", "evaluationHorizonDays") DO NOTHING
-    `;
+    await RecommendationOutcomeRepository.insertIfNotExists({
+      userId,
+      analysisId,
+      connectionId: snapshot?.connectionId ?? null,
+      provider: snapshot?.provider ?? null,
+      externalAccountId: snapshot?.externalAccountId ?? null,
+      externalEntityId: snapshot?.externalEntityId ?? null,
+      entityName: snapshot?.entityName ?? payload.product_name ?? null,
+      inputSnapshot: JSON.stringify(payload),
+      verdict: result.decision.finalDecision,
+      confidence,
+      breakEvenRoas: result.derived.breakEvenRoas,
+      breakEvenCpa: result.derived.breakEvenCpa,
+      horizon,
+      scheduledFor: addDays(issuedAt, horizon),
+      issuedAt,
+    });
   }
 }
 
@@ -241,34 +189,24 @@ function judgeOutcome(verdict: string, actual: ReturnType<typeof summarizeActual
 }
 
 export async function recomputeDueRecommendationOutcomes(limit = 100) {
-  const due = await prisma.$queryRaw<OutcomeRow[]>`
-    SELECT *
-    FROM "RecommendationOutcome"
-    WHERE "status" = 'pending'::"RecommendationOutcomeStatus"
-      AND "scheduledFor" <= ${new Date()}
-    ORDER BY "scheduledFor" ASC
-    LIMIT ${limit}
-  `;
+  const due = await RecommendationOutcomeRepository.findDue(limit) as OutcomeRow[];
 
   let evaluated = 0;
   let unavailable = 0;
 
   for (const outcome of due) {
     if (!outcome.connectionId || !outcome.externalEntityId) {
-      await markUnavailable(outcome.id);
+      await RecommendationOutcomeRepository.markUnavailable(outcome.id);
       unavailable += 1;
       continue;
     }
 
     const end = addDays(outcome.issuedAt, outcome.evaluationHorizonDays);
-    const snapshots = await prisma.integrationMetricSnapshot.findMany({
-      where: {
-        connectionId: outcome.connectionId,
-        externalEntityId: outcome.externalEntityId,
-        date: { gte: outcome.issuedAt, lte: end },
-      },
-      select: { analysisInput: true },
-      orderBy: { date: "asc" },
+    const snapshots = await IntegrationRepository.findSnapshotsByConnectionAndEntity({
+      connectionId: outcome.connectionId,
+      externalEntityId: outcome.externalEntityId,
+      since: outcome.issuedAt,
+      until: end,
     });
 
     const inputs: AnalysisPayload[] = [];
@@ -279,7 +217,7 @@ export async function recomputeDueRecommendationOutcomes(limit = 100) {
 
     if (!inputs.length) {
       if (Date.now() > outcome.scheduledFor.getTime() + 3 * 24 * 60 * 60 * 1000) {
-        await markUnavailable(outcome.id);
+        await RecommendationOutcomeRepository.markUnavailable(outcome.id);
         unavailable += 1;
       }
       continue;
@@ -287,77 +225,27 @@ export async function recomputeDueRecommendationOutcomes(limit = 100) {
 
     const actual = summarizeActuals(inputs, outcome.breakEvenRoas);
     const judgment = judgeOutcome(outcome.verdict, actual, outcome.breakEvenRoas);
-    await prisma.$executeRaw`
-      UPDATE "RecommendationOutcome"
-      SET
-        "status" = 'evaluated'::"RecommendationOutcomeStatus",
-        "actualMetrics" = ${JSON.stringify(actual)}::jsonb,
-        "wasRight" = ${judgment.wasRight},
-        "moneySaved" = ${round(judgment.moneySaved)},
-        "moneyEarned" = ${round(judgment.moneyEarned)},
-        "evaluatedAt" = ${new Date()},
-        "updatedAt" = ${new Date()}
-      WHERE "id" = ${outcome.id}
-    `;
+    await RecommendationOutcomeRepository.markEvaluated(
+      outcome.id,
+      actual,
+      judgment.wasRight,
+      round(judgment.moneySaved),
+      round(judgment.moneyEarned),
+    );
     evaluated += 1;
   }
 
   return { evaluated, unavailable, checked: due.length };
 }
 
-async function markUnavailable(id: string) {
-  await prisma.$executeRaw`
-    UPDATE "RecommendationOutcome"
-    SET
-      "status" = 'unavailable'::"RecommendationOutcomeStatus",
-      "evaluatedAt" = ${new Date()},
-      "updatedAt" = ${new Date()}
-    WHERE "id" = ${id}
-  `;
-}
-
 export async function getRecommendationTrackRecord(userId: string): Promise<TrackRecordSummary> {
   const since = addDays(new Date(), -60);
-  const aggregate = await prisma.$queryRaw<Array<{
-    evaluated_count: bigint;
-    correct_count: bigint;
-    pending_count: bigint;
-    money_saved: number | null;
-    money_earned: number | null;
-  }>>`
-    SELECT
-      COUNT(*) FILTER (WHERE "status" = 'evaluated'::"RecommendationOutcomeStatus") AS evaluated_count,
-      COUNT(*) FILTER (WHERE "status" = 'evaluated'::"RecommendationOutcomeStatus" AND "wasRight" = true) AS correct_count,
-      COUNT(*) FILTER (WHERE "status" = 'pending'::"RecommendationOutcomeStatus") AS pending_count,
-      COALESCE(SUM("moneySaved") FILTER (WHERE "status" = 'evaluated'::"RecommendationOutcomeStatus"), 0) AS money_saved,
-      COALESCE(SUM("moneyEarned") FILTER (WHERE "status" = 'evaluated'::"RecommendationOutcomeStatus"), 0) AS money_earned
-    FROM "RecommendationOutcome"
-    WHERE "userId" = ${userId}
-      AND "issuedAt" >= ${since}
-  `;
-  const row = aggregate[0];
+  const row = await RecommendationOutcomeRepository.getAggregate(userId, since);
   const evaluatedCount = Number(row?.evaluated_count ?? 0);
   const correctCount = Number(row?.correct_count ?? 0);
   const accuracyPct = evaluatedCount > 0 ? Math.round((correctCount / evaluatedCount) * 100) : null;
 
-  const recent = await prisma.$queryRaw<RecentOutcomeRow[]>`
-    SELECT
-      "id",
-      "verdict",
-      "confidence",
-      "evaluationHorizonDays" AS "horizonDays",
-      "wasRight",
-      "status",
-      "moneySaved",
-      "moneyEarned",
-      "issuedAt",
-      "evaluatedAt",
-      "entityName"
-    FROM "RecommendationOutcome"
-    WHERE "userId" = ${userId}
-    ORDER BY "issuedAt" DESC, "evaluationHorizonDays" ASC
-    LIMIT 8
-  `;
+  const recent = await RecommendationOutcomeRepository.getRecent(userId, 8);
 
   return {
     accuracyPct,

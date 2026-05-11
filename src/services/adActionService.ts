@@ -8,7 +8,6 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { z } from "zod";
-import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
 import { env } from "../utils/env";
 import {
@@ -16,6 +15,9 @@ import {
   providerFetch,
   refreshIfNeeded,
 } from "./integrationService";
+import { UserRepository } from "../repositories/userRepository";
+import { AdActionRepository } from "../repositories/adActionRepository";
+import { IntegrationRepository } from "../repositories/integrationRepository";
 
 export const executeAdActionSchema = z.object({
   connectionId: z.string().min(1),
@@ -181,12 +183,10 @@ async function restoreBudget(connection: IntegrationConnection, externalEntityId
 }
 
 export async function executeAdAction(userId: string, input: ExecuteAdActionInput) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
+  const user = await UserRepository.findById(userId);
   if (!user) throw new AppError("User not found", 404);
 
-  const originalConnection = await prisma.integrationConnection.findFirst({
-    where: { id: input.connectionId, userId },
-  });
+  const originalConnection = await IntegrationRepository.findConnectionByIdAndUser(input.connectionId, userId);
   if (!originalConnection) throw new AppError("Ad account connection not found", 404);
 
   assertCanExecute(originalConnection, user.plan);
@@ -197,47 +197,40 @@ export async function executeAdAction(userId: string, input: ExecuteAdActionInpu
   try {
     const after = await applyAction(connection, input.externalEntityId, actionType, before);
     const isBudgetChange = actionType === AdActionType.increase_budget_20 || actionType === AdActionType.decrease_budget_20;
-    return prisma.adActionLog.create({
-      data: {
-        userId,
-        connectionId: connection.id,
-        provider: connection.provider,
-        externalAccountId: connection.externalAccountId,
-        externalEntityId: input.externalEntityId,
-        entityName: input.entityName ?? before.name ?? after.name,
-        verdictId: input.verdictId,
-        actionType,
-        status: AdActionStatus.succeeded,
-        beforeState: before as unknown as Prisma.InputJsonValue,
-        afterState: after as unknown as Prisma.InputJsonValue,
-        undoUntil: isBudgetChange ? new Date(Date.now() + 60 * 60 * 1000) : null,
-      },
+    return AdActionRepository.create({
+      userId,
+      connectionId: connection.id,
+      provider: connection.provider,
+      externalAccountId: connection.externalAccountId,
+      externalEntityId: input.externalEntityId,
+      entityName: input.entityName ?? before.name ?? after.name,
+      verdictId: input.verdictId,
+      actionType,
+      status: AdActionStatus.succeeded,
+      beforeState: before as unknown as Prisma.InputJsonValue,
+      afterState: after as unknown as Prisma.InputJsonValue,
+      undoUntil: isBudgetChange ? new Date(Date.now() + 60 * 60 * 1000) : null,
     });
   } catch (error) {
-    await prisma.adActionLog.create({
-      data: {
-        userId,
-        connectionId: connection.id,
-        provider: connection.provider,
-        externalAccountId: connection.externalAccountId,
-        externalEntityId: input.externalEntityId,
-        entityName: input.entityName ?? before.name,
-        verdictId: input.verdictId,
-        actionType,
-        status: AdActionStatus.failed,
-        beforeState: before as unknown as Prisma.InputJsonValue,
-        errorMessage: error instanceof Error ? error.message : "Action failed",
-      },
+    await AdActionRepository.create({
+      userId,
+      connectionId: connection.id,
+      provider: connection.provider,
+      externalAccountId: connection.externalAccountId,
+      externalEntityId: input.externalEntityId,
+      entityName: input.entityName ?? before.name,
+      verdictId: input.verdictId,
+      actionType,
+      status: AdActionStatus.failed,
+      beforeState: before as unknown as Prisma.InputJsonValue,
+      errorMessage: error instanceof Error ? error.message : "Action failed",
     });
     throw error;
   }
 }
 
 export async function undoAdAction(userId: string, actionLogId: string) {
-  const log = await prisma.adActionLog.findFirst({
-    where: { id: actionLogId, userId },
-    include: { connection: true },
-  });
+  const log = await AdActionRepository.findByIdAndUser(actionLogId, userId);
   if (!log) throw new AppError("Action log not found", 404);
   if (log.status !== AdActionStatus.succeeded) throw new AppError("Only successful actions can be undone", 400);
   if (!log.undoUntil || log.undoUntil < new Date()) throw new AppError("Undo window has expired", 400);
@@ -251,43 +244,31 @@ export async function undoAdAction(userId: string, actionLogId: string) {
   const undoBefore = await getEntityState(connection, log.externalEntityId);
   const after = await restoreBudget(connection, log.externalEntityId, before.dailyBudget);
 
-  await prisma.adActionLog.update({
-    where: { id: log.id },
-    data: {
-      status: AdActionStatus.undone,
-      undoneAt: new Date(),
-      afterState: after as unknown as Prisma.InputJsonValue,
-    },
+  await AdActionRepository.update(log.id, {
+    status: AdActionStatus.undone,
+    undoneAt: new Date(),
+    afterState: after as unknown as Prisma.InputJsonValue,
   });
 
-  return prisma.adActionLog.create({
-    data: {
-      userId,
-      connectionId: connection.id,
-      provider: connection.provider,
-      externalAccountId: connection.externalAccountId,
-      externalEntityId: log.externalEntityId,
-      entityName: log.entityName,
-      verdictId: log.verdictId,
-      actionType: AdActionType.undo_budget_change,
-      status: AdActionStatus.succeeded,
-      beforeState: undoBefore as unknown as Prisma.InputJsonValue,
-      afterState: after as unknown as Prisma.InputJsonValue,
-    },
+  return AdActionRepository.create({
+    userId,
+    connectionId: connection.id,
+    provider: connection.provider,
+    externalAccountId: connection.externalAccountId,
+    externalEntityId: log.externalEntityId,
+    entityName: log.entityName,
+    verdictId: log.verdictId,
+    actionType: AdActionType.undo_budget_change,
+    status: AdActionStatus.succeeded,
+    beforeState: undoBefore as unknown as Prisma.InputJsonValue,
+    afterState: after as unknown as Prisma.InputJsonValue,
   });
 }
 
 export async function listAdActionLogs(userId: string, limit = 50) {
-  return prisma.adActionLog.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
+  return AdActionRepository.findByUserId(userId, limit);
 }
 
 export async function updateActionGuardrail(userId: string, input: z.infer<typeof guardrailSchema>) {
-  return prisma.integrationConnection.updateMany({
-    where: { id: input.connectionId, userId },
-    data: { maxDailyBudgetChangePercent: input.maxDailyBudgetChangePercent },
-  });
+  return IntegrationRepository.updateConnectionGuardrail(input.connectionId, userId, input.maxDailyBudgetChangePercent);
 }

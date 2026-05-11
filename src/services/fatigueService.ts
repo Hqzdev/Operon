@@ -5,8 +5,10 @@ import {
   IntegrationStatus,
   type Prisma,
 } from "@prisma/client";
-import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
+import { IntegrationRepository } from "../repositories/integrationRepository";
+import { FatigueRepository } from "../repositories/fatigueRepository";
+import { NotificationRepository } from "../repositories/notificationRepository";
 
 const CTR_WARNING_DROP = 20;
 const CTR_CRITICAL_DROP = 35;
@@ -177,27 +179,13 @@ function evaluateFatigue(points: MetricPoint[]): FatigueEvaluation | null {
 }
 
 export async function runFatigueCheckForAccount(connectionId: string) {
-  const connection = await prisma.integrationConnection.findUnique({
-    where: { id: connectionId },
-    select: {
-      id: true,
-      userId: true,
-      provider: true,
-      externalAccountId: true,
-    },
-  });
+  const connection = await IntegrationRepository.findConnectionById(connectionId);
   if (!connection) return null;
 
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 8);
 
-  const snapshots = await prisma.integrationMetricSnapshot.findMany({
-    where: {
-      connectionId,
-      date: { gte: since },
-    },
-    orderBy: [{ externalEntityId: "asc" }, { date: "asc" }],
-  });
+  const snapshots = await IntegrationRepository.findSnapshotsByConnection(connectionId, since);
 
   const byCreative = new Map<string, typeof snapshots>();
   for (const snapshot of snapshots) {
@@ -237,16 +225,13 @@ async function upsertFatigueAlert(input: {
   severity: FatigueSeverity;
   triggeredMetrics: TriggeredMetric[];
 }) {
-  const existing = await prisma.fatigueAlert.findFirst({
-    where: {
-      userId: input.userId,
-      provider: input.provider,
-      externalAccountId: input.externalAccountId,
-      externalEntityId: input.externalEntityId,
-      status: { in: [FatigueAlertStatus.active, FatigueAlertStatus.snoozed] },
-    },
-    orderBy: { detectedAt: "desc" },
-  });
+  const existing = await FatigueRepository.findActiveForEntity(
+    input.userId,
+    input.provider,
+    input.externalAccountId,
+    input.externalEntityId,
+    [FatigueAlertStatus.active, FatigueAlertStatus.snoozed],
+  );
 
   const data = {
     connectionId: input.connectionId,
@@ -257,32 +242,28 @@ async function upsertFatigueAlert(input: {
   };
 
   const alert = existing
-    ? await prisma.fatigueAlert.update({
-        where: { id: existing.id },
-        data,
-      })
-    : await prisma.fatigueAlert.create({
-        data: {
-          userId: input.userId,
-          provider: input.provider,
-          externalAccountId: input.externalAccountId,
-          externalEntityId: input.externalEntityId,
-          ...data,
-        },
+    ? await FatigueRepository.update(existing.id, data)
+    : await FatigueRepository.create({
+        userId: input.userId,
+        connectionId: input.connectionId,
+        provider: input.provider,
+        externalAccountId: input.externalAccountId,
+        externalEntityId: input.externalEntityId,
+        creativeName: input.creativeName,
+        severity: input.severity,
+        triggeredMetrics: input.triggeredMetrics as unknown as Prisma.InputJsonValue,
       });
 
   if (!existing || existing.severity !== input.severity) {
-    await prisma.notification.create({
-      data: {
-        userId: input.userId,
-        title: "Creative fatigue likely detected",
-        body: [
-          `Ad: "${input.creativeName}"`,
-          ...input.triggeredMetrics.map((metric) => metric.label),
-          "Recommendation: Pause or refresh creative",
-        ].join("\n"),
-        type: "alert",
-      },
+    await NotificationRepository.create({
+      userId: input.userId,
+      title: "Creative fatigue likely detected",
+      body: [
+        `Ad: "${input.creativeName}"`,
+        ...input.triggeredMetrics.map((metric) => metric.label),
+        "Recommendation: Pause or refresh creative",
+      ].join("\n"),
+      type: "alert",
     });
   }
 
@@ -290,15 +271,10 @@ async function upsertFatigueAlert(input: {
 }
 
 export async function runFatigueChecksForDueAccounts(limit = 50) {
-  const connections = await prisma.integrationConnection.findMany({
-    where: {
-      provider: { in: [IntegrationProvider.META, IntegrationProvider.TIKTOK] },
-      status: IntegrationStatus.CONNECTED,
-      lastSyncedAt: { not: null },
-    },
-    select: { id: true },
-    orderBy: { lastSyncedAt: "desc" },
-    take: limit,
+  const connections = await IntegrationRepository.findConnectedAccounts({
+    providers: [IntegrationProvider.META, IntegrationProvider.TIKTOK],
+    status: IntegrationStatus.CONNECTED,
+    limit,
   });
 
   const results = [];
@@ -314,55 +290,31 @@ export async function runFatigueChecksForDueAccounts(limit = 50) {
 
 export async function listFatigueAlerts(userId: string, includeHistory = false) {
   const now = new Date();
-
-  await prisma.fatigueAlert.updateMany({
-    where: {
-      userId,
-      status: FatigueAlertStatus.snoozed,
-      snoozeUntil: { lte: now },
-    },
-    data: { status: FatigueAlertStatus.active, snoozeUntil: null },
-  });
-
-  return prisma.fatigueAlert.findMany({
-    where: includeHistory
-      ? { userId }
-      : {
-          userId,
-          status: FatigueAlertStatus.active,
-        },
-    orderBy: [{ status: "asc" }, { severity: "desc" }, { detectedAt: "desc" }],
-    take: includeHistory ? 100 : 10,
-  });
+  await FatigueRepository.wakeExpiredSnoozes(userId, now);
+  return FatigueRepository.findByUser(userId, includeHistory);
 }
 
 export async function dismissFatigueAlert(userId: string, alertId: string) {
-  const alert = await prisma.fatigueAlert.findFirst({ where: { id: alertId, userId } });
+  const alert = await FatigueRepository.findByIdAndUser(alertId, userId);
   if (!alert) throw new AppError("Fatigue alert not found", 404);
 
-  return prisma.fatigueAlert.update({
-    where: { id: alertId },
-    data: {
-      status: FatigueAlertStatus.dismissed,
-      dismissedAt: new Date(),
-      snoozeUntil: null,
-    },
+  return FatigueRepository.update(alertId, {
+    status: FatigueAlertStatus.dismissed,
+    dismissedAt: new Date(),
+    snoozeUntil: null,
   });
 }
 
 export async function snoozeFatigueAlert(userId: string, alertId: string, days = 3) {
-  const alert = await prisma.fatigueAlert.findFirst({ where: { id: alertId, userId } });
+  const alert = await FatigueRepository.findByIdAndUser(alertId, userId);
   if (!alert) throw new AppError("Fatigue alert not found", 404);
 
   const snoozeUntil = new Date();
   snoozeUntil.setUTCDate(snoozeUntil.getUTCDate() + Math.max(1, Math.min(days, 14)));
 
-  return prisma.fatigueAlert.update({
-    where: { id: alertId },
-    data: {
-      status: FatigueAlertStatus.snoozed,
-      snoozeUntil,
-      dismissedAt: null,
-    },
+  return FatigueRepository.update(alertId, {
+    status: FatigueAlertStatus.snoozed,
+    snoozeUntil,
+    dismissedAt: null,
   });
 }

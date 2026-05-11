@@ -1,7 +1,8 @@
 import { IntegrationProvider, type Prisma } from "@prisma/client";
 import { z } from "zod";
-import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
+import { IntegrationRepository } from "../repositories/integrationRepository";
+import { SimulationRepository } from "../repositories/simulationRepository";
 
 export const campaignSimulationInputSchema = z.object({
   externalEntityId: z.string().min(1),
@@ -219,17 +220,12 @@ export async function simulateCampaignBudget(userId: string, input: CampaignSimu
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 30);
 
-  const snapshots = await prisma.integrationMetricSnapshot.findMany({
-    where: {
-      userId,
-      externalEntityId: input.externalEntityId,
-      ...(input.externalAccountId ? { externalAccountId: input.externalAccountId } : {}),
-      provider: input.provider
-        ? input.provider as IntegrationProvider
-        : { in: [IntegrationProvider.META, IntegrationProvider.TIKTOK] },
-      date: { gte: since },
-    },
-    orderBy: { date: "asc" },
+  const snapshots = await IntegrationRepository.findSnapshotsByEntity({
+    userId,
+    externalEntityId: input.externalEntityId,
+    externalAccountId: input.externalAccountId,
+    provider: input.provider ? input.provider as IntegrationProvider : undefined,
+    since,
   });
 
   if (!snapshots.length) {
@@ -258,18 +254,16 @@ export async function simulateCampaignBudget(userId: string, input: CampaignSimu
   const scenarios = SCENARIOS.map((scenario) => buildScenario(scenario, baseline, regression.slope));
   const latest = snapshots[snapshots.length - 1];
 
-  await prisma.simulationLog.create({
-    data: {
-      userId,
-      provider: latest.provider,
-      externalAccountId: latest.externalAccountId,
-      externalEntityId: latest.externalEntityId,
-      entityName: latest.entityName,
-      scenarios: scenarios as unknown as Prisma.InputJsonValue,
-      baseline: baseline as unknown as Prisma.InputJsonValue,
-      confidence,
-      signalBreakdown: signals as unknown as Prisma.InputJsonValue,
-    },
+  await SimulationRepository.create({
+    userId,
+    provider: latest.provider,
+    externalAccountId: latest.externalAccountId,
+    externalEntityId: latest.externalEntityId,
+    entityName: latest.entityName,
+    scenarios: scenarios as unknown as Prisma.InputJsonValue,
+    baseline: baseline as unknown as Prisma.InputJsonValue,
+    confidence,
+    signalBreakdown: signals as unknown as Prisma.InputJsonValue,
   });
 
   return {

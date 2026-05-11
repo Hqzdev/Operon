@@ -1,33 +1,11 @@
 import crypto from "crypto";
-import { prisma } from "../models/prisma";
-import { hashPassword, comparePassword } from "../utils/password";
+import { comparePassword, hashPassword } from "../utils/password";
 import { signToken } from "../utils/jwt";
+import { UserRepository } from "../repositories/userRepository";
+import { AnalysisRepository } from "../repositories/analysisRepository";
+import { AgencyRepository } from "../repositories/agencyRepository";
 
 type AgencyRoleValue = "owner" | "member" | "view_only";
-
-type WorkspaceRow = {
-  id: string;
-  ownerId: string;
-  name: string;
-  logoUrl: string | null;
-};
-
-type ClientRow = {
-  id: string;
-  name: string;
-  contactEmail: string | null;
-  storeUrl: string | null;
-  userId: string | null;
-  createdAt: Date;
-};
-
-type ReportRow = {
-  id: string;
-  clientId: string;
-  weekStart: Date;
-  generatedAt: Date;
-  filename: string;
-};
 
 function cuid(prefix: string) {
   return `${prefix}_${crypto.randomBytes(12).toString("hex")}`;
@@ -81,53 +59,23 @@ function buildPdf(lines: string[]) {
   return Buffer.from(pdf);
 }
 
-async function userWorkspace(userId: string): Promise<WorkspaceRow | null> {
-  const rows = await prisma.$queryRaw<WorkspaceRow[]>`
-    SELECT w."id", w."ownerId", w."name", w."logoUrl"
-    FROM "AgencyWorkspace" w
-    JOIN "AgencyMember" m ON m."workspaceId" = w."id"
-    WHERE m."userId" = ${userId}
-      AND m."acceptedAt" IS NOT NULL
-    ORDER BY w."createdAt" ASC
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
+async function requireAgencyRole(userId: string, workspaceId: string, allowed: AgencyRoleValue[]) {
+  const role = await AgencyRepository.getMemberRole(userId, workspaceId) as AgencyRoleValue | null;
+  if (!role || !allowed.includes(role)) throw new Error("Agency workspace access denied");
+  return role;
 }
 
 export async function ensureAgencyWorkspace(userId: string) {
-  const existing = await userWorkspace(userId);
+  const existing = await AgencyRepository.findWorkspaceByUser(userId);
   if (existing) return existing;
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { email: true, name: true, storeName: true },
-  });
+  const user = await UserRepository.findById(userId);
   const workspaceId = cuid("agw");
   const now = new Date();
   const name = user?.storeName ?? (user?.name ? `${user.name}'s agency` : "Operon Agency");
-  await prisma.$executeRaw`
-    INSERT INTO "AgencyWorkspace" ("id", "ownerId", "name", "createdAt", "updatedAt")
-    VALUES (${workspaceId}, ${userId}, ${name}, ${now}, ${now})
-  `;
-  await prisma.$executeRaw`
-    INSERT INTO "AgencyMember" ("id", "workspaceId", "userId", "role", "acceptedAt", "createdAt", "updatedAt")
-    VALUES (${cuid("agm")}, ${workspaceId}, ${userId}, 'owner'::"AgencyRole", ${now}, ${now}, ${now})
-  `;
-  return (await userWorkspace(userId))!;
-}
-
-async function requireAgencyRole(userId: string, workspaceId: string, allowed: AgencyRoleValue[]) {
-  const rows = await prisma.$queryRaw<Array<{ role: AgencyRoleValue }>>`
-    SELECT "role"::text AS "role"
-    FROM "AgencyMember"
-    WHERE "workspaceId" = ${workspaceId}
-      AND "userId" = ${userId}
-      AND "acceptedAt" IS NOT NULL
-    LIMIT 1
-  `;
-  const role = rows[0]?.role;
-  if (!role || !allowed.includes(role)) throw new Error("Agency workspace access denied");
-  return role;
+  await AgencyRepository.createWorkspace(workspaceId, userId, name, now);
+  await AgencyRepository.createMember(cuid("agm"), workspaceId, userId, "owner", now);
+  return (await AgencyRepository.findWorkspaceByUser(userId))!;
 }
 
 export async function createAgencyClient(userId: string, input: { name: string; contactEmail?: string; storeUrl?: string }) {
@@ -135,10 +83,7 @@ export async function createAgencyClient(userId: string, input: { name: string; 
   await requireAgencyRole(userId, workspace.id, ["owner", "member"]);
   const now = new Date();
   const clientId = cuid("agc");
-  await prisma.$executeRaw`
-    INSERT INTO "AgencyClient" ("id", "workspaceId", "name", "contactEmail", "storeUrl", "createdAt", "updatedAt")
-    VALUES (${clientId}, ${workspace.id}, ${input.name}, ${input.contactEmail ?? null}, ${input.storeUrl ?? null}, ${now}, ${now})
-  `;
+  await AgencyRepository.createClient(clientId, workspace.id, input.name, input.contactEmail ?? null, input.storeUrl ?? null, now);
   return { id: clientId, workspaceId: workspace.id, ...input };
 }
 
@@ -148,71 +93,43 @@ export async function updateAgencyWorkspace(
 ) {
   const workspace = await ensureAgencyWorkspace(userId);
   await requireAgencyRole(userId, workspace.id, ["owner"]);
-  await prisma.$executeRaw`
-    UPDATE "AgencyWorkspace"
-    SET
-      "name" = COALESCE(${input.name ?? null}, "name"),
-      "logoUrl" = ${input.logoUrl ?? workspace.logoUrl},
-      "updatedAt" = ${new Date()}
-    WHERE "id" = ${workspace.id}
-  `;
+  await AgencyRepository.updateWorkspace(workspace.id, input.name ?? null, input.logoUrl ?? workspace.logoUrl);
   return ensureAgencyWorkspace(userId);
 }
 
 export async function inviteClientViewer(userId: string, clientId: string, email: string) {
   const workspace = await ensureAgencyWorkspace(userId);
   await requireAgencyRole(userId, workspace.id, ["owner", "member"]);
-  const client = await prisma.$queryRaw<ClientRow[]>`
-    SELECT * FROM "AgencyClient" WHERE "id" = ${clientId} AND "workspaceId" = ${workspace.id} LIMIT 1
-  `;
-  if (!client[0]) throw new Error("Client not found");
+  const client = await AgencyRepository.findClientById(clientId, workspace.id);
+  if (!client) throw new Error("Client not found");
   const token = crypto.randomBytes(24).toString("hex");
   const now = new Date();
-  await prisma.$executeRaw`
-    INSERT INTO "AgencyMember" ("id", "workspaceId", "clientId", "role", "invitedEmail", "inviteToken", "inviteExpiresAt", "createdAt", "updatedAt")
-    VALUES (${cuid("agm")}, ${workspace.id}, ${clientId}, 'view_only'::"AgencyRole", ${email}, ${token}, ${addDays(now, 14)}, ${now}, ${now})
-  `;
+  await AgencyRepository.createClientInvite(cuid("agm"), workspace.id, clientId, email, token, addDays(now, 14), now);
   return { inviteUrl: `/agency/invite/${token}`, token };
 }
 
 export async function acceptAgencyInvitation(input: { token: string; email: string; password: string; name?: string }) {
-  const rows = await prisma.$queryRaw<Array<{ id: string; workspaceId: string; invitedEmail: string | null; clientId: string | null }>>`
-    SELECT "id", "workspaceId", "invitedEmail", "clientId"
-    FROM "AgencyMember"
-    WHERE "inviteToken" = ${input.token}
-      AND "acceptedAt" IS NULL
-      AND "inviteExpiresAt" > ${new Date()}
-    LIMIT 1
-  `;
-  const invite = rows[0];
+  const invite = await AgencyRepository.findPendingInvite(input.token);
   if (!invite) throw new Error("Invitation is invalid or expired");
   if (invite.invitedEmail && invite.invitedEmail.toLowerCase() !== input.email.toLowerCase()) {
     throw new Error("Invitation email does not match");
   }
 
-  let user = await prisma.user.findUnique({ where: { email: input.email } });
+  let user = await UserRepository.findByEmail(input.email);
   if (user) {
     const valid = await comparePassword(input.password, user.password);
     if (!valid) throw new Error("Password is incorrect for this email");
   } else {
-    user = await prisma.user.create({
-      data: {
-        email: input.email,
-        name: input.name,
-        password: await hashPassword(input.password),
-      },
-    });
+    user = await UserRepository.create({
+      email: input.email,
+      name: input.name,
+      password: await hashPassword(input.password),
+    } as never);
   }
 
-  await prisma.$executeRaw`
-    UPDATE "AgencyMember"
-    SET "userId" = ${user.id}, "acceptedAt" = ${new Date()}, "inviteToken" = NULL, "updatedAt" = ${new Date()}
-    WHERE "id" = ${invite.id}
-  `;
+  await AgencyRepository.acceptInvite(invite.id, user.id);
   if (invite.clientId) {
-    await prisma.$executeRaw`
-      UPDATE "AgencyClient" SET "userId" = ${user.id}, "updatedAt" = ${new Date()} WHERE "id" = ${invite.clientId}
-    `;
+    await AgencyRepository.setClientUserId(invite.clientId, user.id);
   }
 
   return { token: signToken({ userId: user.id, email: user.email }), user };
@@ -221,32 +138,13 @@ export async function acceptAgencyInvitation(input: { token: string; email: stri
 export async function getAgencyOverview(userId: string) {
   const workspace = await ensureAgencyWorkspace(userId);
   const role = await requireAgencyRole(userId, workspace.id, ["owner", "member", "view_only"]);
-  const clientFilter = role === "view_only"
-    ? await prisma.$queryRaw<Array<{ clientId: string }>>`
-        SELECT "clientId" FROM "AgencyMember" WHERE "workspaceId" = ${workspace.id} AND "userId" = ${userId} LIMIT 1
-      `
-    : [];
-  const viewOnlyClientId = clientFilter[0]?.clientId ?? null;
-  const clients = await prisma.$queryRaw<ClientRow[]>`
-    SELECT "id", "name", "contactEmail", "storeUrl", "userId", "createdAt"
-    FROM "AgencyClient"
-    WHERE "workspaceId" = ${workspace.id}
-      AND (${viewOnlyClientId}::text IS NULL OR "id" = ${viewOnlyClientId})
-    ORDER BY "createdAt" DESC
-  `;
-  const reports = await prisma.$queryRaw<ReportRow[]>`
-    SELECT "id", "clientId", "weekStart", "generatedAt", "filename"
-    FROM "AgencyClientReport"
-    WHERE "workspaceId" = ${workspace.id}
-    ORDER BY "generatedAt" DESC
-    LIMIT 20
-  `;
+  const viewOnlyClientId = role === "view_only"
+    ? await AgencyRepository.getViewOnlyClientId(workspace.id, userId)
+    : null;
+  const clients = await AgencyRepository.findClientsByWorkspace(workspace.id, viewOnlyClientId);
+  const reports = await AgencyRepository.findReportsByWorkspace(workspace.id, 20);
   const week = addDays(new Date(), -7);
-  const kills = await prisma.analysis.findMany({
-    where: { userId: workspace.ownerId, createdAt: { gte: week } },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  });
+  const kills = await AnalysisRepository.findByUserSince(workspace.ownerId, week, 50);
   const killItems = kills
     .filter((analysis) => (analysis.result as { decision?: { finalDecision?: string } })?.decision?.finalDecision === "KILL")
     .map((analysis) => ({
@@ -271,26 +169,16 @@ export async function getAgencyOverview(userId: string) {
 }
 
 export async function generateWeeklyAgencyReports() {
-  const workspaces = await prisma.$queryRaw<WorkspaceRow[]>`SELECT "id", "ownerId", "name", "logoUrl" FROM "AgencyWorkspace"`;
+  const workspaces = await AgencyRepository.findAllWorkspaces();
   let generated = 0;
   const currentWeek = weekStart();
   for (const workspace of workspaces) {
-    const clients = await prisma.$queryRaw<ClientRow[]>`
-      SELECT "id", "name", "contactEmail", "storeUrl", "userId", "createdAt"
-      FROM "AgencyClient"
-      WHERE "workspaceId" = ${workspace.id}
-    `;
+    const clients = await AgencyRepository.findClientsByWorkspace(workspace.id);
     for (const client of clients) {
-      const existing = await prisma.$queryRaw<Array<{ id: string }>>`
-        SELECT "id" FROM "AgencyClientReport" WHERE "clientId" = ${client.id} AND "weekStart" = ${currentWeek} LIMIT 1
-      `;
-      if (existing[0]) continue;
+      const exists = await AgencyRepository.findReportExists(client.id, currentWeek);
+      if (exists) continue;
       const since = addDays(currentWeek, -7);
-      const analyses = await prisma.analysis.findMany({
-        where: { userId: workspace.ownerId, createdAt: { gte: since, lt: currentWeek } },
-        orderBy: { createdAt: "desc" },
-        take: 25,
-      });
+      const analyses = await AnalysisRepository.findByUserBetween(workspace.ownerId, since, currentWeek, 25);
       const matching = analyses.filter((analysis) =>
         JSON.stringify(analysis.inputData).toLowerCase().includes(client.name.toLowerCase()),
       );
@@ -315,10 +203,15 @@ export async function generateWeeklyAgencyReports() {
         `SCALE calls: ${scales}`,
         "Generated automatically by Operon.",
       ]);
-      await prisma.$executeRaw`
-        INSERT INTO "AgencyClientReport" ("id", "workspaceId", "clientId", "weekStart", "summary", "pdfBase64", "filename")
-        VALUES (${cuid("agr")}, ${workspace.id}, ${client.id}, ${currentWeek}, ${JSON.stringify(summary)}::jsonb, ${pdf.toString("base64")}, ${`${client.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-operon-weekly.pdf`})
-      `;
+      await AgencyRepository.createReport(
+        cuid("agr"),
+        workspace.id,
+        client.id,
+        currentWeek,
+        summary,
+        pdf.toString("base64"),
+        `${client.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-operon-weekly.pdf`,
+      );
       generated += 1;
     }
   }
@@ -328,11 +221,7 @@ export async function generateWeeklyAgencyReports() {
 export async function getAgencyReportPdf(userId: string, reportId: string) {
   const workspace = await ensureAgencyWorkspace(userId);
   await requireAgencyRole(userId, workspace.id, ["owner", "member", "view_only"]);
-  const rows = await prisma.$queryRaw<Array<{ pdfBase64: string; filename: string }>>`
-    SELECT "pdfBase64", "filename" FROM "AgencyClientReport"
-    WHERE "id" = ${reportId} AND "workspaceId" = ${workspace.id}
-    LIMIT 1
-  `;
-  if (!rows[0]) throw new Error("Report not found");
-  return { filename: rows[0].filename, buffer: Buffer.from(rows[0].pdfBase64, "base64") };
+  const row = await AgencyRepository.findReportPdf(reportId, workspace.id);
+  if (!row) throw new Error("Report not found");
+  return { filename: row.filename, buffer: Buffer.from(row.pdfBase64, "base64") };
 }

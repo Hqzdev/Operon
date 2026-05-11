@@ -1,0 +1,14 @@
+export { UserRepository } from "./userRepository";
+export { AnalysisRepository } from "./analysisRepository";
+export { LeadRepository } from "./leadRepository";
+export { StoreRepository } from "./storeRepository";
+export { PaymentRepository } from "./paymentRepository";
+export { FatigueRepository } from "./fatigueRepository";
+export { NotificationRepository } from "./notificationRepository";
+export { AdActionRepository } from "./adActionRepository";
+export { IntegrationRepository } from "./integrationRepository";
+export { DigestRepository } from "./digestRepository";
+export { SeoRepository } from "./seoRepository";
+export { SimulationRepository } from "./simulationRepository";
+export { RecommendationOutcomeRepository } from "./recommendationOutcomeRepository";
+export { AgencyRepository } from "./agencyRepository";

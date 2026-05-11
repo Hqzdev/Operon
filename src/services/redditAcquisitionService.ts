@@ -1,6 +1,6 @@
 import { RedditIntentLevel } from "@prisma/client";
-import { prisma } from "../models/prisma";
 import { env } from "../utils/env";
+import { LeadRepository } from "../repositories/leadRepository";
 
 const TARGET_SUBREDDITS = [
   "FacebookAds",
@@ -238,25 +238,7 @@ export async function runRedditAcquisitionScan() {
 
   let saved = 0;
   for (const post of uniquePosts) {
-    await prisma.redditLead.upsert({
-      where: { redditPostId: post.redditPostId },
-      update: {
-        username: post.username,
-        subreddit: post.subreddit,
-        postUrl: post.postUrl,
-        title: post.title,
-        body: post.body,
-        problemSummary: post.problemSummary,
-        intentLevel: post.intentLevel,
-        outreachAngle: post.outreachAngle,
-        painSignals: post.painSignals,
-        score: post.score,
-        upvotes: post.upvotes,
-        commentCount: post.commentCount,
-        postedAt: post.postedAt,
-      },
-      create: post,
-    });
+    await LeadRepository.upsert(post);
     saved += 1;
   }
 
@@ -270,28 +252,14 @@ export async function runRedditAcquisitionScan() {
 }
 
 export async function listRedditLeads(limit = 100) {
-  return prisma.redditLead.findMany({
-    orderBy: [
-      { postedAt: "desc" },
-      { score: "desc" },
-    ],
-    take: limit,
-  });
+  return LeadRepository.findRecent(limit);
 }
 
 export async function listTrendingAdProblems(limit = 10) {
   const since = new Date();
   since.setUTCHours(since.getUTCHours() - 24);
 
-  const leads = await prisma.redditLead.findMany({
-    where: { postedAt: { gte: since } },
-    orderBy: [
-      { score: "desc" },
-      { commentCount: "desc" },
-      { postedAt: "desc" },
-    ],
-    take: limit,
-  });
+  const leads = await LeadRepository.findTrending(since, limit);
 
   return leads.map((lead) => ({
     id: lead.id,

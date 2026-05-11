@@ -1,6 +1,7 @@
 import { gigaChatComplete } from "@/lib/gigachat";
-import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
+import { UserRepository } from "../repositories/userRepository";
+import { SeoRepository } from "../repositories/seoRepository";
 
 export interface SeoIssue {
   title: string;
@@ -265,10 +266,7 @@ Return JSON:
 }
 
 export async function analyzeSeo(userId: string): Promise<SeoAnalysisResult> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { storeUrl: true },
-  });
+  const user = await UserRepository.findById(userId);
 
   if (!user?.storeUrl) {
     throw new AppError("No store URL configured. Please add your store URL in settings.", 400);
@@ -284,27 +282,11 @@ export async function analyzeSeo(userId: string): Promise<SeoAnalysisResult> {
     ...aiResult,
   };
 
-  // Upsert using raw SQL since SeoAnalysis model may not be in the generated client yet
-  await prisma.$executeRaw`
-    INSERT INTO "SeoAnalysis" ("id", "userId", "storeUrl", "result", "analyzedAt")
-    VALUES (gen_random_uuid()::text, ${userId}, ${user.storeUrl}, ${JSON.stringify(result)}::jsonb, NOW())
-    ON CONFLICT ("userId") DO UPDATE
-    SET "storeUrl" = EXCLUDED."storeUrl",
-        "result" = EXCLUDED."result",
-        "analyzedAt" = EXCLUDED."analyzedAt"
-  `;
+  await SeoRepository.upsert(userId, user.storeUrl, result);
 
   return result;
 }
 
 export async function getCachedSeoResult(userId: string): Promise<SeoAnalysisResult | null> {
-  const rows = await prisma.$queryRaw<Array<{ result: SeoAnalysisResult; analyzed_at: string }>>`
-    SELECT result, "analyzedAt" as analyzed_at
-    FROM "SeoAnalysis"
-    WHERE "userId" = ${userId}
-    LIMIT 1
-  `;
-
-  if (!rows.length) return null;
-  return rows[0].result as SeoAnalysisResult;
+  return SeoRepository.findByUserId<SeoAnalysisResult>(userId);
 }

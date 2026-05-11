@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
-import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
+import { StoreRepository } from "../repositories/storeRepository";
+import { UserRepository } from "../repositories/userRepository";
 
 type StoreInput = {
   name?: string;
@@ -30,10 +31,7 @@ function fallbackStoreName(url: string) {
 }
 
 export async function listStores(userId: string) {
-  return prisma.store.findMany({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-  });
+  return StoreRepository.findByUserId(userId);
 }
 
 export async function upsertStore(userId: string, input: StoreInput) {
@@ -46,51 +44,32 @@ export async function upsertStore(userId: string, input: StoreInput) {
 
   const name = input.name?.trim() || fallbackStoreName(url);
 
-  const store = await prisma.store.upsert({
-    where: { userId_url: { userId, url } },
-    create: {
-      userId,
-      url,
-      name,
-      platform: input.platform,
-      description: input.description,
-      analysis: input.analysis,
-    },
-    update: {
-      name,
-      platform: input.platform,
-      description: input.description,
-      analysis: input.analysis,
-    },
-  });
+  const store = await StoreRepository.upsert(
+    userId,
+    url,
+    { name, platform: input.platform, description: input.description, analysis: input.analysis },
+    { name, platform: input.platform, description: input.description, analysis: input.analysis },
+  );
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      activeStoreId: store.id,
-      storeName: store.name,
-      storeUrl: store.url,
-      niche: input.niche,
-      onboardingCompleted: true,
-    },
+  await UserRepository.updateActiveStore(userId, {
+    activeStoreId: store.id,
+    storeName: store.name,
+    storeUrl: store.url,
+    niche: input.niche,
+    onboardingCompleted: true,
   });
 
   return store;
 }
 
 export async function selectStore(userId: string, storeId: string) {
-  const store = await prisma.store.findFirst({
-    where: { id: storeId, userId },
-  });
+  const store = await StoreRepository.findByIdAndUser(storeId, userId);
   if (!store) throw new AppError("Store not found", 404);
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      activeStoreId: store.id,
-      storeName: store.name,
-      storeUrl: store.url,
-    },
+  await UserRepository.updateActiveStore(userId, {
+    activeStoreId: store.id,
+    storeName: store.name,
+    storeUrl: store.url,
   });
 
   return store;

@@ -6,7 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg", "bcryptjs", "jsonwebtoken"],
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg", "bcryptjs", "jsonwebtoken", "nodemailer"],
   async headers() {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;

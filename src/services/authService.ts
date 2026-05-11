@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
-import { prisma } from "../models/prisma";
 import { AppError } from "../utils/appError";
 import { env } from "../utils/env";
 import { comparePassword, hashPassword } from "../utils/password";
 import { signToken } from "../utils/jwt";
 import { getUserProfile } from "./userService";
+import { UserRepository } from "../repositories/userRepository";
 
 export async function registerUser(input: {
   email: string;
@@ -13,9 +13,7 @@ export async function registerUser(input: {
   name?: string;
   storeName?: string;
 }) {
-  const existingUser = await prisma.user.findUnique({
-    where: { email: input.email },
-  });
+  const existingUser = await UserRepository.findByEmail(input.email);
 
   if (existingUser) {
     throw new AppError("A user with this email already exists", 409);
@@ -23,14 +21,12 @@ export async function registerUser(input: {
 
   const password = await hashPassword(input.password);
 
-  const user = await prisma.user.create({
-    data: {
-      email: input.email,
-      password,
-      name: input.name,
-      storeName: input.storeName,
-    },
-  });
+  const user = await UserRepository.create({
+    email: input.email,
+    password,
+    name: input.name,
+    storeName: input.storeName,
+  } as never);
 
   const token = signToken({
     userId: user.id,
@@ -46,9 +42,7 @@ export async function registerUser(input: {
 }
 
 export async function loginUser(input: { email: string; password: string }) {
-  const user = await prisma.user.findUnique({
-    where: { email: input.email },
-  });
+  const user = await UserRepository.findByEmail(input.email);
 
   if (!user) {
     throw new AppError("Invalid email or password", 401);
@@ -181,19 +175,19 @@ export async function completeGoogleOAuth(input: { code: string; state: string; 
   const accessToken = await exchangeGoogleCode(input.code, input.redirectUri);
   const googleUser = await fetchGoogleUserInfo(accessToken);
 
-  const user = await prisma.user.upsert({
-    where: { email: googleUser.email },
-    update: {
-      name: googleUser.name,
-      avatarUrl: googleUser.avatarUrl,
-    },
-    create: {
+  const user = await UserRepository.upsertByEmail(
+    googleUser.email,
+    {
       email: googleUser.email,
       name: googleUser.name,
       avatarUrl: googleUser.avatarUrl,
       password: await hashPassword(`google-oauth:${crypto.randomBytes(32).toString("hex")}`),
     },
-  });
+    {
+      name: googleUser.name,
+      avatarUrl: googleUser.avatarUrl,
+    },
+  );
 
   const token = signToken({
     userId: user.id,

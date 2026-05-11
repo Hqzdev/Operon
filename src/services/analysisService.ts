@@ -1,7 +1,7 @@
-import { AnalysisStage, type Prisma } from "@prisma/client";
+import { AnalysisStage } from "@prisma/client";
 import { z } from "zod";
-import { prisma } from "../models/prisma";
 import { runAiAnalysis, deriveMetrics, type AiAnalysisResult } from "./aiService";
+import { AnalysisRepository } from "../repositories/analysisRepository";
 import { getShopifyConnectionCredentials } from "./integrationService";
 import {
   computeLtvFromConnection,
@@ -244,12 +244,7 @@ function computeRecommendationConfidence(
 }
 
 async function getRecentComparableInputs(userId: string, payload: AnalysisPayload) {
-  const recent = await prisma.analysis.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    take: 12,
-    select: { inputData: true },
-  });
+  const recent = await AnalysisRepository.findRecentInputs(userId, 12);
 
   const productName = payload.product_name?.trim().toLowerCase();
   return recent
@@ -796,13 +791,11 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
 
   const result: AnalysisResult = { ...partialResult, saved: true, ltvAdjustment };
 
-  const analysis = await prisma.analysis.create({
-    data: {
-      userId,
-      stage: normalizedStage,
-      inputData: analysisPayload as Prisma.InputJsonValue,
-      result: result as Prisma.InputJsonValue,
-    },
+  const analysis = await AnalysisRepository.create({
+    userId,
+    stage: normalizedStage,
+    inputData: analysisPayload as unknown as Record<string, unknown>,
+    result: result as unknown as Record<string, unknown>,
   });
 
   await recordRecommendationOutcomes(userId, analysis.id, analysisPayload, result).catch((error) => {
@@ -815,9 +808,5 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
 }
 
 export async function listAnalyses(userId: string) {
-  return prisma.analysis.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  return AnalysisRepository.findByUserId(userId, 20);
 }

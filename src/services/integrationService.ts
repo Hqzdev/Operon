@@ -7,10 +7,10 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { z } from "zod";
-import { prisma } from "../models/prisma";
 import { env } from "../utils/env";
 import { AppError } from "../utils/appError";
 import { runFatigueCheckForAccount } from "./fatigueService";
+import { IntegrationRepository } from "../repositories/integrationRepository";
 
 const analysisInputSchema = z.object({
   product_name: z.string().min(2).max(120).default("Untitled product"),
@@ -286,17 +286,13 @@ export async function completeOAuth(provider: ProviderKey, code: string, state: 
 }
 
 async function upsertConnection(userId: string, provider: ProviderKey, account: ProviderAccount) {
-  return prisma.integrationConnection.upsert({
-    where: {
-      userId_provider_externalAccountId: {
-        userId,
-        provider,
-        externalAccountId: account.externalAccountId,
-      },
-    },
-    create: {
+  return IntegrationRepository.upsertConnection(
+    userId,
+    provider as IntegrationProvider,
+    account.externalAccountId,
+    {
       userId,
-      provider,
+      provider: provider as IntegrationProvider,
       externalAccountId: account.externalAccountId,
       accountName: account.accountName,
       accessToken: encryptToken(account.accessToken),
@@ -308,7 +304,7 @@ async function upsertConnection(userId: string, provider: ProviderKey, account: 
       nextSyncAt: new Date(),
       lastError: null,
     },
-    update: {
+    {
       accountName: account.accountName,
       accessToken: encryptToken(account.accessToken),
       refreshToken: account.refreshToken ? encryptToken(account.refreshToken) : undefined,
@@ -319,7 +315,7 @@ async function upsertConnection(userId: string, provider: ProviderKey, account: 
       nextSyncAt: new Date(),
       lastError: null,
     },
-  });
+  );
 }
 
 async function exchangeMeta(code: string): Promise<ProviderAccount[]> {
@@ -389,57 +385,23 @@ async function exchangeShopify(code: string, shop: string): Promise<ProviderAcco
 }
 
 export async function listConnections(userId: string) {
-  return prisma.integrationConnection.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      provider: true,
-      externalAccountId: true,
-      accountName: true,
-      status: true,
-      scopes: true,
-      lastSyncedAt: true,
-      nextSyncAt: true,
-      lastError: true,
-      maxDailyBudgetChangePercent: true,
-      metadata: true,
-      createdAt: true,
-    },
-    orderBy: [{ provider: "asc" }, { createdAt: "desc" }],
-  });
+  return IntegrationRepository.findByUser(userId);
 }
 
 async function persistMetricSnapshots(connection: IntegrationConnection, raw: RawMetrics[]) {
   for (const metrics of raw) {
     const analysisInput = toAnalysisInput(metrics);
-    await prisma.integrationMetricSnapshot.upsert({
-      where: {
-        userId_provider_externalAccountId_externalEntityId_date: {
-          userId: connection.userId,
-          provider: connection.provider,
-          externalAccountId: connection.externalAccountId,
-          externalEntityId: metrics.externalEntityId,
-          date: metrics.date,
-        },
-      },
-      create: {
-        userId: connection.userId,
-        connectionId: connection.id,
-        provider: connection.provider,
-        externalAccountId: connection.externalAccountId,
-        externalEntityId: metrics.externalEntityId,
-        entityName: metrics.entityName,
-        date: metrics.date,
-        metrics: metrics as unknown as Prisma.InputJsonValue,
-        analysisInput: analysisInput as unknown as Prisma.InputJsonValue,
-        source: metrics.source as Prisma.InputJsonValue | undefined,
-      },
-      update: {
-        entityName: metrics.entityName,
-        metrics: metrics as unknown as Prisma.InputJsonValue,
-        analysisInput: analysisInput as unknown as Prisma.InputJsonValue,
-        source: metrics.source as Prisma.InputJsonValue | undefined,
-      },
+    await IntegrationRepository.upsertSnapshot({
+      userId: connection.userId,
+      connectionId: connection.id,
+      provider: connection.provider,
+      externalAccountId: connection.externalAccountId,
+      externalEntityId: metrics.externalEntityId,
+      entityName: metrics.entityName,
+      date: metrics.date,
+      metrics: metrics as unknown as Prisma.InputJsonValue,
+      analysisInput: analysisInput as unknown as Prisma.InputJsonValue,
+      source: metrics.source as Prisma.InputJsonValue | undefined,
     });
   }
 }
@@ -454,15 +416,11 @@ export async function createExtensionConnection(
   }
   const extensionKey = crypto.randomBytes(24).toString("hex");
   const externalAccountId = `extension-${provider.toLowerCase()}-${userId}`;
-  const connection = await prisma.integrationConnection.upsert({
-    where: {
-      userId_provider_externalAccountId: {
-        userId,
-        provider: provider as IntegrationProvider,
-        externalAccountId,
-      },
-    },
-    create: {
+  const connection = await IntegrationRepository.upsertExtensionConnection(
+    userId,
+    provider as IntegrationProvider,
+    externalAccountId,
+    {
       userId,
       provider: provider as IntegrationProvider,
       externalAccountId,
@@ -474,7 +432,7 @@ export async function createExtensionConnection(
       lastSyncedAt: null,
       nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
-    update: {
+    {
       accountName: accountName || `${provider} extension`,
       accessToken: encryptToken(extensionKey),
       scopes: ["extension_read"],
@@ -483,26 +441,12 @@ export async function createExtensionConnection(
       lastError: null,
       nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
-  });
+  );
   return { connectionId: connection.id, provider, extensionKey };
 }
 
 async function findExtensionConnectionByKey(extensionKey: string) {
-  const candidates = await prisma.integrationConnection.findMany({
-    where: {
-      status: { not: IntegrationStatus.DISCONNECTED },
-      scopes: { has: "extension_read" },
-    },
-    include: {
-      user: {
-        select: {
-          email: true,
-          name: true,
-        },
-      },
-    },
-  });
-
+  const candidates = await IntegrationRepository.findExtensionCandidates();
   return candidates.find((candidate) => decryptIntegrationToken(candidate.accessToken) === extensionKey) ?? null;
 }
 
@@ -531,18 +475,15 @@ export async function updateExtensionAutopilot(extensionKey: string, enabled: bo
   if (!connection) throw new AppError("Invalid extension key", 401);
 
   const metadata = extensionMetadata(connection.metadata);
-  const updated = await prisma.integrationConnection.update({
-    where: { id: connection.id },
-    data: {
-      metadata: {
-        ...metadata,
-        source: "extension",
-        writeCapable: false,
-        autopilotEnabled: enabled,
-        autopilotUpdatedAt: new Date().toISOString(),
-      },
-      nextSyncAt: enabled ? new Date() : connection.nextSyncAt,
+  const updated = await IntegrationRepository.updateConnection(connection.id, {
+    metadata: {
+      ...metadata,
+      source: "extension",
+      writeCapable: false,
+      autopilotEnabled: enabled,
+      autopilotUpdatedAt: new Date().toISOString(),
     },
+    nextSyncAt: enabled ? new Date() : connection.nextSyncAt,
   });
 
   return {
@@ -554,32 +495,19 @@ export async function updateExtensionAutopilot(extensionKey: string, enabled: bo
 }
 
 export async function updateUserExtensionAutopilot(userId: string, enabled: boolean) {
-  const connections = await prisma.integrationConnection.findMany({
-    where: {
-      userId,
-      status: { not: IntegrationStatus.DISCONNECTED },
-      scopes: { has: "extension_read" },
-    },
-    select: {
-      id: true,
-      metadata: true,
-    },
-  });
+  const connections = await IntegrationRepository.findUserExtensionConnections(userId);
 
   await Promise.all(connections.map((connection) => {
     const metadata = extensionMetadata(connection.metadata);
-    return prisma.integrationConnection.update({
-      where: { id: connection.id },
-      data: {
-        metadata: {
-          ...metadata,
-          source: "extension",
-          writeCapable: false,
-          autopilotEnabled: enabled,
-          autopilotUpdatedAt: new Date().toISOString(),
-        },
-        nextSyncAt: enabled ? new Date() : undefined,
+    return IntegrationRepository.updateConnection(connection.id, {
+      metadata: {
+        ...metadata,
+        source: "extension",
+        writeCapable: false,
+        autopilotEnabled: enabled,
+        autopilotUpdatedAt: new Date().toISOString(),
       },
+      nextSyncAt: enabled ? new Date() : undefined,
     });
   }));
 
@@ -627,18 +555,15 @@ export async function ingestExtensionMetrics(input: {
     accountName: input.accountName || connection.accountName || undefined,
   }));
   await persistMetricSnapshots(connection, raw);
-  await prisma.integrationConnection.update({
-    where: { id: connection.id },
-    data: {
-      accountName: input.accountName || connection.accountName,
-      lastSyncedAt: new Date(),
-      lastError: null,
-      status: IntegrationStatus.CONNECTED,
-      metadata: {
-        ...extensionMetadata(connection.metadata),
-        source: "extension",
-        writeCapable: false,
-      },
+  await IntegrationRepository.updateConnection(connection.id, {
+    accountName: input.accountName || connection.accountName,
+    lastSyncedAt: new Date(),
+    lastError: null,
+    status: IntegrationStatus.CONNECTED,
+    metadata: {
+      ...extensionMetadata(connection.metadata),
+      source: "extension",
+      writeCapable: false,
     },
   });
 
@@ -652,33 +577,26 @@ export async function ingestExtensionMetrics(input: {
 }
 
 export async function disconnectConnection(userId: string, connectionId: string) {
-  await prisma.integrationConnection.updateMany({
-    where: { id: connectionId, userId },
-    data: { status: IntegrationStatus.DISCONNECTED },
-  });
+  await IntegrationRepository.disconnectConnection(connectionId, userId);
 }
 
 export async function syncConnection(connectionId: string) {
-  const connection = await prisma.integrationConnection.findUnique({ where: { id: connectionId } });
+  const connection = await IntegrationRepository.findConnectionById(connectionId);
   if (!connection || connection.status === IntegrationStatus.DISCONNECTED) return null;
 
   const now = new Date();
   if (connection.syncLockUntil && connection.syncLockUntil > now) return null;
 
-  await prisma.integrationConnection.update({
-    where: { id: connection.id },
-    data: { syncLockUntil: new Date(now.getTime() + 10 * 60 * 1000) },
+  await IntegrationRepository.updateConnection(connection.id, {
+    syncLockUntil: new Date(now.getTime() + 10 * 60 * 1000),
   });
 
   try {
     if ((connection.metadata as { source?: string } | null)?.source === "extension") {
-      await prisma.integrationConnection.update({
-        where: { id: connection.id },
-        data: {
-          syncLockUntil: null,
-          nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-          lastError: null,
-        },
+      await IntegrationRepository.updateConnection(connection.id, {
+        syncLockUntil: null,
+        nextSyncAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        lastError: null,
       });
       return { connectionId: connection.id, snapshots: 0, source: "extension" };
     }
@@ -693,15 +611,12 @@ export async function syncConnection(connectionId: string) {
 
     await persistMetricSnapshots(freshConnection, raw);
 
-    await prisma.integrationConnection.update({
-      where: { id: freshConnection.id },
-      data: {
-        status: IntegrationStatus.CONNECTED,
-        lastSyncedAt: new Date(),
-        nextSyncAt: new Date(Date.now() + 60 * 60 * 1000),
-        syncLockUntil: null,
-        lastError: null,
-      },
+    await IntegrationRepository.updateConnection(freshConnection.id, {
+      status: IntegrationStatus.CONNECTED,
+      lastSyncedAt: new Date(),
+      nextSyncAt: new Date(Date.now() + 60 * 60 * 1000),
+      syncLockUntil: null,
+      lastError: null,
     });
 
     if (freshConnection.provider === IntegrationProvider.META || freshConnection.provider === IntegrationProvider.TIKTOK) {
@@ -713,14 +628,11 @@ export async function syncConnection(connectionId: string) {
     return { connectionId: freshConnection.id, snapshots: raw.length };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sync failed";
-    await prisma.integrationConnection.update({
-      where: { id: connection.id },
-      data: {
-        status: IntegrationStatus.ERROR,
-        nextSyncAt: new Date(Date.now() + 30 * 60 * 1000),
-        syncLockUntil: null,
-        lastError: message,
-      },
+    await IntegrationRepository.updateConnection(connection.id, {
+      status: IntegrationStatus.ERROR,
+      nextSyncAt: new Date(Date.now() + 30 * 60 * 1000),
+      syncLockUntil: null,
+      lastError: message,
     });
     throw error;
   }
@@ -731,9 +643,9 @@ export async function refreshIfNeeded(connection: IntegrationConnection) {
     return connection;
   }
   if (!connection.refreshToken) {
-    await prisma.integrationConnection.update({
-      where: { id: connection.id },
-      data: { status: IntegrationStatus.ACTION_REQUIRED, lastError: "Token expired; reconnect required" },
+    await IntegrationRepository.updateConnection(connection.id, {
+      status: IntegrationStatus.ACTION_REQUIRED,
+      lastError: "Token expired; reconnect required",
     });
     throw new Error("Token expired; reconnect required");
   }
@@ -751,20 +663,17 @@ export async function refreshIfNeeded(connection: IntegrationConnection) {
       }),
     });
     if (!token.data?.access_token) throw new Error("TikTok refresh failed");
-    return prisma.integrationConnection.update({
-      where: { id: connection.id },
-      data: {
-        accessToken: encryptToken(token.data.access_token),
-        refreshToken: token.data.refresh_token ? encryptToken(token.data.refresh_token) : undefined,
-        tokenExpiresAt: token.data.expires_in ? new Date(Date.now() + token.data.expires_in * 1000) : undefined,
-        status: IntegrationStatus.CONNECTED,
-      },
+    return IntegrationRepository.updateConnection(connection.id, {
+      accessToken: encryptToken(token.data.access_token),
+      refreshToken: token.data.refresh_token ? encryptToken(token.data.refresh_token) : undefined,
+      tokenExpiresAt: token.data.expires_in ? new Date(Date.now() + token.data.expires_in * 1000) : undefined,
+      status: IntegrationStatus.CONNECTED,
     });
   }
 
-  await prisma.integrationConnection.update({
-    where: { id: connection.id },
-    data: { status: IntegrationStatus.ACTION_REQUIRED, lastError: "Token expired; reconnect required" },
+  await IntegrationRepository.updateConnection(connection.id, {
+    status: IntegrationStatus.ACTION_REQUIRED,
+    lastError: "Token expired; reconnect required",
   });
   throw new Error("Token expired; reconnect required");
 }
@@ -883,9 +792,7 @@ async function fetchShopifyMetrics(connection: IntegrationConnection): Promise<R
 }
 
 export async function syncUserConnections(userId: string) {
-  const connections = await prisma.integrationConnection.findMany({
-    where: { userId, status: { not: IntegrationStatus.DISCONNECTED } },
-  });
+  const connections = await IntegrationRepository.findActiveByUser(userId);
   const results = [];
   for (const connection of connections) {
     results.push(await syncConnection(connection.id));
@@ -894,15 +801,7 @@ export async function syncUserConnections(userId: string) {
 }
 
 export async function syncDueConnections(limit = 25) {
-  const connections = await prisma.integrationConnection.findMany({
-    where: {
-      status: IntegrationStatus.CONNECTED,
-      nextSyncAt: { lte: new Date() },
-      OR: [{ syncLockUntil: null }, { syncLockUntil: { lt: new Date() } }],
-    },
-    take: limit,
-    orderBy: { nextSyncAt: "asc" },
-  });
+  const connections = await IntegrationRepository.findDueConnections(limit);
   const results = [];
   for (const connection of connections) {
     try {
@@ -915,42 +814,17 @@ export async function syncDueConnections(limit = 25) {
 }
 
 export async function listMetricSnapshots(userId: string) {
-  return prisma.integrationMetricSnapshot.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      provider: true,
-      externalAccountId: true,
-      externalEntityId: true,
-      entityName: true,
-      date: true,
-      analysisInput: true,
-      metrics: true,
-    },
-    orderBy: [{ date: "desc" }, { updatedAt: "desc" }],
-    take: 50,
-  });
+  return IntegrationRepository.findSnapshotsByUser(userId);
 }
 
 export async function getLatestAnalysisInput(userId: string) {
-  const latest = await prisma.integrationMetricSnapshot.findFirst({
-    where: { userId },
-    orderBy: [{ date: "desc" }, { updatedAt: "desc" }],
-  });
+  const latest = await IntegrationRepository.findLatestSnapshot(userId);
   if (!latest) return null;
   return analysisInputSchema.parse(latest.analysisInput);
 }
 
 export async function getShopifyConnectionCredentials(userId: string) {
-  const connection = await prisma.integrationConnection.findFirst({
-    where: {
-      userId,
-      provider: IntegrationProvider.SHOPIFY,
-      status: IntegrationStatus.CONNECTED,
-    },
-    orderBy: { lastSyncedAt: "desc" },
-    select: { externalAccountId: true, accessToken: true },
-  });
+  const connection = await IntegrationRepository.findShopifyConnection(userId);
   if (!connection) return null;
   return {
     storeUrl: connection.externalAccountId,

@@ -1,8 +1,11 @@
-import nodemailer from "nodemailer";
 import { UserPlan } from "@prisma/client";
-import { prisma } from "../models/prisma";
 import { completeGigaChatJson } from "./aiService";
 import { env } from "../utils/env";
+import { UserRepository } from "../repositories/userRepository";
+import { AnalysisRepository } from "../repositories/analysisRepository";
+import { FatigueRepository } from "../repositories/fatigueRepository";
+import { NotificationRepository } from "../repositories/notificationRepository";
+import { DigestRepository } from "../repositories/digestRepository";
 
 export interface DigestSummary {
   title: string;
@@ -180,10 +183,20 @@ function buildEmailHtml(summary: DigestSummary, recipientName: string): string {
 </html>`;
 }
 
-let mailerTransport: nodemailer.Transporter | null = null;
+type MailTransport = {
+  sendMail(message: {
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<unknown>;
+};
 
-function getTransport(): nodemailer.Transporter {
+let mailerTransport: MailTransport | null = null;
+
+async function getTransport(): Promise<MailTransport> {
   if (!mailerTransport) {
+    const nodemailer = await import("nodemailer");
     mailerTransport = nodemailer.createTransport({
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
@@ -197,21 +210,7 @@ function getTransport(): nodemailer.Transporter {
 }
 
 export async function generateAndSendDigest(userId: string): Promise<DigestSummary> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      storeUrl: true,
-      storeName: true,
-      quietModeEnabled: true,
-      quietMinConfidence: true,
-      quietMinSpendImpact: true,
-      quietNoUrgentDigestAt: true,
-      plan: true,
-    },
-  });
+  const user = await UserRepository.findDigestFields(userId);
   if (!user) throw new Error(`User ${userId} not found`);
 
   const storeUrl = user.storeUrl ?? user.email;
@@ -225,15 +224,7 @@ export async function generateAndSendDigest(userId: string): Promise<DigestSumma
     quietNoUrgentDigestAt: user.quietNoUrgentDigestAt,
   };
 
-  const recentAnalyses = await prisma.analysis.findMany({
-    where: {
-      userId,
-      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    select: { result: true },
-  });
+  const recentAnalyses = await AnalysisRepository.findRecentResults(userId, 20);
   const urgentAnalyses = recentAnalyses.filter((analysis) =>
     passesQuietThresholds(analysis.result as Parameters<typeof passesQuietThresholds>[0], settings)
   );
@@ -245,21 +236,17 @@ export async function generateAndSendDigest(userId: string): Promise<DigestSumma
     }
 
     const summary = quietDigestSummary(storeName, thresholdText);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { quietNoUrgentDigestAt: new Date() },
+    await UserRepository.update(userId, { quietNoUrgentDigestAt: new Date() } as never);
+    await NotificationRepository.create({
+      userId,
+      title: summary.title,
+      body: summary.body,
+      type: "digest",
     });
-    await prisma.notification.create({
-      data: {
-        userId,
-        title: summary.title,
-        body: summary.body,
-        type: "digest",
-      },
-    });
-    await prisma.digestLog.create({ data: { userId, summary: summary as object } });
+    await DigestRepository.create(userId, summary as object);
     if (env.SMTP_USER) {
-      await getTransport().sendMail({
+      const transport = await getTransport();
+      await transport.sendMail({
         from: env.SMTP_FROM,
         to: user.email,
         subject: summary.title,
@@ -270,11 +257,7 @@ export async function generateAndSendDigest(userId: string): Promise<DigestSumma
   }
 
   const summary = await generateDigestContent(storeUrl, storeName);
-  const fatigueAlerts = await prisma.fatigueAlert.findMany({
-    where: { userId, status: "active" },
-    orderBy: { detectedAt: "desc" },
-    take: 10,
-  });
+  const fatigueAlerts = await FatigueRepository.findActiveAlerts(userId, 10);
   const visibleFatigueAlerts = settings.quietModeEnabled
     ? fatigueAlerts.filter((alert) => readSpendImpact(alert.triggeredMetrics) >= settings.quietMinSpendImpact)
     : fatigueAlerts;
@@ -287,34 +270,28 @@ export async function generateAndSendDigest(userId: string): Promise<DigestSumma
     summary.alert = summary.alert ? `${summary.alert} ${fatigueSummary}` : fatigueSummary;
   }
 
-  await prisma.notification.create({
-    data: {
-      userId,
-      title: summary.title,
-      body: [
-        summary.body,
-        "",
-        "Takeaways:",
-        ...summary.takeaways.map((t) => `• ${t}`),
-        "",
-        "Action items:",
-        ...summary.actionItems.map((a) => `• ${a}`),
-        ...(summary.alert ? ["", `⚠ Alert: ${summary.alert}`] : []),
-      ].join("\n"),
-      type: "digest",
-    },
+  await NotificationRepository.create({
+    userId,
+    title: summary.title,
+    body: [
+      summary.body,
+      "",
+      "Takeaways:",
+      ...summary.takeaways.map((t) => `• ${t}`),
+      "",
+      "Action items:",
+      ...summary.actionItems.map((a) => `• ${a}`),
+      ...(summary.alert ? ["", `⚠ Alert: ${summary.alert}`] : []),
+    ].join("\n"),
+    type: "digest",
   });
 
-  await prisma.digestLog.create({
-    data: {
-      userId,
-      summary: summary as object,
-    },
-  });
+  await DigestRepository.create(userId, summary as object);
 
   if (env.SMTP_USER) {
     try {
-      await getTransport().sendMail({
+      const transport = await getTransport();
+      await transport.sendMail({
         from: env.SMTP_FROM,
         to: user.email,
         subject: summary.title,
@@ -329,10 +306,7 @@ export async function generateAndSendDigest(userId: string): Promise<DigestSumma
 }
 
 export async function generateDigestsForAllUsers(): Promise<void> {
-  const users = await prisma.user.findMany({
-    where: { onboardingCompleted: true },
-    select: { id: true },
-  });
+  const users = await DigestRepository.findUsersForDigest();
 
   console.log(`[digest] Running morning digest for ${users.length} users`);
 
