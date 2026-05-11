@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { AnalysisWorkbench } from "@/components/mvp/analysis-workbench";
+import { redirect } from "next/navigation";
 import { DashboardHome } from "@/components/dashboard/DashboardHome";
 
 const TAB_TITLES: Record<string, string> = {
@@ -12,6 +12,13 @@ const TAB_TITLES: Record<string, string> = {
 };
 
 const workspaceTabs = new Set(Object.keys(TAB_TITLES));
+const workspaceRoutes: Record<string, string> = {
+  analysis: "/dashboard/analytics",
+  integrations: "/dashboard/integrations",
+  budget: "/dashboard/budget",
+  scenarios: "/dashboard/scenarios",
+  settings: "/dashboard/settings",
+};
 
 export async function generateMetadata({
   searchParams,
@@ -29,13 +36,15 @@ export default async function DashboardPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const { tab } = await searchParams;
-  const showWorkspace = tab ? workspaceTabs.has(tab) : false;
+  if (tab && workspaceTabs.has(tab)) {
+    redirect(workspaceRoutes[tab]);
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-hidden">
         <Suspense>
-          {showWorkspace ? <AnalysisWorkbench /> : <DashboardHome />}
+          <DashboardHome />
         </Suspense>
       </div>
     </div>

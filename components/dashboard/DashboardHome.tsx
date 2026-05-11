@@ -566,7 +566,7 @@ export function DashboardHome() {
                     variant="default"
                     size="sm"
                     className="h-7 shrink-0 rounded-md px-3 text-[12px] font-semibold"
-                    onClick={() => router.push("/dashboard?tab=analysis")}
+                    onClick={() => router.push("/dashboard/analytics")}
                   >
                     Start
                     <ArrowRight className="size-3" />
@@ -582,7 +582,7 @@ export function DashboardHome() {
                     variant="outline"
                     size="sm"
                     className="h-7 shrink-0 rounded-md px-3 text-[12px] font-semibold"
-                    onClick={() => router.push("/dashboard?tab=integrations")}
+                    onClick={() => router.push("/dashboard/integrations")}
                   >
                     Connect
                   </Button>
@@ -597,7 +597,7 @@ export function DashboardHome() {
                   <AlertCircle className="size-4 shrink-0" />
                   <span className="truncate">Connect your ad accounts to keep everything updated automatically.</span>
                 </span>
-                <Button variant="ghost" size="sm" className="h-7 rounded-md px-3 text-[13px] font-semibold" onClick={() => router.push("/dashboard?tab=integrations")}>
+                <Button variant="ghost" size="sm" className="h-7 rounded-md px-3 text-[13px] font-semibold" onClick={() => router.push("/dashboard/integrations")}>
                   Continue
                 </Button>
               </div>

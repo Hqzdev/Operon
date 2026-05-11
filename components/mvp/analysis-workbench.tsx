@@ -328,7 +328,17 @@ const emptyAdSet = (): AdSetInput => ({
   add_to_cart: 0, purchases: 0, revenue: 0, product_price: 0, cost: 0,
 });
 
-const dashboardTabs = new Set(["analysis", "integrations", "budget", "scenario", "settings"]);
+type DashboardWorkspaceTab = "analysis" | "integrations" | "budget" | "scenario" | "settings";
+
+const dashboardTabs = new Set<DashboardWorkspaceTab>(["analysis", "integrations", "budget", "scenario", "settings"]);
+const dashboardTabRoutes: Record<DashboardWorkspaceTab, string> = {
+  analysis: "/dashboard/analytics",
+  integrations: "/dashboard/integrations",
+  budget: "/dashboard/budget",
+  scenario: "/dashboard/scenarios",
+  settings: "/dashboard/settings",
+};
+
 type SettingsSection = "account" | "billing" | "integrations" | "api" | "notifications" | "data";
 
 const settingsNav: Array<{ key: SettingsSection; label: string; icon: typeof UserCircle }> = [
@@ -442,7 +452,7 @@ function normalizeAnalysisOutput(raw: unknown): AnalysisOutput {
   };
 }
 
-export function AnalysisWorkbench() {
+export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorkspaceTab } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { resolvedTheme, setTheme } = useTheme();
@@ -462,7 +472,7 @@ export function AnalysisWorkbench() {
   const [paymentContactPlan, setPaymentContactPlan] = useState<"PRO" | "SCALE" | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState("analysis");
+  const [activeTab, setActiveTab] = useState<DashboardWorkspaceTab>(initialTab ?? "analysis");
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
   const [digestEnabled, setDigestEnabled] = useState(true);
   const [actionEmailsEnabled, setActionEmailsEnabled] = useState(true);
@@ -603,10 +613,22 @@ export function AnalysisWorkbench() {
   }, []);
 
   useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+      return;
+    }
+
     const tabParam = searchParams.get("tab");
     const nextTab = tabParam === "scenarios" ? "scenario" : (tabParam ?? "analysis");
-    setActiveTab(dashboardTabs.has(nextTab) ? nextTab : "analysis");
-  }, [searchParams]);
+    setActiveTab(dashboardTabs.has(nextTab as DashboardWorkspaceTab) ? nextTab as DashboardWorkspaceTab : "analysis");
+  }, [initialTab, searchParams]);
+
+  function switchWorkspaceTab(nextTab: DashboardWorkspaceTab) {
+    setActiveTab(nextTab);
+    if (initialTab) {
+      router.push(dashboardTabRoutes[nextTab]);
+    }
+  }
 
   async function submit() {
     setError(null);
@@ -1002,7 +1024,11 @@ export function AnalysisWorkbench() {
             Decision engine, diagnosis, action plan, and product validation
           </p>
         </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+        <Tabs value={activeTab} onValueChange={(value) => {
+          if (dashboardTabs.has(value as DashboardWorkspaceTab)) {
+            switchWorkspaceTab(value as DashboardWorkspaceTab);
+          }
+        }} className="flex-1">
           {/* ── Integrations tab ── */}
           <TabsContent value="integrations">
             <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
@@ -1090,7 +1116,7 @@ export function AnalysisWorkbench() {
                       variant="outline"
                       className="rounded-full"
                       disabled={integrationsLoading || snapshots.length === 0}
-                      onClick={() => setActiveTab("analysis")}
+                      onClick={() => switchWorkspaceTab("analysis")}
                     >
                       Continue to analysis
                       <ArrowRight className="size-4" />
@@ -1198,7 +1224,7 @@ export function AnalysisWorkbench() {
                               onClick={() => {
                                 setExecutionTarget(targetFromSnapshot(snapshot));
                                 setForm(snapshot.analysisInput);
-                                setActiveTab("analysis");
+                                switchWorkspaceTab("analysis");
                               }}
                             >
                               Continue with this data
@@ -1627,11 +1653,11 @@ export function AnalysisWorkbench() {
                       </div>
 
                       <div className="flex flex-wrap gap-3 border-t border-border pt-4">
-                        <Button className="rounded-full" onClick={() => setActiveTab("budget")}>
+                        <Button className="rounded-full" onClick={() => switchWorkspaceTab("budget")}>
                           Continue to budget check
                           <ArrowRight className="size-4" />
                         </Button>
-                        <Button variant="outline" className="rounded-full" onClick={() => setActiveTab("scenario")}>
+                        <Button variant="outline" className="rounded-full" onClick={() => switchWorkspaceTab("scenario")}>
                           Continue to scenario check
                         </Button>
                       </div>

@@ -476,7 +476,7 @@ export default function OnboardingPage() {
 
             <div className="flex items-center gap-4">
               <Button asChild size="lg" className="rounded-xl px-8">
-                <Link href="/dashboard?tab=integrations">
+                <Link href="/dashboard/integrations">
                   Connect ad account
                   <ArrowRight className="size-4" />
                 </Link>

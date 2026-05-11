@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTheme } from "next-themes";
 import {
@@ -74,19 +74,19 @@ import { useNotifications } from "@/hooks/use-notifications";
 
 const coreNav = [
   { title: "Home",         href: "/dashboard",                icon: Home01Icon,      tab: null         },
-  { title: "Analytics",   href: "/dashboard?tab=analysis",   icon: Analytics01Icon, tab: "analysis"   },
-  { title: "Integrations",href: "/dashboard?tab=integrations",icon: ConnectIcon,     tab: "integrations"},
+  { title: "Analytics",   href: "/dashboard/analytics",      icon: Analytics01Icon, tab: "analysis"   },
+  { title: "Integrations",href: "/dashboard/integrations",   icon: ConnectIcon,     tab: "integrations"},
 ] as const;
 
 const advancedNav = [
-  { title: "Budget Allocation",  href: "/dashboard?tab=budget",   icon: Money01Icon,  tab: "budget"   },
-  { title: "Scenario Simulator", href: "/dashboard?tab=scenarios", icon: Rocket01Icon, tab: "scenarios"},
+  { title: "Budget Allocation",  href: "/dashboard/budget",       icon: Money01Icon,  tab: "budget"   },
+  { title: "Scenario Simulator", href: "/dashboard/scenarios",     icon: Rocket01Icon, tab: "scenarios"},
 ] as const;
 
 const secondaryNav = [
   {
     title: "Settings",
-    href: "/dashboard?tab=settings",
+    href: "/dashboard/settings",
     icon: Settings01Icon,
     tab: "settings",
   },
@@ -338,7 +338,7 @@ function SidebarBottomBlock() {
           </div>
 
           <div className="mt-5 space-y-0.5">
-            <Link href="/dashboard?tab=settings" className="flex items-center gap-2.5 rounded-lg px-1.5 py-2 text-[13px] hover:bg-muted">
+            <Link href="/dashboard/settings" className="flex items-center gap-2.5 rounded-lg px-1.5 py-2 text-[13px] hover:bg-muted">
               <Settings className="size-4" />
               Settings
             </Link>
@@ -684,8 +684,6 @@ function StoreSwitcher() {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const currentTab = searchParams.get("tab");
   const [usageCount, setUsageCount] = useState(0);
 
   useEffect(() => {
@@ -701,12 +699,9 @@ export function AppSidebar() {
 
   function isActive(href: string, tab: string | null) {
     if (tab === null) {
-      return pathname === "/dashboard" && !currentTab;
+      return pathname === "/dashboard";
     }
-    if (href.startsWith("/dashboard/")) {
-      return pathname === href;
-    }
-    return currentTab === tab;
+    return pathname === href;
   }
 
   const navButtonClass = "h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground [&>svg]:size-4";
@@ -800,7 +795,7 @@ export function AppSidebar() {
               size="default"
               className="h-9 rounded-md px-3 text-[13px] font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&>svg]:size-4"
             >
-              <Link href="/dashboard?tab=settings">
+              <Link href="/dashboard/settings">
                 <UserCircle02Icon size={16} />
                 <span>Profile</span>
               </Link>
