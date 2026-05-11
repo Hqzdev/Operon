@@ -3,21 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
-  AlertCircle,
-  ArrowRight,
   ArrowUpRight,
-  BarChart3,
-  CheckCircle2,
-  Circle,
   CircleDollarSign,
-  FileText,
-  LoaderCircle,
   Package,
   ShoppingBag,
   Target,
-  Upload,
-  Zap,
 } from "lucide-react";
 import {
   Area,
@@ -33,12 +23,7 @@ import {
 import { type AnalysisInput, type AnalysisOutput } from "@/lib/analysis-schema";
 import { getApiBaseUrl } from "@/lib/api-base-url";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { BenchmarkComparePanel } from "@/components/dashboard/BenchmarkComparePanel";
-import { CreativeFatigueAlerts } from "@/components/dashboard/CreativeFatigueAlerts";
-import { RedditLeadsWidget } from "@/app/components/RedditLeadsWidget";
 
 type UserProfile = {
   name: string | null;
@@ -94,28 +79,6 @@ type RecommendationTrackRecord = {
     evaluatedAt: string | null;
     entityName: string | null;
   }>;
-};
-
-type MetaCsvImportResponse = {
-  imported: number;
-  analyses: Array<{
-    analysis: {
-      id: string;
-      createdAt: string;
-      inputData: AnalysisInput;
-      result: AnalysisOutput;
-    };
-  }>;
-};
-
-type AgencyOverview = {
-  workspace: { id: string; name: string; logoUrl: string | null };
-  role: "owner" | "member" | "view_only";
-  clientCount: number;
-  killsThisWeek: number;
-  clients: Array<{ id: string; name: string; contactEmail: string | null; storeUrl: string | null }>;
-  killItems: Array<{ id: string; clientName: string; reason: string; createdAt: string }>;
-  reports: Array<{ id: string; clientId: string; filename: string; generatedAt: string }>;
 };
 
 const COLUMN_HINTS: Record<string, string> = {
@@ -278,11 +241,6 @@ export function DashboardHome() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [latestInput, setLatestInput] = useState<AnalysisInput | null>(null);
   const [trackRecord, setTrackRecord] = useState<RecommendationTrackRecord | null>(null);
-  const [agency, setAgency] = useState<AgencyOverview | null>(null);
-  const [metaCsv, setMetaCsv] = useState("");
-  const [csvImporting, setCsvImporting] = useState(false);
-  const [csvImportError, setCsvImportError] = useState<string | null>(null);
-  const [csvImportMessage, setCsvImportMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>(7);
 
@@ -297,12 +255,11 @@ export function DashboardHome() {
       }
 
       try {
-        const [profileRes, historyRes, metricsRes, trackRecordRes, agencyRes] = await Promise.all([
+        const [profileRes, historyRes, metricsRes, trackRecordRes] = await Promise.all([
           fetch(`${apiBaseUrl}/users/me`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/analysis`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/integrations/metrics`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/recommendation-outcomes`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${apiBaseUrl}/agency`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
         if (!isMounted) return;
@@ -324,9 +281,6 @@ export function DashboardHome() {
         }
         if (trackRecordRes.ok) {
           setTrackRecord(await trackRecordRes.json() as RecommendationTrackRecord);
-        }
-        if (agencyRes.ok) {
-          setAgency(await agencyRes.json() as AgencyOverview);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -374,22 +328,6 @@ export function DashboardHome() {
       impressions: 0,
       spend: Number(spend.toFixed(2)),
       roas: spend > 0 ? Number((source.revenue / spend).toFixed(2)) : 0,
-    };
-  }, [filteredHistory, filteredSnapshots, latestInput, history]);
-
-  const benchmarkMetrics = useMemo(() => {
-    const source =
-      filteredSnapshots[0]?.analysisInput ??
-      latestInput ??
-      filteredHistory[0]?.inputData ??
-      history[0]?.inputData;
-    const spend = source ? source.cpc * source.clicks : 0;
-    return {
-      ctr: source?.ctr ?? 0,
-      cpc: source?.cpc ?? 0,
-      cpm: source?.cpm ?? 0,
-      cpa: source && source.purchases > 0 ? spend / source.purchases : 0,
-      roas: spend > 0 ? (source?.revenue ?? 0) / spend : 0,
     };
   }, [filteredHistory, filteredSnapshots, latestInput, history]);
 
@@ -450,75 +388,6 @@ export function DashboardHome() {
     }];
   }, [activeStoreName, filteredHistory, totals]);
 
-  const usageLimit = user?.usageLimit ?? user?.analysisLimit ?? 0;
-  const usagePct = usageLimit > 0 ? Math.min(100, Math.round((user?.usageCount ?? 0) / usageLimit * 100)) : 0;
-
-  const isNewUser = !loading && history.length === 0 && snapshots.length === 0;
-
-  async function handleMetaCsvImport() {
-    const token = localStorage.getItem("operon_token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
-    setCsvImporting(true);
-    setCsvImportError(null);
-    setCsvImportMessage(null);
-    try {
-      const response = await fetch(`${apiBaseUrl}/analysis/import-meta-csv`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ csv: metaCsv, limit: 5 }),
-      });
-      const data = await response.json() as MetaCsvImportResponse & { message?: string };
-      if (!response.ok) throw new Error(data.message ?? "CSV import failed");
-
-      const importedHistory = data.analyses.map(({ analysis }) => ({
-        id: analysis.id,
-        createdAt: analysis.createdAt,
-        inputData: analysis.inputData,
-        result: analysis.result,
-      }));
-      setHistory((current) => [...importedHistory, ...current]);
-      setCsvImportMessage(`${data.imported} Meta rows analyzed. Your dashboard is ready.`);
-      setMetaCsv("");
-    } catch (error) {
-      setCsvImportError(error instanceof Error ? error.message : "CSV import failed");
-    } finally {
-      setCsvImporting(false);
-    }
-  }
-
-  async function handleCsvFile(file: File | null) {
-    if (!file) return;
-    setMetaCsv(await file.text());
-    setCsvImportError(null);
-    setCsvImportMessage(null);
-  }
-
-  async function downloadAgencyReport(reportId: string, filename: string) {
-    const token = localStorage.getItem("operon_token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-    const response = await fetch(`${apiBaseUrl}/agency/reports/${reportId}/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) return;
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-
   return (
     <main className="h-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8 lg:px-10">
@@ -542,128 +411,7 @@ export function DashboardHome() {
             </p>
           </div>
 
-          {isNewUser ? (
-            /* ── Onboarding checklist for new users ── */
-            <div className="mt-5 rounded-xl border border-border bg-card p-5">
-              <div className="mb-4 flex items-center gap-2">
-                <Zap className="size-4 text-muted-foreground" />
-                <span className="text-[14px] font-semibold">Get started — 2 steps to your first verdict</span>
-              </div>
-              <div className="space-y-2">
-                {/* Step 1 — already done */}
-                <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-[13px]">
-                  <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
-                  <span className="flex-1 text-muted-foreground line-through">Connect your store</span>
-                  <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">Done</span>
-                </div>
-                {/* Step 2 — run first analysis */}
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-[13px]">
-                  <div className="flex items-center gap-3">
-                    <Circle className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="font-medium">Run your first campaign analysis</span>
-                  </div>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-7 shrink-0 rounded-md px-3 text-[12px] font-semibold"
-                    onClick={() => router.push("/dashboard/analytics")}
-                  >
-                    Start
-                    <ArrowRight className="size-3" />
-                  </Button>
-                </div>
-                {/* Step 3 — connect ad account */}
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-[13px]">
-                  <div className="flex items-center gap-3">
-                    <Circle className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="font-medium">Connect Meta or TikTok Ads for automatic updates</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 shrink-0 rounded-md px-3 text-[12px] font-semibold"
-                    onClick={() => router.push("/dashboard/integrations")}
-                  >
-                    Connect
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* ── Status banners for returning users ── */
-            <div className="mt-5 grid gap-2">
-              <div className="flex h-10 items-center justify-between rounded-lg border border-border bg-card px-4 text-[13px]">
-                <span className="flex min-w-0 items-center gap-3 text-muted-foreground">
-                  <AlertCircle className="size-4 shrink-0" />
-                  <span className="truncate">Connect your ad accounts to keep everything updated automatically.</span>
-                </span>
-                <Button variant="ghost" size="sm" className="h-7 rounded-md px-3 text-[13px] font-semibold" onClick={() => router.push("/dashboard/integrations")}>
-                  Continue
-                </Button>
-              </div>
-              <div className="flex h-10 items-center gap-3 rounded-lg border border-border bg-card px-4 text-[13px] text-muted-foreground">
-                <CheckCircle2 className="size-4 shrink-0 text-[#10B981]" />
-                <span className="truncate">All caught up. New recommendations will appear as soon as fresh data arrives.</span>
-              </div>
-            </div>
-          )}
         </section>
-
-        {isNewUser ? (
-          <section className="rounded-xl border border-border bg-card p-5">
-            <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
-              <div>
-                <div className="flex items-center gap-2">
-                  <FileText className="size-4 text-muted-foreground" />
-                  <h2 className="text-[14px] font-semibold text-foreground">Paste your Meta Ads export</h2>
-                </div>
-                <p className="mt-2 max-w-[360px] text-[13px] leading-5 text-muted-foreground">
-                  Upload or paste a Meta CSV and Operon will map common columns, analyze the top rows, and populate this dashboard.
-                </p>
-                <div className="mt-4 rounded-lg border border-border bg-muted/50 px-3 py-2 text-[12px] text-muted-foreground">
-                  Results usually appear in under 30 seconds.
-                </div>
-              </div>
-              <div className="space-y-3">
-                <Textarea
-                  value={metaCsv}
-                  onChange={(event) => setMetaCsv(event.target.value)}
-                  placeholder="Paste CSV rows here: Campaign name, Amount spent, Impressions, Link clicks, Purchases, Purchase conversion value..."
-                  className="min-h-[140px] resize-y rounded-lg text-[12px] font-mono"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 rounded-md text-[13px]"
-                    onClick={() => document.getElementById("meta-csv-upload")?.click()}
-                  >
-                    <Upload className="mr-2 size-4" />
-                    Upload CSV
-                  </Button>
-                  <input
-                    id="meta-csv-upload"
-                    type="file"
-                    accept=".csv,text/csv,text/plain"
-                    className="hidden"
-                    onChange={(event) => void handleCsvFile(event.target.files?.[0] ?? null)}
-                  />
-                  <Button
-                    type="button"
-                    className="h-9 rounded-md px-4 text-[13px] font-semibold"
-                    disabled={csvImporting || metaCsv.trim().length < 10}
-                    onClick={() => void handleMetaCsvImport()}
-                  >
-                    {csvImporting ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : null}
-                    Analyze top rows
-                  </Button>
-                  {csvImportError ? <span className="text-[12px] text-red-600">{csvImportError}</span> : null}
-                  {csvImportMessage ? <span className="text-[12px] text-emerald-600">{csvImportMessage}</span> : null}
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : null}
 
         <div className="flex gap-1 text-[13px] font-medium text-muted-foreground">
           {PERIODS.map(({ label, value }) => (
@@ -681,19 +429,6 @@ export function DashboardHome() {
             </button>
           ))}
         </div>
-
-        <CreativeFatigueAlerts />
-
-        <BenchmarkComparePanel
-          niche={user?.niche}
-          platform={filteredSnapshots[0]?.provider ?? snapshots[0]?.provider ?? "META"}
-          metrics={benchmarkMetrics}
-        />
-
-        <RedditLeadsWidget
-          defaultShopName={activeStoreName}
-          defaultProductDescription={user?.niche}
-        />
 
         <section className="rounded-xl border border-border bg-card p-5">
           <div className="mb-4 flex items-start justify-between gap-3">
@@ -759,73 +494,6 @@ export function DashboardHome() {
               ))}
             </div>
           ) : null}
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <BarChart3 className="size-4 text-muted-foreground" />
-                <h2 className="text-[14px] font-semibold text-foreground">Agency portfolio</h2>
-              </div>
-              <p className="mt-1 text-[12px] text-muted-foreground">
-                Manage clients, view portfolio-wide KILL calls, and download white-label weekly PDFs.
-              </p>
-            </div>
-            <div className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-              {agency?.role ?? "owner"}
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <div className="text-[12px] text-muted-foreground">Clients</div>
-              <div className="mt-1 text-[26px] font-semibold leading-none">{agency?.clientCount ?? 0}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Supports 10+ client accounts</div>
-            </div>
-            <div>
-              <div className="text-[12px] text-muted-foreground">KILLs this week</div>
-              <div className="mt-1 text-[26px] font-semibold leading-none">{agency?.killsThisWeek ?? 0}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Across the portfolio</div>
-            </div>
-            <div>
-              <div className="text-[12px] text-muted-foreground">Weekly PDFs</div>
-              <div className="mt-1 text-[26px] font-semibold leading-none">{agency?.reports.length ?? 0}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Generated automatically</div>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-4 border-t border-border pt-3 lg:grid-cols-2">
-            <div className="space-y-2">
-              {(agency?.killItems ?? []).slice(0, 3).map((item) => (
-                <div key={item.id} className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[12px]">
-                  <div className="font-medium text-foreground">{item.clientName}</div>
-                  <div className="mt-1 line-clamp-2 text-muted-foreground">{item.reason}</div>
-                </div>
-              ))}
-              {!agency?.killItems?.length ? (
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[12px] text-muted-foreground">
-                  No portfolio KILL calls this week.
-                </div>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              {(agency?.reports ?? []).slice(0, 3).map((report) => (
-                <button
-                  key={report.id}
-                  type="button"
-                  onClick={() => void downloadAgencyReport(report.id, report.filename)}
-                  className="block w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-left text-[12px] transition-colors hover:bg-accent"
-                >
-                  <div className="font-medium text-foreground">{report.filename}</div>
-                  <div className="mt-1 text-muted-foreground">White-label client report</div>
-                </button>
-              ))}
-              {!agency?.reports?.length ? (
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-[12px] text-muted-foreground">
-                  First weekly PDFs will appear after Monday's automatic report run.
-                </div>
-              ) : null}
-            </div>
-          </div>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2">

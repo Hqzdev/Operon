@@ -21,6 +21,7 @@ import {
   Check,
   ChevronsUpDown,
   CircleHelp,
+  BriefcaseBusiness,
   Lightbulb,
   LogOut,
   PanelLeftClose,
@@ -81,6 +82,7 @@ const coreNav = [
 const advancedNav = [
   { title: "Budget Allocation",  href: "/dashboard/budget",       icon: Money01Icon,  tab: "budget"   },
   { title: "Scenario Simulator", href: "/dashboard/scenarios",     icon: Rocket01Icon, tab: "scenarios"},
+  { title: "Agency",             href: "/dashboard/agency",        icon: BriefcaseBusiness, tab: "agency"},
 ] as const;
 
 const secondaryNav = [
