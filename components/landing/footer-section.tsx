@@ -19,10 +19,10 @@ const footerLinks: Array<{
     title: "Product",
     href: "/#features",
     links: [
-      { name: "Features", href: "/#features" },
-      { name: "How it works", href: "/#how-it-works" },
-      { name: "FAQ", href: "/#developers" },
-      { name: "Trending ad problems", href: "/trending-ad-problems" },
+      { name: "Lead discovery", href: "/#pipeline" },
+      { name: "Autopilot", href: "/#features" },
+      { name: "Inbox", href: "/dashboard/acquisition" },
+      { name: "AI replies", href: "/#features" },
     ],
   },
   {
@@ -34,23 +34,24 @@ const footerLinks: Array<{
     ],
   },
   {
-    title: "Compare",
-    href: "/alternatives/triple-whale",
+    title: "Resources",
+    href: "/#compare",
     links: [
-      { name: "vs Triple Whale", href: "/vs/triple-whale" },
-      { name: "vs Madgicx", href: "/vs/madgicx" },
-      { name: "Triple Whale alternative", href: "/alternatives/triple-whale" },
-      { name: "Madgicx alternative", href: "/alternatives/madgicx" },
-      { name: "Northbeam alternative", href: "/alternatives/northbeam" },
-      { name: "Revealbot alternative", href: "/alternatives/revealbot" },
+      { name: "Reddit Lead Gen", href: "/#pipeline" },
+      { name: "Customers", href: "/#features" },
+      { name: "Use Cases", href: "/#features" },
+      { name: "Subreddit Guides", href: "/docs" },
+      { name: "Compare", href: "/#compare" },
+      { name: "Docs", href: "/docs" },
     ],
   },
   {
-    title: "Legal",
-    href: "/privacy",
+    title: "Company",
+    href: "/#pricing",
     links: [
-      { name: "Privacy policy", href: "/privacy" },
-      { name: "Terms of service", href: "/terms" },
+      { name: "Pricing", href: "/#pricing" },
+      { name: "Privacy", href: "/privacy" },
+      { name: "Terms", href: "/terms" },
     ],
   },
 ];
@@ -77,7 +78,7 @@ export function FooterSection() {
               </Link>
 
               <p className="text-muted-foreground leading-relaxed mb-8 max-w-xs">
-                Clear direction for e-commerce sellers who want to stop wasting money on weak ads and uncertain decisions.
+                Find your next customers on Reddit.
               </p>
 
               {socialLinks.length > 0 && (
@@ -133,7 +134,7 @@ export function FooterSection() {
           </p>
 
           <div className="text-sm text-muted-foreground">
-            Clear decisions for sellers who want better results.
+            Reddit customer acquisition on autopilot.
           </div>
         </div>
       </div>

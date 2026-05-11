@@ -8,8 +8,9 @@ import { Menu, X } from "lucide-react";
 
 const navLinks = [
   { name: "Features", href: "/#features" },
-  { name: "How it works", href: "/#how-it-works" },
-  { name: "FAQ", href: "/#developers" },
+  { name: "Pipeline", href: "/#pipeline" },
+  { name: "Pricing", href: "/#pricing" },
+  { name: "FAQ", href: "/#faq" },
 ];
 
 export function Navigation() {
@@ -80,7 +81,7 @@ export function Navigation() {
               size="sm"
               className={`bg-foreground hover:bg-foreground/90 text-background rounded-full transition-all duration-500 ${isScrolled ? "px-4 h-8 text-xs" : "px-6"}`}
             >
-              <Link href="/register">Get started</Link>
+              <Link href="/register">Start free trial</Link>
             </Button>
           </div>
 
@@ -150,7 +151,7 @@ export function Navigation() {
               className="flex-1 bg-foreground text-background rounded-full h-14 text-base"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <Link href="/register">Get started</Link>
+              <Link href="/register">Start free trial</Link>
             </Button>
           </div>
         </div>

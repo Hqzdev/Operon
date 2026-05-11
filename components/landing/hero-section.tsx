@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check, MessageSquare, Send } from "lucide-react";
 import { AnimatedSphere } from "./animated-sphere";
 
-const words = ["scale", "fix", "stop", "test"];
+const words = ["find", "score", "reply", "track"];
 
 export function HeroSection() {
   const [isVisible, setIsVisible] = useState(false);
@@ -65,7 +65,7 @@ export function HeroSection() {
         >
           <span className="inline-flex items-center gap-3 text-sm font-mono text-muted-foreground">
             <span className="w-8 h-px bg-foreground/30" />
-            Ad decision engine for Meta and TikTok sellers
+            Reddit customer acquisition on autopilot
           </span>
         </div>
         
@@ -76,9 +76,9 @@ export function HeroSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
             }`}
           >
-            <span className="block">Stop guessing</span>
+            <span className="block">Reddit customers.</span>
             <span className="block">
-              what to{" "}
+              On{" "}
               <span className="relative inline-block">
                 <span 
                   key={wordIndex}
@@ -109,7 +109,7 @@ export function HeroSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            Enter your campaign numbers. Get a clear verdict — Scale, Fix, or Kill — only when confidence and spend impact justify your attention. Most days, Operon should simply say nothing urgent.
+          Operon finds people asking for what you sell, scores every thread, drafts the first reply or DM, and keeps the pipeline moving while you focus on closing.
           </p>
           
           {/* CTAs */}
@@ -124,7 +124,7 @@ export function HeroSection() {
               className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group"
             >
               <Link href="/register">
-                Start free
+                Start free trial
                 <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
               </Link>
             </Button>
@@ -134,16 +134,97 @@ export function HeroSection() {
               variant="outline"
               className="h-14 px-8 text-base rounded-full border-foreground/20 hover:bg-foreground/5"
             >
-              <Link href="#how-it-works">See how it works</Link>
+              <Link href="#pipeline">See the workspace</Link>
             </Button>
           </div>
         </div>
         
       </div>
       
+      <div
+        className={`relative z-10 max-w-[1400px] mx-auto w-full px-6 lg:px-12 -mt-16 pb-24 transition-all duration-700 delay-500 ${
+          isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+        }`}
+      >
+        <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+          <div className="rounded-3xl border border-foreground/10 bg-background/75 p-5 shadow-sm backdrop-blur">
+            <div className="mb-4 flex items-center justify-between border-b border-foreground/10 pb-4">
+              <div>
+                <div className="font-display text-2xl tracking-tight">Leads</div>
+                <div className="text-sm text-muted-foreground">Last scan 27m ago</div>
+              </div>
+              <div className="rounded-full border border-foreground/10 px-3 py-1 text-xs text-muted-foreground">Autopilot</div>
+            </div>
+            <div className="grid gap-px overflow-hidden rounded-2xl border border-foreground/10 bg-foreground/10 md:grid-cols-[0.9fr_1.1fr]">
+              <div className="bg-background">
+                {[
+                  ["Best Reddit marketing strategies for getting organic traffic?", "93%", "48m"],
+                  ["Anyone found a tool that makes team outreach easier?", "91%", "4h"],
+                  ["What tool takes LinkedIn outreach off your plate?", "87%", "1d"],
+                ].map(([title, score, time], index) => (
+                  <div key={title} className={`border-b border-foreground/10 p-4 last:border-0 ${index === 0 ? "bg-foreground/[0.04]" : ""}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="line-clamp-2 text-sm font-medium">{title}</div>
+                      <div className="shrink-0 text-sm font-semibold text-emerald-600">{score}</div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Queued</span>
+                      <span>{time}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-background p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <h3 className="font-display text-2xl tracking-tight">High-intent Reddit thread</h3>
+                  <span className="text-sm font-semibold text-emerald-600">93%</span>
+                </div>
+                <p className="mt-4 rounded-2xl border border-foreground/10 bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
+                  Why it is relevant: the author is asking how to find serious customer conversations on Reddit and already mentions organic traffic and AI search visibility.
+                </p>
+                <div className="mt-5 grid gap-3 text-sm">
+                  {[
+                    "Generate a personal reply from the post context",
+                    "Open the original thread when you want to inspect it",
+                    "Move contacted leads into the follow-up pipeline",
+                  ].map((item) => (
+                    <div key={item} className="flex items-center gap-3 text-muted-foreground">
+                      <Check className="size-4 text-foreground" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-foreground/10 bg-background/75 p-5 shadow-sm backdrop-blur">
+            <div className="flex items-center gap-3 border-b border-foreground/10 pb-4">
+              <MessageSquare className="size-5" />
+              <div>
+                <div className="text-sm font-semibold">Alex</div>
+                <div className="text-xs text-muted-foreground">u/alexbuilds · high intent</div>
+              </div>
+            </div>
+            <div className="mt-5 space-y-4">
+              <div className="ml-auto max-w-[85%] rounded-2xl bg-foreground px-4 py-3 text-sm leading-6 text-background">
+                Hey, saw your post about clients paying late. Built a tool that auto-chases unpaid invoices. Want the link?
+              </div>
+              <div className="max-w-[82%] rounded-2xl border border-foreground/10 bg-muted/40 px-4 py-3 text-sm leading-6">
+                wait this is exactly what I need. yes send me
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <Send className="size-3" />
+                Replied in 4 minutes
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Stats marquee - full width outside container */}
       <div 
-        className={`absolute bottom-24 left-0 right-0 transition-all duration-700 delay-500 ${
+        className={`relative left-0 right-0 pb-16 transition-all duration-700 delay-500 ${
           isVisible ? "opacity-100" : "opacity-0"
         }`}
       >
@@ -151,10 +232,10 @@ export function HeroSection() {
           {[...Array(2)].map((_, i) => (
             <div key={i} className="flex gap-16">
               {[
-                { value: "Scale, Fix, or Kill", label: "decided in seconds", company: "NO GUESSWORK" },
-                { value: "Catch losing ads", label: "before they drain your budget", company: "LESS WASTE" },
-                { value: "Know what's broken", label: "ad, offer, or product", company: "CLEAR DIAGNOSIS" },
-                { value: "Act with confidence", label: "not gut feeling", company: "OPERON" },
+                { value: "Every thread", label: "scored and explained", company: "LEAD DISCOVERY" },
+                { value: "35% reply rate", label: "from high-intent outreach", company: "AUTOPILOT" },
+                { value: "DMs + comments", label: "one workspace", company: "PIPELINE" },
+                { value: "571 businesses", label: "and freelancers joined", company: "OPERON" },
               ].map((stat) => (
                 <div key={`${stat.company}-${i}`} className="flex items-baseline gap-4">
                   <span className="text-4xl lg:text-5xl font-display">{stat.value}</span>

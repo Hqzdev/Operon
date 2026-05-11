@@ -3,38 +3,44 @@ import { ArrowRight, Check } from "lucide-react";
 const plans = [
   {
     name: "Starter",
-    description: "For sellers who want simple, clear direction",
-    price: { monthly: 0, rub: 0 },
+    description: "For solo founders",
+    price: { monthly: "14.99" },
     features: [
-      "10 analyses per month",
-      "Basic decision insights",
-      "Manual data input",
+      "New leads every hour",
+      "Autopilot mode",
+      "500 AI-written replies, ready to post",
+      "Reply and DM without leaving the app",
+      "Track 2 products",
+      "Instant email and in-app notifications",
     ],
-    cta: "Get Started",
+    cta: "Try it free",
     popular: false,
   },
   {
-    name: "Basic",
-    description: "For store owners who want stronger guidance",
-    price: { monthly: 9, rub: 1090 },
+    name: "Pro",
+    description: "For growing businesses",
+    price: { monthly: "29.99" },
     features: [
-      "Full AI recommendations",
-      "Performance analysis",
-      "History tracking",
+      "Everything in Starter",
+      "Track 5 products",
+      "1,000 AI-written replies/month",
+      "REST API access",
+      "Priority support",
     ],
-    cta: "Start Basic",
+    cta: "Try it free",
     popular: true,
   },
   {
-    name: "Pro",
-    description: "For growing sellers managing more than one store",
-    price: { monthly: 19, rub: 2190 },
+    name: "Agency",
+    description: "For agencies and teams",
+    price: { monthly: "79.99" },
     features: [
-      "Budget Allocation",
-      "Scenario Simulator",
-      "Priority support",
+      "Everything in Pro",
+      "Unlimited products, replies, and scans",
+      "Up to 5 team members",
+      "Priority 24-hour support",
     ],
-    cta: "Choose Pro",
+    cta: "Try it free",
     popular: false,
   },
 ];
@@ -44,18 +50,19 @@ export function PricingSection() {
     <section id="pricing" className="relative py-32 lg:py-40 border-t border-foreground/10">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         {/* Header */}
-        <div className="max-w-3xl mb-20">
+        <div className="mx-auto max-w-4xl mb-20 text-center">
           <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase block mb-6">
             Pricing
           </span>
           <h2 className="font-display text-5xl md:text-6xl lg:text-7xl tracking-tight text-foreground mb-6">
-            Simple pricing
+            Pick a plan.
             <br />
-            <span className="text-stroke">for sellers who want clarity</span>
+            <span className="text-stroke">Start in two minutes.</span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-xl">
-            Pick the plan that matches your stage, start quickly, and upgrade when your store grows.
+          <p className="text-lg text-muted-foreground">
+            Seven days free. One click to cancel.
           </p>
+          <p className="mt-10 text-muted-foreground">Join <span className="font-semibold text-foreground">571</span> businesses and freelancers</p>
         </div>
 
         {/* Pricing Cards */}
@@ -90,11 +97,6 @@ export function PricingSection() {
                   </span>
                   <span className="text-muted-foreground">/month</span>
                 </div>
-                {plan.price.rub > 0 && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {plan.price.rub.toLocaleString("ru-RU")} RUB/month via YooKassa
-                  </p>
-                )}
               </div>
 
               {/* Features */}
@@ -111,7 +113,7 @@ export function PricingSection() {
               <button
                 className={`w-full py-4 flex items-center justify-center gap-2 text-sm font-medium transition-all group ${
                   plan.popular
-                    ? "bg-foreground text-primary-foreground hover:bg-foreground/90"
+                    ? "bg-foreground text-background hover:bg-foreground/90"
                     : "border border-foreground/20 text-foreground hover:border-foreground hover:bg-foreground/5"
                 }`}
               >
@@ -124,10 +126,7 @@ export function PricingSection() {
 
         {/* Bottom Note */}
         <p className="mt-12 text-center text-sm text-muted-foreground">
-          Clear pricing, simple checkout, and instant access after payment.{" "}
-          <a href="#integrations" className="underline underline-offset-4 hover:text-foreground transition-colors">
-            See how payments work
-          </a>
+          14-day money-back guarantee. Cancel in one click.
         </p>
       </div>
     </section>
