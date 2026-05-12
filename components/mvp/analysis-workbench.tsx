@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -167,6 +168,45 @@ type UserProfile = {
   quietModeEnabled?: boolean;
   quietMinConfidence?: "low" | "medium" | "high" | "";
   quietMinSpendImpact?: number;
+};
+
+type SubscriptionOverview = {
+  subscription: {
+    id: string | null;
+    planId: string;
+    planName: string;
+    status: "active" | "pending" | "expired" | "canceled";
+    statusLabel: string;
+    renewDate: string;
+    amount: number;
+    currency: string;
+    amountLabel: string;
+    cardLast4: string;
+    cardDisplay: string;
+    pendingMessage: string | null;
+    limitedAccess: boolean;
+  };
+  history: Array<{
+    id: string;
+    date: string;
+    label: string;
+    amountLabel: string;
+    status: string;
+  }>;
+};
+
+type FeatureAccess = {
+  allowed: boolean;
+  featureKey: string;
+  feature: { name: string; description: string };
+  planId: string;
+  subscriptionStatus: string;
+  limit: number | null;
+  remaining: number | null;
+  reason?: string;
+  upgradePlan: "free" | "pro" | "business" | "custom";
+  upgradeLabel: string;
+  upgradePrice: string;
 };
 
 function quietDefaultsForPlan(plan?: string) {
@@ -375,6 +415,10 @@ function formatMetricDelta(value: number | null) {
   return `${prefix}${value}%`;
 }
 
+function formatSubscriptionDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(new Date(value));
+}
+
 function riskClass(level: string) {
   if (level === "High") return "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300";
   if (level === "Medium") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300";
@@ -471,6 +515,20 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
   const [adActionMsg, setAdActionMsg] = useState<{ type: "ok" | "err"; text: string; actionId?: string } | null>(null);
   const [paymentContactPlan, setPaymentContactPlan] = useState<"PRO" | "SCALE" | null>(null);
   const [paymentLoadingPlan, setPaymentLoadingPlan] = useState<"PRO" | "SCALE" | null>(null);
+  const [subscriptionOverview, setSubscriptionOverview] = useState<SubscriptionOverview | null>(null);
+  const [subscriptionMessage, setSubscriptionMessage] = useState<string | null>(null);
+  const [subscriptionActionLoading, setSubscriptionActionLoading] = useState<string | null>(null);
+  const [cancelSurveyOpen, setCancelSurveyOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [featureAccess, setFeatureAccess] = useState<Record<string, FeatureAccess>>({});
+  const [lockedFeature, setLockedFeature] = useState<FeatureAccess | null>(null);
+
+  // Kill recovery state
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryInventoryQty, setRecoveryInventoryQty] = useState("");
+  const [recoverySupplierUrl, setRecoverySupplierUrl] = useState("");
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
+  const [recoveryDone, setRecoveryDone] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<DashboardWorkspaceTab>(initialTab ?? "analysis");
@@ -567,11 +625,13 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
           window.history.replaceState(null, "", window.location.pathname);
         }
 
-        const [profileRes, historyRes, integrationsRes, metricsRes] = await Promise.all([
+        const [profileRes, historyRes, integrationsRes, metricsRes, subscriptionRes, featureRes] = await Promise.all([
           fetch(`${apiBaseUrl}/users/me`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/analysis`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/integrations`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/integrations/metrics`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiBaseUrl}/subscriptions`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiBaseUrl}/features/access`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
         if (!isMounted) return;
@@ -603,6 +663,15 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
           if (data.snapshots.length > 0) setSnapshots(data.snapshots);
           if (data.latestInput) setForm(data.latestInput);
         }
+
+        if (subscriptionRes.ok) {
+          setSubscriptionOverview(await subscriptionRes.json() as SubscriptionOverview);
+        }
+
+        if (featureRes.ok) {
+          const data = await featureRes.json() as { features?: Record<string, FeatureAccess> };
+          setFeatureAccess(data.features ?? {});
+        }
       } catch {
         // Keep the workspace empty if loading fails.
       }
@@ -616,12 +685,20 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
+      const sectionParam = searchParams.get("section");
+      if (sectionParam && settingsNav.some((item) => item.key === sectionParam)) {
+        setSettingsSection(sectionParam as SettingsSection);
+      }
       return;
     }
 
     const tabParam = searchParams.get("tab");
+    const sectionParam = searchParams.get("section");
     const nextTab = tabParam === "scenarios" ? "scenario" : (tabParam ?? "analysis");
     setActiveTab(dashboardTabs.has(nextTab as DashboardWorkspaceTab) ? nextTab as DashboardWorkspaceTab : "analysis");
+    if (sectionParam && settingsNav.some((item) => item.key === sectionParam)) {
+      setSettingsSection(sectionParam as SettingsSection);
+    }
   }, [initialTab, searchParams]);
 
   function switchWorkspaceTab(nextTab: DashboardWorkspaceTab) {
@@ -771,6 +848,49 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
     } finally {
       setPaymentLoadingPlan(null);
     }
+  }
+
+  async function refreshSubscription() {
+    const token = getToken();
+    if (!token) return;
+    const res = await fetch(`${apiBaseUrl}/subscriptions`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) setSubscriptionOverview(await res.json() as SubscriptionOverview);
+  }
+
+  async function runSubscriptionAction(action: "check-status" | "downgrade-free" | "cancel" | "cancel-request", reason?: string) {
+    const token = getToken();
+    if (!token) { router.push("/login"); return; }
+    setSubscriptionActionLoading(action);
+    setSubscriptionMessage(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/subscriptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action, reason }),
+      });
+      const data = await res.json() as { message?: string };
+      setSubscriptionMessage(data.message ?? (res.ok ? "Subscription updated." : "Subscription update failed."));
+      if (res.ok) {
+        await refreshSubscription();
+        const profileRes = await fetch(`${apiBaseUrl}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+        if (profileRes.ok) setUser(await profileRes.json() as UserProfile);
+      }
+    } catch {
+      setSubscriptionMessage("Network error. Try again in a moment.");
+    } finally {
+      setSubscriptionActionLoading(null);
+    }
+  }
+
+  async function openLockedFeature(access: FeatureAccess, source: string) {
+    setLockedFeature(access);
+    const token = getToken();
+    if (!token) return;
+    await fetch(`${apiBaseUrl}/features/upgrade-moments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ featureKey: access.featureKey, targetPlanId: access.upgradePlan, source }),
+    }).catch(() => undefined);
   }
 
   async function refreshIntegrations() {
@@ -981,6 +1101,37 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
     }
   }
 
+  async function submitRecovery() {
+    if (!result) return;
+    const token = getToken();
+    if (!token) { router.push("/login"); return; }
+    setRecoverySubmitting(true);
+    try {
+      const res = await fetch(`${apiBaseUrl}/kill-recovery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          analysisId: result.savedId,
+          productName: form.product_name,
+          productPrice: form.product_price,
+          cost: form.cost,
+          killReason: result.decision.shortReason,
+          mainProblem: result.diagnosis.mainProblem,
+          adAnglesTested: result.creativeAngles.slice(0, 5).map((a) => a.hookIdea),
+          totalSpendWasted: result.derived.spend,
+          inventoryQty: recoveryInventoryQty ? parseInt(recoveryInventoryQty, 10) : undefined,
+          supplierUrl: recoverySupplierUrl || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json() as { message?: string }).message ?? "Failed");
+      setRecoveryDone(true);
+    } catch {
+      // keep dialog open so user can retry
+    } finally {
+      setRecoverySubmitting(false);
+    }
+  }
+
   async function updateGuardrail(connectionId: string, value: number) {
     const token = getToken();
     if (!token) { router.push("/login"); return; }
@@ -1035,7 +1186,10 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
     }));
   }
 
-  const hasProFeatures = user?.plan !== "STARTER" && user !== null;
+  const budgetAccess = featureAccess.budget_allocation;
+  const scenarioAccess = featureAccess.scenario_simulator;
+  const hasBudgetAccess = budgetAccess?.allowed ?? (user?.plan !== "STARTER" && user !== null);
+  const hasScenarioAccess = scenarioAccess?.allowed ?? (user?.plan !== "STARTER" && user !== null);
   const isStarterPlan = user?.plan === "STARTER" || user === null;
   const profileDisplayName = user?.name || user?.email?.split("@")[0] || "User";
   const profileInitial = profileDisplayName.trim().charAt(0).toUpperCase() || "U";
@@ -1552,6 +1706,25 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                         </div>
                       )}
 
+                      {result.decision.finalDecision === "KILL" && (
+                        <div className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-medium">Recover cash from this SKU</div>
+                              <p className="mt-0.5 text-xs text-muted-foreground">Submit a listing — another operator may pay for what you already tested.</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 shrink-0 rounded-full px-3 text-xs"
+                              onClick={() => { setRecoveryDone(false); setRecoveryInventoryQty(""); setRecoverySupplierUrl(""); setRecoveryOpen(true); }}
+                            >
+                              List for recovery
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Why</div>
                         <p className="mt-2 text-base leading-relaxed">{result.decision.shortReason}</p>
@@ -1794,7 +1967,7 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
 
           {/* ── Budget Allocation tab ── */}
           <TabsContent value="budget">
-            {!hasProFeatures ? (
+            {!hasBudgetAccess ? (
               <div className="flex min-h-[480px] items-center justify-center">
                 <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
                   <div className="mb-5 flex size-11 items-center justify-center rounded-xl bg-muted">
@@ -1816,8 +1989,16 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                       </li>
                     ))}
                   </ul>
-                  <Button className="mt-6 w-full rounded-xl" onClick={() => upgradePlan("SCALE")}>
-                    Unlock Budget Allocation · $19/mo
+                  {budgetAccess?.subscriptionStatus === "pending" ? (
+                    <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                      Coming soon. Your subscription is pending approval.
+                    </div>
+                  ) : null}
+                  <Button
+                    className="mt-6 w-full rounded-xl"
+                    onClick={() => budgetAccess ? openLockedFeature(budgetAccess, "budget_tab") : upgradePlan("PRO")}
+                  >
+                    Available in {budgetAccess?.upgradeLabel ?? "Pro"} ({budgetAccess?.upgradePrice ?? "$29.99/mo"}) →
                   </Button>
                   <p className="mt-3 text-center text-[11px] text-muted-foreground">
                     Pro plan · Unlimited analyses + all features · Cancel anytime
@@ -1956,7 +2137,7 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
 
           {/* ── Scenario Simulator tab ── */}
           <TabsContent value="scenario">
-            {!hasProFeatures ? (
+            {!hasScenarioAccess ? (
               <div className="flex min-h-[480px] items-center justify-center">
                 <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8">
                   <div className="mb-5 flex size-11 items-center justify-center rounded-xl bg-muted">
@@ -1978,8 +2159,16 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                       </li>
                     ))}
                   </ul>
-                  <Button className="mt-6 w-full rounded-xl" onClick={() => upgradePlan("SCALE")}>
-                    Unlock Scenario Simulator · $19/mo
+                  {scenarioAccess?.subscriptionStatus === "pending" ? (
+                    <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                      Coming soon. Your subscription is pending approval.
+                    </div>
+                  ) : null}
+                  <Button
+                    className="mt-6 w-full rounded-xl"
+                    onClick={() => scenarioAccess ? openLockedFeature(scenarioAccess, "scenario_tab") : upgradePlan("PRO")}
+                  >
+                    Available in {scenarioAccess?.upgradeLabel ?? "Pro"} ({scenarioAccess?.upgradePrice ?? "$29.99/mo"}) →
                   </Button>
                   <p className="mt-3 text-center text-[11px] text-muted-foreground">
                     Pro plan · Unlimited analyses + all features · Cancel anytime
@@ -2240,39 +2429,128 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                     <CardContent className="px-6 py-6 space-y-6">
                       <h2 className="text-[19px] font-semibold tracking-normal">Billing</h2>
 
-                      {/* Current plan */}
+                      {subscriptionOverview?.subscription.limitedAccess ? (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                          Your subscription is pending. Full access coming soon!
+                        </div>
+                      ) : null}
+
                       <div className="rounded-xl border border-border p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
                           <div>
-                            <div className="text-[13px] text-muted-foreground">Current plan</div>
+                            <div className="text-[13px] text-muted-foreground">Subscription details</div>
                             <div className="mt-1 text-[18px] font-semibold">
-                              {user?.plan === "STARTER" ? "Free" : user?.plan === "PRO" ? "Pro · $29.99/mo" : user?.plan === "SCALE" ? "Business · $79.99/mo" : "Free"}
+                              {subscriptionOverview?.subscription.planName ?? "Free"}
                             </div>
-                            {user?.plan === "STARTER" && (
-                              <div className="mt-2">
-                                <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
-                                  <span>{user.usageCount} / 10 analyses used</span>
-                                  <span>Resets monthly</span>
-                                </div>
-                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-                                  <div
-                                    className={`h-1.5 rounded-full ${user.usageCount >= 8 ? "bg-amber-500" : "bg-foreground"}`}
-                                    style={{ width: `${Math.min(100, (user.usageCount / 10) * 100)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )}
                           </div>
-                          {user?.plan !== "STARTER" && (
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400">
-                              Active
-                            </span>
-                          )}
+                          <Badge
+                            variant={subscriptionOverview?.subscription.status === "expired" ? "destructive" : "secondary"}
+                            className="rounded-full"
+                          >
+                            {subscriptionOverview?.subscription.statusLabel ?? "Free"}
+                          </Badge>
+                        </div>
+                        <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                          <div className="rounded-lg bg-muted/40 p-3">
+                            <div className="text-xs text-muted-foreground">Next renew date</div>
+                            <div className="mt-1 font-medium">
+                              {subscriptionOverview ? formatSubscriptionDate(subscriptionOverview.subscription.renewDate) : "May 15, 2026"}
+                            </div>
+                          </div>
+                          <div className="rounded-lg bg-muted/40 p-3">
+                            <div className="text-xs text-muted-foreground">Amount</div>
+                            <div className="mt-1 font-medium">{subscriptionOverview?.subscription.amountLabel ?? "$99.00 USD per month"}</div>
+                          </div>
+                          <div className="rounded-lg bg-muted/40 p-3">
+                            <div className="text-xs text-muted-foreground">Card ending in</div>
+                            <div className="mt-1 font-medium">{subscriptionOverview?.subscription.cardDisplay ?? "•••• 4242"}</div>
+                          </div>
+                          <div className="rounded-lg bg-muted/40 p-3">
+                            <div className="text-xs text-muted-foreground">Access</div>
+                            <div className="mt-1 font-medium">
+                              {subscriptionOverview?.subscription.status === "pending" ? "Limited" : subscriptionOverview?.subscription.status === "expired" ? "Historical only" : "Full workspace"}
+                            </div>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Upgrade options — only for Starter */}
-                      {user?.plan === "STARTER" && (
+                      {subscriptionMessage ? (
+                        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground">
+                          {subscriptionMessage}
+                        </div>
+                      ) : null}
+
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {subscriptionOverview?.subscription.status === "active" ? (
+                          <>
+                            <Button className="rounded-lg" onClick={() => upgradePlan("SCALE")} disabled={paymentLoadingPlan === "SCALE"}>
+                              <Crown className="size-4" />
+                              Upgrade to Business
+                            </Button>
+                            <Button variant="outline" className="rounded-lg" onClick={() => runSubscriptionAction("downgrade-free")} disabled={Boolean(subscriptionActionLoading)}>
+                              Downgrade to Free
+                            </Button>
+                            <Button variant="destructive" className="rounded-lg" onClick={() => setCancelSurveyOpen(true)} disabled={Boolean(subscriptionActionLoading)}>
+                              Cancel subscription
+                            </Button>
+                            <Button variant="outline" className="rounded-lg" onClick={() => upgradePlan(user?.plan === "SCALE" ? "SCALE" : "PRO")} disabled={Boolean(paymentLoadingPlan)}>
+                              <CreditCard className="size-4" />
+                              Update payment method
+                            </Button>
+                          </>
+                        ) : null}
+
+                        {subscriptionOverview?.subscription.status === "pending" ? (
+                          <>
+                            <Button className="rounded-lg" onClick={() => runSubscriptionAction("check-status")} disabled={Boolean(subscriptionActionLoading)}>
+                              {subscriptionActionLoading === "check-status" ? <LoaderCircle className="size-4 animate-spin" /> : null}
+                              Check status
+                            </Button>
+                            <Button variant="outline" className="rounded-lg" onClick={() => upgradePlan(subscriptionOverview.subscription.planId === "business" ? "SCALE" : "PRO")} disabled={Boolean(paymentLoadingPlan)}>
+                              Edit payment info
+                            </Button>
+                            <Button variant="destructive" className="rounded-lg" onClick={() => runSubscriptionAction("cancel-request")} disabled={Boolean(subscriptionActionLoading)}>
+                              Cancel request
+                            </Button>
+                          </>
+                        ) : null}
+
+                        {subscriptionOverview?.subscription.status === "expired" ? (
+                          <>
+                            <Button className="rounded-lg" onClick={() => upgradePlan(subscriptionOverview.subscription.planId === "business" ? "SCALE" : "PRO")} disabled={Boolean(paymentLoadingPlan)}>
+                              Renew subscription
+                            </Button>
+                            <Button variant="outline" className="rounded-lg" onClick={() => switchWorkspaceTab("analysis")}>
+                              View usage
+                            </Button>
+                            <Button variant="outline" className="rounded-lg" onClick={() => runSubscriptionAction("downgrade-free")} disabled={Boolean(subscriptionActionLoading)}>
+                              Downgrade to Free
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
+
+                      <div>
+                        <h3 className="text-[14px] font-semibold">Subscription history</h3>
+                        <div className="mt-3 overflow-hidden rounded-xl border border-border">
+                          <div className="grid grid-cols-[1fr_1.4fr_0.9fr_1fr] gap-2 border-b border-border bg-muted/40 px-3 py-2 text-[11px] font-medium uppercase text-muted-foreground">
+                            <span>Date</span>
+                            <span>Event</span>
+                            <span>Amount</span>
+                            <span>Status</span>
+                          </div>
+                          {(subscriptionOverview?.history ?? []).map((item) => (
+                            <div key={item.id} className="grid grid-cols-[1fr_1.4fr_0.9fr_1fr] gap-2 border-b border-border px-3 py-3 text-[12px] last:border-b-0">
+                              <span className="tabular-nums">{item.date.slice(0, 10)}</span>
+                              <span>{item.label}</span>
+                              <span className="tabular-nums">{item.amountLabel}</span>
+                              <span>{item.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {user?.plan === "STARTER" && subscriptionOverview?.subscription.status !== "pending" ? (
                         <div className="space-y-3">
                           <p className="text-[13px] font-medium">Upgrade your plan</p>
                           <div className="grid gap-3 sm:grid-cols-2">
@@ -2320,7 +2598,7 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                             Opens checkout with your selected pricing currency
                           </p>
                         </div>
-                      )}
+                      ) : null}
                     </CardContent>
                   </Card>
                 ) : null}
@@ -2589,6 +2867,144 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                 >
                   {adActionLoading ? <LoaderCircle className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
                   Confirm
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={recoveryOpen} onOpenChange={(open) => { if (!open) setRecoveryOpen(false); }}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="text-base">Recovery listing</DialogTitle>
+                <DialogDescription className="text-xs leading-5">
+                  Pre-filled from this analysis. Add optional details and submit — we'll reach out if there's a match.
+                </DialogDescription>
+              </DialogHeader>
+              {recoveryDone ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  Listing submitted. We'll reach out if there's a match.
+                </div>
+              ) : (
+                <div className="space-y-4 py-1">
+                  <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 space-y-1">
+                    <div className="text-sm font-medium">{form.product_name || "—"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Price: ${form.product_price} · Cost: ${form.cost}
+                      {result ? ` · Spend: $${result.derived.spend}` : ""}
+                    </div>
+                    {result ? (
+                      <div className="text-xs text-muted-foreground line-clamp-2">{result.decision.shortReason}</div>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Inventory qty (optional)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="e.g. 150"
+                      value={recoveryInventoryQty}
+                      onChange={(e) => setRecoveryInventoryQty(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Supplier URL (optional)</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://aliexpress.com/..."
+                      value={recoverySupplierUrl}
+                      onChange={(e) => setRecoverySupplierUrl(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-full text-xs"
+                      onClick={() => setRecoveryOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-8 rounded-full text-xs"
+                      disabled={recoverySubmitting}
+                      onClick={submitRecovery}
+                    >
+                      {recoverySubmitting ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+                      Submit listing
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+          <Dialog open={cancelSurveyOpen} onOpenChange={setCancelSurveyOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-base">Cancel subscription</DialogTitle>
+                <DialogDescription className="text-xs leading-5">
+                  Downgrade is effective immediately. Tell us what changed so we can improve Operon.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label className="text-xs">Why are you leaving?</Label>
+                <Textarea
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  placeholder="Price, missing feature, switching tools..."
+                  className="min-h-24 rounded-xl"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={() => setCancelSurveyOpen(false)}>
+                  Keep subscription
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-8 rounded-full text-xs"
+                  disabled={subscriptionActionLoading === "cancel"}
+                  onClick={async () => {
+                    await runSubscriptionAction("cancel", cancelReason);
+                    setCancelSurveyOpen(false);
+                    setCancelReason("");
+                  }}
+                >
+                  {subscriptionActionLoading === "cancel" ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+                  Cancel now
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={Boolean(lockedFeature)} onOpenChange={(open) => !open && setLockedFeature(null)}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="text-base">{lockedFeature?.feature.name ?? "Feature locked"}</DialogTitle>
+                <DialogDescription className="text-xs leading-5">
+                  {lockedFeature?.reason ?? "Upgrade your plan to unlock this feature."}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm">
+                <div className="font-medium">Available in {lockedFeature?.upgradeLabel} ({lockedFeature?.upgradePrice}) →</div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {lockedFeature?.feature.description}
+                </p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" className="h-8 rounded-full text-xs" onClick={() => setLockedFeature(null)}>
+                  Close
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 rounded-full text-xs"
+                  onClick={() => {
+                    const target = lockedFeature?.upgradePlan === "business" ? "SCALE" : "PRO";
+                    setLockedFeature(null);
+                    upgradePlan(target);
+                  }}
+                >
+                  Upgrade
                 </Button>
               </div>
             </DialogContent>

@@ -547,6 +547,140 @@ export const marketingPages: MarketingPage[] = [
     ctaLabel: "Create Account",
     ctaHref: "/register",
   },
+
+  // Feature pages linked from PipelineSection tabs
+  {
+    slug: "find-customers",
+    label: "Find customers",
+    eyebrow: "Feature",
+    title: "Find customers the moment they ask for what you sell.",
+    intro:
+      "Operon scans Reddit continuously and surfaces posts where real people describe the exact problem your product solves — scored by intent, explained in plain language.",
+    sections: [
+      {
+        title: "Scored by buying intent",
+        body:
+          "Every post gets a relevance score based on keyword fit, problem language, subreddit context, recency, and engagement. You see the score and the reason before you do anything.",
+      },
+      {
+        title: "Across every relevant subreddit",
+        body:
+          "Operon monitors the subreddits where your customers actually talk — not just the obvious ones. New matches surface automatically as fresh posts are scanned.",
+      },
+      {
+        title: "Autopilot or manual review",
+        body:
+          "Run in autopilot mode to get notified the moment a high-intent post appears, or review the lead queue yourself before anything goes out.",
+      },
+    ],
+    highlights: [
+      "Intent-scored leads",
+      "Continuous scanning",
+      "Subreddit coverage",
+      "Autopilot mode",
+    ],
+    ctaLabel: "Start finding customers",
+    ctaHref: "/register",
+  },
+  {
+    slug: "reply-from-inbox",
+    label: "Reply from your inbox",
+    eyebrow: "Feature",
+    title: "Draft replies and DMs without leaving your workspace.",
+    intro:
+      "When Operon finds a high-intent thread, it drafts a reply or DM from the actual post context — ready to send, edit, or discard in one click from your inbox.",
+    sections: [
+      {
+        title: "Context-aware drafts",
+        body:
+          "The draft is written from the thread — not a generic template. It references what the poster asked, matches the subreddit tone, and positions your product naturally.",
+      },
+      {
+        title: "One inbox for everything",
+        body:
+          "New leads, drafted replies, sent messages, and follow-ups all live in one place. No switching between Reddit tabs and spreadsheets.",
+      },
+      {
+        title: "Edit before you send",
+        body:
+          "Every draft is editable. Review the copy, adjust the angle, and send when you are ready — or skip if the lead is not a fit.",
+      },
+    ],
+    highlights: [
+      "Thread-aware copy",
+      "One unified inbox",
+      "Edit before sending",
+      "Reply and DM support",
+    ],
+    ctaLabel: "Try it free",
+    ctaHref: "/register",
+  },
+  {
+    slug: "alerts",
+    label: "Alerts",
+    eyebrow: "Feature",
+    title: "Get notified the moment a customer is asking.",
+    intro:
+      "Operon watches Reddit in the background and sends you an alert the moment a high-intent post appears — so you can be the first to reply.",
+    sections: [
+      {
+        title: "Real-time lead alerts",
+        body:
+          "New posts that match your product context trigger an alert immediately. You can respond while the thread is still active and competition is low.",
+      },
+      {
+        title: "Quiet mode by default",
+        body:
+          "Alerts only fire on posts that clear your confidence and intent threshold. No spam, no low-quality noise — just the leads worth acting on.",
+      },
+      {
+        title: "Digest or instant",
+        body:
+          "Choose between an hourly digest of new leads or instant notifications for the highest-scoring posts. Switch any time from your settings.",
+      },
+    ],
+    highlights: [
+      "Real-time notifications",
+      "Confidence threshold filter",
+      "Hourly digest option",
+      "No noise",
+    ],
+    ctaLabel: "Set up alerts",
+    ctaHref: "/register",
+  },
+  {
+    slug: "api-access",
+    label: "API",
+    eyebrow: "Feature",
+    title: "Pipe Reddit leads directly into your own stack.",
+    intro:
+      "The Operon REST API gives your team programmatic access to scored leads, drafted replies, and pipeline data — so you can build custom workflows without manual exports.",
+    sections: [
+      {
+        title: "Full lead access via REST",
+        body:
+          "Fetch scored leads, relevance explanations, post metadata, and draft copy through a standard REST API. Integrate with your CRM, Slack bot, or internal tooling in minutes.",
+      },
+      {
+        title: "Webhooks for real-time events",
+        body:
+          "Subscribe to new lead events and get a POST request the moment Operon surfaces a high-intent post — no polling required.",
+      },
+      {
+        title: "Available on Pro and Agency",
+        body:
+          "API access is included on Pro and Agency plans. Every endpoint is documented and versioned so integrations stay stable as the product evolves.",
+      },
+    ],
+    highlights: [
+      "REST API",
+      "Webhook support",
+      "CRM-ready",
+      "Versioned endpoints",
+    ],
+    ctaLabel: "View API docs",
+    ctaHref: "/docs",
+  },
 ];
 
 export const marketingPagesBySlug = Object.fromEntries(

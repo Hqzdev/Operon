@@ -30,6 +30,21 @@ enum PaymentStatus {
   CANCELED
 }
 
+enum BillingSubscriptionStatus {
+  active
+  pending
+  expired
+  canceled
+}
+
+enum SubscriptionHistoryEvent {
+  started
+  renewed
+  upgraded
+  downgraded
+  canceled
+}
+
 enum IntegrationProvider {
   META
   TIKTOK
@@ -114,6 +129,7 @@ model User {
   createdAt           DateTime           @default(now())
   analyses            Analysis[]
   payments            Payment[]
+  subscriptions       Subscription[]
   integrations        IntegrationConnection[]
   integrationMetrics  IntegrationMetricSnapshot[]
   seoAnalysis         SeoAnalysis?
@@ -128,6 +144,7 @@ model User {
   agencyClients       AgencyClient[]      @relation("AgencyClientUser")
   stores              Store[]            @relation("UserStores")
   activeStore         Store?             @relation("ActiveStore", fields: [activeStoreId], references: [id], onDelete: SetNull)
+  killRecoveryListings KillRecoveryListing[]
 }
 
 model AgencyWorkspace {
@@ -319,6 +336,7 @@ model Analysis {
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   adActionLogs AdActionLog[]
   recommendationOutcomes RecommendationOutcome[]
+  killRecoveryListings KillRecoveryListing[]
 
   @@index([userId, createdAt])
 }
@@ -383,10 +401,48 @@ model Payment {
   updatedAt         DateTime      @updatedAt
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   auditLogs         PaymentAuditLog[]
+  subscriptions     Subscription[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([providerPaymentId])
+}
+
+model Subscription {
+  id           String                    @id @default(uuid())
+  userId       String
+  planId       String
+  status       BillingSubscriptionStatus @default(pending)
+  startDate    DateTime                  @default(now())
+  renewDate    DateTime
+  canceledDate DateTime?
+  paymentId    String?
+  renewalEmailSentAt DateTime?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  user         User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment      Payment?                  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  history      SubscriptionHistory[]
+
+  @@index([userId, status])
+  @@index([status, renewDate])
+  @@index([paymentId])
+  @@map("subscriptions")
+}
+
+model SubscriptionHistory {
+  id             String                   @id @default(uuid())
+  subscriptionId String
+  event          SubscriptionHistoryEvent
+  planId         String
+  amount         Decimal                  @db.Decimal(12, 2)
+  currency       String                   @default("USD")
+  status         String                   @default("Completed")
+  createdAt      DateTime                 @default(now())
+  subscription   Subscription             @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, createdAt])
+  @@map("subscription_history")
 }
 
 model PricingTier {
@@ -431,6 +487,78 @@ model PaymentAuditLog {
 
   @@index([paymentId, createdAt])
   @@index([adminId, createdAt])
+}
+
+model EmailDeliveryLog {
+  id        String    @id @default(uuid())
+  template  String
+  recipient String
+  subject   String
+  status    String
+  provider  String    @default("smtp")
+  attempts  Int       @default(0)
+  error     String?   @db.Text
+  metadata  Json?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([recipient, createdAt])
+  @@index([template, status, createdAt])
+  @@map("email_delivery_logs")
+}
+
+model Feature {
+  id          String        @id @default(uuid())
+  key         String        @unique
+  name        String
+  description String        @db.Text
+  createdAt   DateTime      @default(now()) @map("created_at")
+  tiers       FeatureTier[]
+
+  @@map("features")
+}
+
+model FeatureTier {
+  id        String   @id @default(uuid())
+  featureId String   @map("featureId")
+  planId    String
+  limit     Int?
+  createdAt DateTime @default(now()) @map("created_at")
+  feature   Feature  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([featureId, planId])
+  @@index([planId])
+  @@map("feature_tiers")
+}
+
+model FeatureAccessLog {
+  id        String   @id @default(uuid())
+  userId    String
+  featureKey String
+  planId    String
+  status    String
+  reason    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, featureKey, createdAt])
+  @@index([featureKey, status, createdAt])
+  @@map("feature_access_logs")
+}
+
+model UpgradeMomentLog {
+  id        String   @id @default(uuid())
+  userId    String
+  featureKey String
+  fromPlanId String
+  targetPlanId String
+  source    String?
+  createdAt DateTime @default(now())
+
+  @@index([featureKey, createdAt])
+  @@index([userId, createdAt])
+  @@map("upgrade_moment_logs")
 }
 
 model IntegrationConnection {
@@ -517,4 +645,37 @@ model SeoAnalysis {
   result     Json
   analyzedAt DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum KillRecoveryStatus {
+  pending
+  reviewing
+  matched
+  closed
+}
+
+model KillRecoveryListing {
+  id               String              @id @default(cuid())
+  userId           String
+  analysisId       String?
+  productName      String
+  productPrice     Float
+  cost             Float
+  killReason       String              @db.Text
+  mainProblem      String
+  adAnglesTested   String[]
+  totalSpendWasted Float?
+  inventoryQty     Int?
+  supplierUrl      String?
+  status           KillRecoveryStatus  @default(pending)
+  adminNotes       String?             @db.Text
+  matchedAt        DateTime?
+  revenueUsd       Float               @default(0)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis         Analysis?           @relation(fields: [analysisId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
