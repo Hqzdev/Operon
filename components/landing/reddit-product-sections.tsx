@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { ArrowRight, Bell, Check, Inbox, MessageSquare, Package, Send, Shield, SlidersHorizontal } from "lucide-react";
 
-const pipelineTabs = ["Find customers", "Reply from your inbox", "Alerts", "API"];
+const pipelineTabs = [
+  { label: "Find customers", href: "/find-customers" },
+  { label: "Reply from your inbox", href: "/reply-from-inbox" },
+  { label: "Alerts", href: "/alerts" },
+  { label: "API", href: "/api-access" },
+];
 
 const comparisons = [
   ["Operon vs Mention", "For teams who want Reddit customers, not a broad social listening dashboard."],
@@ -35,12 +40,13 @@ export function PipelineSection() {
           </h2>
           <div className="mt-10 inline-flex flex-wrap justify-center gap-2 rounded-full border border-foreground/10 bg-muted/40 p-2">
             {pipelineTabs.map((tab, index) => (
-              <span
-                key={tab}
-                className={`rounded-full px-5 py-2 text-sm ${index === 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+              <Link
+                key={tab.label}
+                href={tab.href}
+                className={`rounded-full px-5 py-2 text-sm transition-colors ${index === 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {tab}
-              </span>
+                {tab.label}
+              </Link>
             ))}
           </div>
           <p className="mt-8 text-lg text-muted-foreground">
