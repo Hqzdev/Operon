@@ -266,6 +266,10 @@ Return JSON:
 }
 
 export async function analyzeSeo(userId: string): Promise<SeoAnalysisResult> {
+  if (!process.env.GIGACHAT_AUTH_KEY && !process.env.GIGACHAT_ACCESS_TOKEN) {
+    throw new AppError("SEO analysis is not available: AI provider not configured.", 503);
+  }
+
   const user = await UserRepository.findById(userId);
 
   if (!user?.storeUrl) {

@@ -380,9 +380,12 @@ export default function SeoPage() {
       return;
     }
     authFetch("/api/seo/result")
-      .then((r) => r.json())
-      .then((data) => {
-        setResult(data ?? null);
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load");
+        return r.json();
+      })
+      .then((data: unknown) => {
+        setResult((data && typeof data === "object" && "seoScore" in data) ? data as SeoAnalysisResult : null);
       })
       .catch(() => setError("Failed to load cached result"))
       .finally(() => setIsLoading(false));
