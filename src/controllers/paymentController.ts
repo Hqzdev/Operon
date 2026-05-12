@@ -7,6 +7,7 @@ import { normalizeUserPlan } from "../services/planService";
 
 const paymentCreateSchema = z.object({
   plan: z.string().min(1),
+  currency: z.string().min(3).max(3).optional(),
 });
 
 export const listPaymentsController = asyncHandler(async (req: Request, res: Response) => {
@@ -15,13 +16,13 @@ export const listPaymentsController = asyncHandler(async (req: Request, res: Res
 });
 
 export const createPaymentController = asyncHandler(async (req: Request, res: Response) => {
-  const { plan: rawPlan } = paymentCreateSchema.parse(req.body);
+  const { plan: rawPlan, currency } = paymentCreateSchema.parse(req.body);
   const plan = normalizeUserPlan(rawPlan);
   if (!plan || plan === UserPlan.STARTER) {
     res.status(400).json({ error: "Paid plan must be PRO or SCALE" });
     return;
   }
-  const payment = await createPaymentIntent(req.auth!.userId, plan);
+  const payment = await createPaymentIntent(req.auth!.userId, plan, currency);
   res.status(201).json(payment);
 });
 

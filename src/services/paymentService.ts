@@ -4,17 +4,12 @@ import { AppError } from "../utils/appError";
 import { env } from "../utils/env";
 import { PaymentRepository } from "../repositories/paymentRepository";
 import { UserRepository } from "../repositories/userRepository";
-
-const planAmounts: Record<UserPlan, number> = {
-  STARTER: 0,
-  PRO: 109000,
-  SCALE: 219000,
-};
+import { getPlanPriceForPayment } from "./pricingService";
 
 const planLabels: Record<UserPlan, string> = {
-  STARTER: "Starter",
-  PRO: "Basic",
-  SCALE: "Pro",
+  STARTER: "Free",
+  PRO: "Pro",
+  SCALE: "Business",
 };
 
 function getReturnUrl(paymentId: string) {
@@ -65,17 +60,18 @@ async function fetchYooKassaPayment(providerPaymentId: string) {
   };
 }
 
-export async function createPaymentIntent(userId: string, plan: UserPlan) {
-  const amount = planAmounts[plan];
-
-  if (plan === UserPlan.STARTER || amount <= 0) {
-    throw new AppError("Starter plan does not require payment", 400);
+export async function createPaymentIntent(userId: string, plan: UserPlan, currencyInput?: string) {
+  if (plan === UserPlan.STARTER) {
+    throw new AppError("Free plan does not require payment", 400);
   }
+
+  const pricing = await getPlanPriceForPayment(plan, currencyInput);
 
   const payment = await PaymentRepository.create({
     userId,
     plan,
-    amount,
+    amount: pricing.amountMinor,
+    currency: pricing.currency,
     status: PaymentStatus.PENDING,
   });
 
@@ -83,8 +79,8 @@ export async function createPaymentIntent(userId: string, plan: UserPlan) {
     return {
       paymentId: payment.id,
       status: payment.status,
-      amount,
-      currency: "RUB",
+      amount: pricing.amountMinor,
+      currency: pricing.currency,
       provider: "yookassa",
       ready: false,
       message: "YooKassa credentials are missing. Add them to enable live payment creation.",
@@ -104,8 +100,8 @@ export async function createPaymentIntent(userId: string, plan: UserPlan) {
     },
     body: JSON.stringify({
       amount: {
-        value: (amount / 100).toFixed(2),
-        currency: "RUB",
+        value: pricing.amountMajor.toFixed(pricing.currency === "JPY" ? 0 : 2),
+        currency: pricing.currency,
       },
       capture: true,
       confirmation: {
@@ -117,6 +113,7 @@ export async function createPaymentIntent(userId: string, plan: UserPlan) {
         internal_payment_id: payment.id,
         user_id: userId,
         plan,
+        currency: pricing.currency,
       },
     }),
   });
@@ -141,8 +138,8 @@ export async function createPaymentIntent(userId: string, plan: UserPlan) {
     paymentId: payment.id,
     providerPaymentId: externalPayment.id,
     status: externalPayment.status,
-    amount,
-    currency: "RUB",
+    amount: pricing.amountMinor,
+    currency: pricing.currency,
     confirmationUrl: externalPayment.confirmation?.confirmation_url ?? null,
     ready: true,
   };

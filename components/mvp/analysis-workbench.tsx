@@ -470,6 +470,7 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
   const [adActionLoading, setAdActionLoading] = useState(false);
   const [adActionMsg, setAdActionMsg] = useState<{ type: "ok" | "err"; text: string; actionId?: string } | null>(null);
   const [paymentContactPlan, setPaymentContactPlan] = useState<"PRO" | "SCALE" | null>(null);
+  const [paymentLoadingPlan, setPaymentLoadingPlan] = useState<"PRO" | "SCALE" | null>(null);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<DashboardWorkspaceTab>(initialTab ?? "analysis");
@@ -737,8 +738,39 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
     }
   }
 
-  function upgradePlan(plan: "PRO" | "SCALE") {
-    setPaymentContactPlan(plan);
+  async function upgradePlan(plan: "PRO" | "SCALE") {
+    const token = getToken();
+    if (!token) {
+      router.push(`/login?plan=${plan}&checkout=1`);
+      return;
+    }
+
+    setPaymentLoadingPlan(plan);
+    try {
+      const currency = localStorage.getItem("operon_pricing_currency") ?? "USD";
+      const res = await fetch(`${apiBaseUrl}/payments/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan, currency }),
+      });
+      const payment = await res.json();
+
+      if (!res.ok) {
+        setPaymentContactPlan(plan);
+        return;
+      }
+
+      if (payment.confirmationUrl) {
+        window.location.href = payment.confirmationUrl;
+        return;
+      }
+
+      setPaymentContactPlan(plan);
+    } catch {
+      setPaymentContactPlan(plan);
+    } finally {
+      setPaymentLoadingPlan(null);
+    }
   }
 
   async function refreshIntegrations() {
@@ -2214,7 +2246,7 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                           <div>
                             <div className="text-[13px] text-muted-foreground">Current plan</div>
                             <div className="mt-1 text-[18px] font-semibold">
-                              {user?.plan === "STARTER" ? "Starter (Free)" : user?.plan === "PRO" ? "Basic · $9/mo" : user?.plan === "SCALE" ? "Pro · $19/mo" : "Free"}
+                              {user?.plan === "STARTER" ? "Free" : user?.plan === "PRO" ? "Pro · $29.99/mo" : user?.plan === "SCALE" ? "Business · $79.99/mo" : "Free"}
                             </div>
                             {user?.plan === "STARTER" && (
                               <div className="mt-2">
@@ -2246,16 +2278,16 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                           <div className="grid gap-3 sm:grid-cols-2">
                             {[
                               {
-                                name: "Basic",
-                                price: "$9/mo",
+                                name: "Pro",
+                                price: "$29.99/mo",
                                 features: ["Unlimited analyses", "Full AI recommendations", "History tracking"],
                                 plan: "PRO" as const,
                                 primary: false,
                               },
                               {
-                                name: "Pro",
-                                price: "$19/mo",
-                                features: ["Everything in Basic", "Budget Allocation", "Scenario Simulator"],
+                                name: "Business",
+                                price: "$79.99/mo",
+                                features: ["Everything in Pro", "Budget Allocation", "Scenario Simulator"],
                                 plan: "SCALE" as const,
                                 primary: true,
                               },
@@ -2277,14 +2309,15 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                                   variant={tier.primary ? "default" : "outline"}
                                   className="mt-4 w-full rounded-lg"
                                   onClick={() => upgradePlan(tier.plan)}
+                                  disabled={paymentLoadingPlan === tier.plan}
                                 >
-                                  Upgrade to {tier.name}
+                                  {paymentLoadingPlan === tier.plan ? "Opening checkout..." : `Upgrade to ${tier.name}`}
                                 </Button>
                               </div>
                             ))}
                           </div>
                           <p className="text-[11px] text-muted-foreground text-center">
-                            Manual activation · Write us to start
+                            Opens checkout with your selected pricing currency
                           </p>
                         </div>
                       )}
@@ -2564,10 +2597,10 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
             <DialogContent className="sm:max-w-sm">
               <DialogHeader>
                 <DialogTitle className="text-base">
-                  Upgrade to {paymentContactPlan === "PRO" ? "Basic" : "Pro"}
+                  Upgrade to {paymentContactPlan === "PRO" ? "Pro" : "Business"}
                 </DialogTitle>
                 <DialogDescription className="text-xs leading-5">
-                  Payments are activated manually while we test international billing.
+                  Checkout is not available right now, but we can activate the plan manually.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-4 text-sm">
@@ -2581,7 +2614,7 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                 <div className="rounded-lg border border-border bg-background px-3 py-2">
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Message</div>
                   <div className="mt-1 text-[13px] leading-5">
-                    Please activate {paymentContactPlan === "PRO" ? "Basic $9/mo" : "Pro $19/mo"} for {user?.email ?? "my account"}.
+                    Please activate {paymentContactPlan === "PRO" ? "Pro $29.99/mo" : "Business $79.99/mo"} for {user?.email ?? "my account"}.
                   </div>
                 </div>
               </div>
@@ -2598,7 +2631,7 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                   size="sm"
                   className="h-8 rounded-full text-xs"
                   onClick={() => {
-                    const planLabel = paymentContactPlan === "PRO" ? "Basic $9/mo" : "Pro $19/mo";
+                    const planLabel = paymentContactPlan === "PRO" ? "Pro $29.99/mo" : "Business $79.99/mo";
                     window.location.href = `mailto:wkeyqwert@gmail.com?subject=Operon ${encodeURIComponent(planLabel)} activation&body=${encodeURIComponent(`Please activate ${planLabel} for ${user?.email ?? "my account"}.`)}`;
                   }}
                 >

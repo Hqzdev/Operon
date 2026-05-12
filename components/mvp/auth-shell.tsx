@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Eye, EyeOff, Sparkles } from "lucide-react";
 import { getApiBaseUrl } from "@/lib/api-base-url";
@@ -52,12 +52,43 @@ export function AuthShell({
   leftCards,
 }: AuthShellProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
 
   const isRegister = mode === "register";
+
+  async function startCheckout(token: string) {
+    const plan = searchParams.get("plan");
+    const currency = searchParams.get("currency") ?? localStorage.getItem("operon_pricing_currency") ?? "USD";
+
+    if (!plan || plan === "STARTER" || searchParams.get("checkout") !== "1") {
+      return false;
+    }
+
+    const apiBaseUrl = getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/payments/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ plan, currency }),
+    });
+
+    const payment = await response.json();
+    if (!response.ok) {
+      setError(payment.message ?? "Unable to start checkout");
+      return true;
+    }
+
+    if (payment.confirmationUrl) {
+      window.location.href = payment.confirmationUrl;
+      return true;
+    }
+
+    router.push("/dashboard");
+    return true;
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,6 +114,9 @@ export function AuthShell({
 
       localStorage.setItem("operon_token", data.token);
       localStorage.setItem("operon_user", JSON.stringify(data.user));
+      const isCheckingOut = await startCheckout(data.token);
+      if (isCheckingOut) return;
+
       if (mode === "register") {
         router.push("/onboarding");
       } else {

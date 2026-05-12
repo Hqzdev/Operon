@@ -8,11 +8,11 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const userId = getAuthUserId(request);
-    const { plan } = await request.json();
+    const { plan, currency } = await request.json();
     if (!plan || !Object.values(UserPlan).includes(plan)) {
       throw new ApiError("Valid plan is required", 400);
     }
-    const payment = await createPaymentIntent(userId, plan as UserPlan);
+    const payment = await createPaymentIntent(userId, plan as UserPlan, currency);
     return NextResponse.json(payment, { status: 201 });
   } catch (error) {
     return errorResponse(error);

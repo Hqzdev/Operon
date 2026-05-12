@@ -15,7 +15,7 @@ const paymentListSelect = {
 } as const;
 
 export class PaymentRepository {
-  static async create(data: { userId: string; plan: UserPlan; amount: number; status: PaymentStatus }) {
+  static async create(data: { userId: string; plan: UserPlan; amount: number; currency: string; status: PaymentStatus }) {
     return prisma.payment.create({ data });
   }
 
