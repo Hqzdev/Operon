@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { ArrowRight, Bell, Check, Inbox, MessageSquare, Package, Send, Shield, SlidersHorizontal } from "lucide-react";
 
 const pipelineTabs = ["Find customers", "Reply from your inbox", "Alerts", "API"];
@@ -23,7 +24,316 @@ const faq = [
   ["What if the results are not relevant?", "Tighten your keywords, exclude weak subreddits, or lower automation. The workflow is built so you can review leads manually before anything goes out."],
 ];
 
+function FindCustomersContent() {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-foreground/10 bg-background shadow-sm">
+      <div className="flex items-center justify-between gap-4 border-b border-foreground/10 px-5 py-4">
+        <div>
+          <div className="font-display text-2xl tracking-tight">Leads</div>
+          <div className="text-sm text-muted-foreground">Sort by quality, recency, or engagement.</div>
+        </div>
+        <div className="hidden items-center gap-2 md:flex">
+          <button className="rounded-full border border-foreground/10 px-4 py-2 text-sm text-muted-foreground">Quality</button>
+          <button className="inline-flex items-center gap-2 rounded-full border border-foreground/10 px-4 py-2 text-sm text-muted-foreground">
+            <SlidersHorizontal className="size-4" />
+            Options
+          </button>
+        </div>
+      </div>
+
+      <div className="grid min-h-[560px] lg:grid-cols-[0.82fr_1.18fr]">
+        <div className="border-b border-foreground/10 lg:border-b-0 lg:border-r">
+          <div className="grid grid-cols-2 border-b border-foreground/10 text-sm">
+            <div className="border-b-2 border-foreground px-5 py-4 font-semibold">New <span className="text-muted-foreground">184</span></div>
+            <div className="px-5 py-4 text-muted-foreground">Contacted</div>
+          </div>
+          {[
+            ["Best Reddit marketing strategies for getting organic traffic?", "93%", "48m", "Queued"],
+            ["Anyone found a tool that finally makes team outreach easier?", "93%", "4h", "Contacted"],
+            ["I burned $120k on SDRs before realizing outbound was broken", "93%", "9h", "Interested"],
+            ["What tool actually takes LinkedIn outreach off your plate?", "93%", "1d", "Queued"],
+            ["App founder here, completely lost on marketing", "93%", "2d", "Queued"],
+            ["Claude Cowork vs Manus for local business outreach", "85%", "1h", "Contacted"],
+          ].map(([title, score, time, status], index) => (
+            <div key={title} className={`border-b border-foreground/10 px-5 py-4 ${index === 0 ? "bg-foreground/[0.04]" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="line-clamp-2 text-sm font-medium">{title}</div>
+                <div className="shrink-0 text-sm font-semibold text-emerald-600">{score}</div>
+              </div>
+              <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="rounded-full bg-muted px-2 py-0.5">{status}</span>
+                <span>{time}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-6 lg:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-foreground/10 pb-6">
+            <div>
+              <h3 className="max-w-3xl font-display text-3xl tracking-tight">
+                Best Reddit marketing strategies for getting organic traffic?
+              </h3>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>r/seogrowth</span>
+                <span>2 upvotes</span>
+                <span>7 comments</span>
+                <span>48m ago</span>
+                <span>u/gradstudentmt</span>
+              </div>
+            </div>
+            <div className="text-lg font-semibold text-emerald-600">93%</div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-foreground/10 bg-muted/30 p-5">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Why it is relevant</div>
+            <p className="text-base leading-7">
+              The user wants to use Reddit for customer acquisition and lead generation but lacks the tools to identify serious threads efficiently.
+            </p>
+          </div>
+
+          <div className="mt-6 space-y-5 text-base leading-8 text-muted-foreground">
+            <p>Y&apos;all SEO is slow and ads are expensive nowadays.</p>
+            <p>I saw people talking about Reddit threads showing up in Google and AI search results.</p>
+            <p>
+              But I have no idea what the best Reddit marketing strategies actually are, like{" "}
+              <mark className="rounded bg-amber-100 px-1 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                how do you find high-intent threads?
+              </mark>{" "}
+              Especially when is it okay to mention your business?
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReplyInboxContent() {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-foreground/10 bg-background shadow-sm">
+      <div className="flex items-center justify-between gap-4 border-b border-foreground/10 px-5 py-4">
+        <div>
+          <div className="font-display text-2xl tracking-tight">Inbox</div>
+          <div className="text-sm text-muted-foreground">AI-drafted replies ready to post.</div>
+        </div>
+        <div className="hidden items-center gap-2 md:flex">
+          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+            12 drafts ready
+          </span>
+        </div>
+      </div>
+
+      <div className="grid min-h-[560px] lg:grid-cols-[0.82fr_1.18fr]">
+        <div className="border-b border-foreground/10 lg:border-b-0 lg:border-r">
+          {[
+            ["How do I find customers on Reddit without being banned?", "r/startups", "2m", true],
+            ["Anyone using Reddit for B2B lead gen?", "r/SaaS", "14m", true],
+            ["Best tools for Reddit outreach in 2025?", "r/Entrepreneur", "1h", false],
+            ["Reddit DMs for cold outreach — worth it?", "r/sales", "3h", false],
+            ["How to mention your product naturally on Reddit", "r/marketing", "5h", false],
+          ].map(([title, sub, time, active], index) => (
+            <div key={title as string} className={`border-b border-foreground/10 px-5 py-4 ${index === 0 ? "bg-foreground/[0.04]" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="line-clamp-2 text-sm font-medium">{title as string}</div>
+                {(active as boolean) && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />}
+              </div>
+              <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{sub as string}</span>
+                <span>{time as string}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-6 lg:p-8">
+          <div className="border-b border-foreground/10 pb-6">
+            <h3 className="font-display text-2xl tracking-tight">How do I find customers on Reddit without being banned?</h3>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>r/startups</span>
+              <span>·</span>
+              <span>u/jennybuilds_</span>
+              <span>·</span>
+              <span>2m ago</span>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-foreground/10 bg-muted/30 p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">AI Draft</div>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">ready to post</span>
+            </div>
+            <p className="text-base leading-7">
+              The key is to add value before mentioning anything. Find threads where people are already asking for exactly what you offer, then reply with a genuinely helpful answer. If your product solves the problem, one natural sentence at the end feels like a recommendation, not spam. Tools like Operon can surface those threads automatically so you are only showing up where you actually belong.
+            </p>
+          </div>
+
+          <div className="mt-5 flex gap-3">
+            <button className="flex-1 rounded-full border border-foreground/20 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent">
+              Regenerate
+            </button>
+            <button className="flex-1 rounded-full bg-foreground py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90">
+              Post reply
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AlertsContent() {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-foreground/10 bg-background shadow-sm">
+      <div className="flex items-center justify-between gap-4 border-b border-foreground/10 px-5 py-4">
+        <div>
+          <div className="font-display text-2xl tracking-tight">Alerts</div>
+          <div className="text-sm text-muted-foreground">Instant notifications for high-intent posts.</div>
+        </div>
+        <div className="hidden items-center gap-2 md:flex">
+          <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+            <Bell className="mr-1 inline size-3" />
+            3 new
+          </span>
+        </div>
+      </div>
+
+      <div className="min-h-[560px] divide-y divide-foreground/10 p-0">
+        {[
+          {
+            title: "High-intent post in r/SaaS",
+            body: "Someone asked: \"Is there a tool that finds Reddit leads automatically?\" — 91% match",
+            time: "just now",
+            badge: "91% match",
+            badgeColor: "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300",
+            new: true,
+          },
+          {
+            title: "Autopilot scan complete",
+            body: "Found 14 new leads across r/Entrepreneur, r/startups, r/SaaS. 6 are above 80%.",
+            time: "4m ago",
+            badge: "14 leads",
+            badgeColor: "text-muted-foreground bg-muted",
+            new: true,
+          },
+          {
+            title: "Reply sent via extension",
+            body: "Your drafted reply was posted to r/marketing — u/devfounder_ asked about outreach tools.",
+            time: "22m ago",
+            badge: "Sent",
+            badgeColor: "text-muted-foreground bg-muted",
+            new: true,
+          },
+          {
+            title: "Weekly digest ready",
+            body: "67 leads found this week. 18 replied. 4 marked Interested. Top subreddit: r/Entrepreneur.",
+            time: "2h ago",
+            badge: "Digest",
+            badgeColor: "text-muted-foreground bg-muted",
+            new: false,
+          },
+          {
+            title: "New subreddit added to scan",
+            body: "r/indiehackers is now included in your autopilot scan based on your product niche.",
+            time: "1d ago",
+            badge: "Autopilot",
+            badgeColor: "text-muted-foreground bg-muted",
+            new: false,
+          },
+        ].map((alert) => (
+          <div key={alert.title} className={`flex gap-4 px-5 py-5 ${alert.new ? "bg-foreground/[0.02]" : ""}`}>
+            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
+              <Bell className="size-3.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-sm font-medium">{alert.title}</span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${alert.badgeColor}`}>{alert.badge}</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground leading-5">{alert.body}</p>
+              <span className="mt-1.5 block text-xs text-muted-foreground/60">{alert.time}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ApiContent() {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-foreground/10 bg-background shadow-sm">
+      <div className="flex items-center justify-between gap-4 border-b border-foreground/10 px-5 py-4">
+        <div>
+          <div className="font-display text-2xl tracking-tight">REST API</div>
+          <div className="text-sm text-muted-foreground">Pull leads into your own stack.</div>
+        </div>
+        <div className="hidden items-center gap-2 md:flex">
+          <span className="rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-mono text-muted-foreground">v1</span>
+        </div>
+      </div>
+
+      <div className="grid min-h-[560px] lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="border-b border-foreground/10 lg:border-b-0 lg:border-r">
+          <div className="border-b border-foreground/10 px-5 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Endpoints</div>
+          {[
+            ["GET", "/v1/leads", "Fetch scored leads"],
+            ["POST", "/v1/leads/scan", "Trigger a scan"],
+            ["GET", "/v1/leads/:id", "Lead detail"],
+            ["POST", "/v1/replies/generate", "Draft a reply"],
+            ["GET", "/v1/settings", "Workspace config"],
+          ].map(([method, path, desc]) => (
+            <div key={path as string} className={`border-b border-foreground/10 px-5 py-4 ${path === "/v1/leads" ? "bg-foreground/[0.04]" : ""}`}>
+              <div className="flex items-center gap-3">
+                <span className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold ${method === "GET" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"}`}>
+                  {method as string}
+                </span>
+                <span className="font-mono text-sm">{path as string}</span>
+              </div>
+              <div className="mt-1 pl-12 text-xs text-muted-foreground">{desc as string}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-6 lg:p-8">
+          <div className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Example request</div>
+          <div className="rounded-2xl bg-[#0d1117] p-5 text-sm font-mono leading-6 text-[#c9d1d9]">
+            <div className="mb-3 text-[#8b949e]"># Fetch your top leads</div>
+            <div>
+              <span className="text-[#79c0ff]">curl</span>
+              {" "}https://api.operons.vercel.app/v1/leads \
+            </div>
+            <div className="pl-4">
+              <span className="text-[#79c0ff]">-H</span> <span className="text-[#a5d6ff]">&quot;Authorization: Bearer YOUR_KEY&quot;</span> \
+            </div>
+            <div className="pl-4">
+              <span className="text-[#79c0ff]">-G</span> \
+            </div>
+            <div className="pl-4">
+              <span className="text-[#79c0ff]">-d</span> <span className="text-[#a5d6ff]">&quot;min_score=80&limit=20&quot;</span>
+            </div>
+          </div>
+
+          <div className="mt-5 mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Response</div>
+          <div className="rounded-2xl bg-[#0d1117] p-5 text-sm font-mono leading-6 text-[#c9d1d9]">
+            <div><span className="text-[#8b949e">{"{"}</span></div>
+            <div className="pl-4"><span className="text-[#79c0ff]">&quot;leads&quot;</span>: [{"{"}</div>
+            <div className="pl-8"><span className="text-[#79c0ff]">&quot;id&quot;</span>: <span className="text-[#a5d6ff]">&quot;lr_01hx…&quot;</span>,</div>
+            <div className="pl-8"><span className="text-[#79c0ff]">&quot;score&quot;</span>: <span className="text-emerald-400">93</span>,</div>
+            <div className="pl-8"><span className="text-[#79c0ff]">&quot;subreddit&quot;</span>: <span className="text-[#a5d6ff]">&quot;r/SaaS&quot;</span>,</div>
+            <div className="pl-8"><span className="text-[#79c0ff]">&quot;status&quot;</span>: <span className="text-[#a5d6ff]">&quot;queued&quot;</span></div>
+            <div className="pl-4">{"}"}]</div>
+            <div>{"}"}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PipelineSection() {
+  const [activeTab, setActiveTab] = useState(0);
+
   return (
     <section id="pipeline" className="relative border-t border-foreground/10 py-28 lg:py-36">
       <div className="mx-auto max-w-[1400px] px-6 lg:px-12">
@@ -35,12 +345,13 @@ export function PipelineSection() {
           </h2>
           <div className="mt-10 inline-flex flex-wrap justify-center gap-2 rounded-full border border-foreground/10 bg-muted/40 p-2">
             {pipelineTabs.map((tab, index) => (
-              <span
+              <button
                 key={tab}
-                className={`rounded-full px-5 py-2 text-sm ${index === 0 ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                onClick={() => setActiveTab(index)}
+                className={`rounded-full px-5 py-2 text-sm transition-colors ${index === activeTab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {tab}
-              </span>
+              </button>
             ))}
           </div>
           <p className="mt-8 text-lg text-muted-foreground">
@@ -48,86 +359,10 @@ export function PipelineSection() {
           </p>
         </div>
 
-        <div className="overflow-hidden rounded-3xl border border-foreground/10 bg-background shadow-sm">
-          <div className="flex items-center justify-between gap-4 border-b border-foreground/10 px-5 py-4">
-            <div>
-              <div className="font-display text-2xl tracking-tight">Leads</div>
-              <div className="text-sm text-muted-foreground">Sort by quality, recency, or engagement.</div>
-            </div>
-            <div className="hidden items-center gap-2 md:flex">
-              <button className="rounded-full border border-foreground/10 px-4 py-2 text-sm text-muted-foreground">Quality</button>
-              <button className="inline-flex items-center gap-2 rounded-full border border-foreground/10 px-4 py-2 text-sm text-muted-foreground">
-                <SlidersHorizontal className="size-4" />
-                Options
-              </button>
-            </div>
-          </div>
-
-          <div className="grid min-h-[560px] lg:grid-cols-[0.82fr_1.18fr]">
-            <div className="border-b border-foreground/10 lg:border-b-0 lg:border-r">
-              <div className="grid grid-cols-2 border-b border-foreground/10 text-sm">
-                <div className="border-b-2 border-foreground px-5 py-4 font-semibold">New <span className="text-muted-foreground">184</span></div>
-                <div className="px-5 py-4 text-muted-foreground">Contacted</div>
-              </div>
-              {[
-                ["Best Reddit marketing strategies for getting organic traffic?", "93%", "48m", "Queued"],
-                ["Anyone found a tool that finally makes team outreach easier?", "93%", "4h", "Contacted"],
-                ["I burned $120k on SDRs before realizing outbound was broken", "93%", "9h", "Interested"],
-                ["What tool actually takes LinkedIn outreach off your plate?", "93%", "1d", "Queued"],
-                ["App founder here, completely lost on marketing", "93%", "2d", "Queued"],
-                ["Claude Cowork vs Manus for local business outreach", "85%", "1h", "Contacted"],
-              ].map(([title, score, time, status], index) => (
-                <div key={title} className={`border-b border-foreground/10 px-5 py-4 ${index === 0 ? "bg-foreground/[0.04]" : ""}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="line-clamp-2 text-sm font-medium">{title}</div>
-                    <div className="shrink-0 text-sm font-semibold text-emerald-600">{score}</div>
-                  </div>
-                  <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="rounded-full bg-muted px-2 py-0.5">{status}</span>
-                    <span>{time}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="p-6 lg:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-foreground/10 pb-6">
-                <div>
-                  <h3 className="max-w-3xl font-display text-3xl tracking-tight">
-                    Best Reddit marketing strategies for getting organic traffic?
-                  </h3>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                    <span>r/seogrowth</span>
-                    <span>2 upvotes</span>
-                    <span>7 comments</span>
-                    <span>48m ago</span>
-                    <span>u/gradstudentmt</span>
-                  </div>
-                </div>
-                <div className="text-lg font-semibold text-emerald-600">93%</div>
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-foreground/10 bg-muted/30 p-5">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Why it is relevant</div>
-                <p className="text-base leading-7">
-                  The user wants to use Reddit for customer acquisition and lead generation but lacks the tools to identify serious threads efficiently.
-                </p>
-              </div>
-
-              <div className="mt-6 space-y-5 text-base leading-8 text-muted-foreground">
-                <p>Y&apos;all SEO is slow and ads are expensive nowadays.</p>
-                <p>I saw people talking about Reddit threads showing up in Google and AI search results.</p>
-                <p>
-                  But I have no idea what the best Reddit marketing strategies actually are, like{" "}
-                  <mark className="rounded bg-amber-100 px-1 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                    how do you find high-intent threads?
-                  </mark>{" "}
-                  Especially when is it okay to mention your business?
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        {activeTab === 0 && <FindCustomersContent />}
+        {activeTab === 1 && <ReplyInboxContent />}
+        {activeTab === 2 && <AlertsContent />}
+        {activeTab === 3 && <ApiContent />}
       </div>
     </section>
   );
