@@ -1,7 +1,9 @@
 import { AnalysisStage } from "@prisma/client";
 import { z } from "zod";
 import { runAiAnalysis, deriveMetrics, type AiAnalysisResult } from "./aiService";
+import { getSeasonContext } from "../lib/seasonality";
 import { AnalysisRepository } from "../repositories/analysisRepository";
+import { IntegrationRepository } from "../repositories/integrationRepository";
 import { getShopifyConnectionCredentials } from "./integrationService";
 import {
   computeLtvFromConnection,
@@ -30,16 +32,38 @@ export const analysisInputSchema = z.object({
   net_revenue: z.number().min(0).optional(),
   total_spend: z.number().min(0).optional(),
   days_active: z.number().int().min(0).optional(),
+  platform_breakdown: z.object({
+    ios: z.number().min(0).optional(),
+    android: z.number().min(0).optional(),
+    desktop: z.number().min(0).optional(),
+    unknown: z.number().min(0).optional(),
+  }).optional(),
+  ios_audience_pct: z.number().min(0).max(100).optional(),
+  ios_under_attribution_multiplier: z.number().min(0).max(10).optional(),
+  pixel_purchases: z.number().min(0).optional(),
+  shopify_purchases: z.number().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]).default("testing"),
 });
 
 export type AnalysisPayload = z.infer<typeof analysisInputSchema>;
+
+type SeasonContextSummary = {
+  month: number;
+  weekOfYear: number;
+  label: string;
+  isMaterial: boolean;
+  note: string | null;
+  ctrMultiplier: number;
+  convMultiplier: number;
+  confidenceBonus: number;
+};
 
 type AnalysisResult = Omit<AiAnalysisResult, "provider"> & {
   provider: "gigachat" | "rules";
   saved: boolean;
   savedId?: string;
   ltvAdjustment?: LtvComputeResult & { shopifyConnected: boolean };
+  seasonContext?: SeasonContextSummary;
 };
 
 type ConfidenceSignal = NonNullable<AiAnalysisResult["decision"]["confidenceSignals"]>[number];
@@ -98,6 +122,38 @@ function toConfidencePoint(input: AnalysisPayload): ConfidencePoint {
     roas: derived.roas,
     breakEvenCpa: derived.breakEvenCpa,
     breakEvenRoas: derived.breakEvenRoas,
+  };
+}
+
+function attributionAdjustedPayload(input: AnalysisPayload, derived: ReturnType<typeof deriveMetrics>): AnalysisPayload {
+  const adjustment = derived.attributionAdjustment;
+  if (!adjustment) return input;
+  return {
+    ...input,
+    purchases: adjustment.adjustedPurchases,
+    revenue: derived.grossRevenue ?? input.revenue,
+  };
+}
+
+function sumSnapshotPurchases(snapshots: Array<{ analysisInput: unknown }>) {
+  return snapshots.reduce((sum, snapshot) => {
+    const parsed = analysisInputSchema.safeParse(snapshot.analysisInput);
+    return sum + (parsed.success ? parsed.data.purchases : 0);
+  }, 0);
+}
+
+async function enrichAttributionFromShopify(userId: string, payload: AnalysisPayload) {
+  if (payload.shopify_purchases || payload.purchases <= 0) return payload;
+
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const snapshots = await IntegrationRepository.findRecentSnapshotsByProvider(userId, "SHOPIFY", since);
+  const shopifyPurchases = sumSnapshotPurchases(snapshots);
+  if (shopifyPurchases <= payload.purchases) return payload;
+
+  return {
+    ...payload,
+    pixel_purchases: payload.pixel_purchases ?? payload.purchases,
+    shopify_purchases: shopifyPurchases,
   };
 }
 
@@ -260,8 +316,9 @@ async function getRecentComparableInputs(userId: string, payload: AnalysisPayloa
     .slice(-3);
 }
 
-function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" | "savedId"> {
-  const derived = deriveMetrics(input);
+function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "saved" | "savedId"> {
+  const derived = deriveMetrics(rawInput);
+  const input = attributionAdjustedPayload(rawInput, derived);
   const maturity = evidenceMaturity(input, derived);
 
   // Decision
@@ -515,6 +572,7 @@ function fallbackAnalysis(input: AnalysisPayload): Omit<AnalysisResult, "saved" 
     },
     creativeAngles,
     continueDecision,
+    attributionAdjustment: derived.attributionAdjustment ?? undefined,
     derived,
     provider: "rules",
   };
@@ -688,8 +746,54 @@ function applyReturnRateAdjustment(
   };
 }
 
+function applySeasonalityAdjustment(
+  result: Omit<AnalysisResult, "saved" | "savedId">,
+  date: Date = new Date(),
+): Omit<AnalysisResult, "saved" | "savedId"> {
+  const season = getSeasonContext(date);
+  if (!season.isMaterial) return result;
+
+  const currentScore = result.decision.confidenceScore ?? 50;
+  const adjustedScore = Math.max(0, Math.min(100, currentScore + season.confidenceBonus));
+  const adjustedLevel = confidenceLevel(adjustedScore);
+
+  const seasonalSignal: ConfidenceSignal = {
+    label: `Season: ${season.label}`,
+    detail: season.note ?? `${season.label} — market baseline adjusted`,
+    score: Math.max(0, Math.min(100, 50 + season.confidenceBonus)),
+    weight: 0,
+  };
+
+  const updatedSignals = [...(result.decision.confidenceSignals ?? []), seasonalSignal].slice(0, 5);
+
+  const shortReason = season.note
+    ? `${result.decision.shortReason} ${season.note}`
+    : result.decision.shortReason;
+
+  return {
+    ...result,
+    decision: {
+      ...result.decision,
+      shortReason,
+      confidence: adjustedLevel,
+      confidenceScore: adjustedScore,
+      confidenceSignals: updatedSignals,
+    },
+    seasonContext: {
+      month: season.month,
+      weekOfYear: season.weekOfYear,
+      label: season.label,
+      isMaterial: season.isMaterial,
+      note: season.note,
+      ctrMultiplier: season.ctrMultiplier,
+      convMultiplier: season.convMultiplier,
+      confidenceBonus: season.confidenceBonus,
+    },
+  };
+}
+
 export async function createAnalysis(userId: string, payload: AnalysisPayload) {
-  let analysisPayload = payload;
+  let analysisPayload = await enrichAttributionFromShopify(userId, payload).catch(() => payload);
   const normalizedStage =
     analysisPayload.stage === "testing"
       ? AnalysisStage.testing
@@ -726,6 +830,10 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
     console.error("[analysis] GigaChat failed, using fallback logic", error);
     partialResult = fallbackAnalysis(analysisPayload);
   }
+  partialResult = {
+    ...partialResult,
+    attributionAdjustment: partialResult.derived.attributionAdjustment ?? partialResult.attributionAdjustment,
+  };
 
   const confidence = computeRecommendationConfidence(
     analysisPayload,
@@ -768,6 +876,7 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
   };
   partialResult = applyEvidenceMaturityAdjustment(partialResult, analysisPayload);
   partialResult = applyReturnRateAdjustment(partialResult);
+  partialResult = applySeasonalityAdjustment(partialResult);
 
   let ltvAdjustment: (LtvComputeResult & { shopifyConnected: boolean }) | undefined;
   try {
@@ -782,7 +891,12 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
       );
       if (ltvResult?.hasEnoughHistory) {
         ltvAdjustment = { ...ltvResult, shopifyConnected: true };
-        partialResult = applyLtvAdjustment(partialResult, analysisPayload, ltvResult, calibratedConfidence.score);
+        partialResult = applyLtvAdjustment(
+          partialResult,
+          attributionAdjustedPayload(analysisPayload, partialResult.derived),
+          ltvResult,
+          calibratedConfidence.score,
+        );
       }
     }
   } catch {

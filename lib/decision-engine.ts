@@ -5,6 +5,8 @@ import {
   type ConfidenceLevel,
   type ConfidenceSignal,
 } from "@/lib/analysis-schema";
+import { deriveAttributionAdjustment } from "@/lib/attribution";
+import { getSeasonContext, type SeasonContext } from "@/lib/seasonality";
 
 function round(value: number, precision = 2) {
   return Number(value.toFixed(precision));
@@ -27,6 +29,15 @@ function effectiveSpend(input: AnalysisInput, derived: ReturnType<typeof deriveM
 
 function spendTarget(derived: ReturnType<typeof deriveMetrics>) {
   return Math.max(150, derived.breakEvenCpa * 3, derived.breakEvenRoas * 50);
+}
+
+function attributionAdjustedInput(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>): AnalysisInput {
+  if (!derived.attributionAdjustment) return input;
+  return {
+    ...input,
+    purchases: derived.attributionAdjustment.adjustedPurchases,
+    revenue: derived.grossRevenue ?? input.revenue,
+  };
 }
 
 function evidenceMaturity(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
@@ -56,29 +67,39 @@ export type LtvBreakEvenOverride = {
 };
 
 export function deriveMetrics(input: AnalysisInput, ltvOverride?: LtvBreakEvenOverride) {
+  const attributionAdjustment = deriveAttributionAdjustment(
+    input,
+    Number(process.env.IOS_UNDER_ATTRIBUTION_MULTIPLIER ?? 1.25),
+  );
   const spend = input.total_spend && input.total_spend > 0 ? input.total_spend : input.clicks * input.cpc;
-  const netRevenue = effectiveRevenue(input);
-  const grossRoas = spend > 0 ? input.revenue / spend : 0;
+  const adjustedPurchases = attributionAdjustment?.adjustedPurchases ?? input.purchases;
+  const adjustedRevenue = attributionAdjustment ? input.revenue * attributionAdjustment.revenueUplift : input.revenue;
+  const adjustedInput = { ...input, purchases: adjustedPurchases, revenue: adjustedRevenue };
+  const netRevenue = effectiveRevenue(adjustedInput);
+  const grossRoas = spend > 0 ? adjustedRevenue / spend : 0;
   const roas = spend > 0 ? netRevenue / spend : 0;
-  const conversionRate = input.clicks > 0 ? (input.purchases / input.clicks) * 100 : 0;
+  const conversionRate = input.clicks > 0 ? (adjustedPurchases / input.clicks) * 100 : 0;
   const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
   const margin = Math.max(input.product_price - input.cost, 0.01);
   const firstOrderBreakEvenRoas = input.product_price / margin;
   const firstOrderBreakEvenCpa = margin;
   const breakEvenRoas = ltvOverride?.ltvBreakEvenRoas ?? firstOrderBreakEvenRoas;
   const breakEvenCpa = ltvOverride?.ltvBreakEvenCpa ?? firstOrderBreakEvenCpa;
-  const currentCpa = input.purchases > 0 ? spend / input.purchases : null;
+  const currentCpa = adjustedPurchases > 0 ? spend / adjustedPurchases : null;
   const maxCpcAtCurrentConversion =
     conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
-  const profit = netRevenue - spend - input.purchases * input.cost;
+  const profit = netRevenue - spend - adjustedPurchases * input.cost;
   const netProfitMargin = netRevenue > 0 ? (profit / netRevenue) * 100 : 0;
 
   return {
     spend: round(spend),
-    grossRevenue: round(input.revenue),
+    grossRevenue: round(adjustedRevenue),
     effectiveRevenue: round(netRevenue),
     grossRoas: round(grossRoas),
     returnRate: round(normalizedReturnRate(input) * 100),
+    pixelPurchases: round(input.purchases),
+    adjustedPurchases: round(adjustedPurchases),
+    attributionPurchaseUplift: attributionAdjustment?.purchaseUplift,
     roas: round(roas),
     conversionRate: round(conversionRate),
     addToCartRate: round(addToCartRate),
@@ -88,26 +109,31 @@ export function deriveMetrics(input: AnalysisInput, ltvOverride?: LtvBreakEvenOv
     maxCpcAtCurrentConversion: round(maxCpcAtCurrentConversion),
     profit: round(profit),
     netProfitMargin: round(netProfitMargin),
+    attributionAdjustment,
   };
 }
 
-function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
+function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>, season: SeasonContext) {
   const maturity = evidenceMaturity(input, derived);
   const enoughTraffic = (input.clicks >= 80 || input.impressions >= 5000) && maturity.enoughEvidence;
   const weakCreative = input.ctr < 1;
-  const expensiveTraffic = input.cpm > 60;
+  const expensiveTraffic = input.cpm > 60 * season.cpmMultiplier;
+  const killAtcCeiling = season.killReticence >= 0.5 ? 0 : 1;
   const weakPurchaseSignal = input.clicks >= 60 && input.purchases === 0 && maturity.enoughEvidence;
-  const weakDemand = input.clicks >= 80 && input.add_to_cart <= 1 && maturity.enoughEvidence;
+  const weakDemand = input.clicks >= 80 && input.add_to_cart <= killAtcCeiling && maturity.enoughEvidence;
   const returnDrag =
     maturity.enoughEvidence &&
     (input.return_rate > 0 || (input.net_revenue ?? 0) > 0) &&
     derived.grossRoas >= derived.breakEvenRoas &&
     derived.roas < derived.breakEvenRoas;
+  const ctrFloor = Math.max(1.0, 1.5 - season.scaleEagerness * 0.5);
+  const roasFloor = derived.breakEvenRoas * Math.max(0.88, 1 - season.scaleEagerness * 0.10);
+  const purchasesMin = season.scaleEagerness >= 0.5 ? 1 : 2;
   const goodEconomics =
-    input.purchases >= 2 &&
-    derived.roas >= derived.breakEvenRoas &&
+    input.purchases >= purchasesMin &&
+    derived.roas >= roasFloor &&
     derived.profit > 0 &&
-    input.ctr >= 1.5;
+    input.ctr >= ctrFloor;
 
   let finalDecision: AnalysisDecision = "TEST AGAIN";
   let shortReason = "The sample is still thin, so the setup needs more data before a hard call.";
@@ -156,7 +182,7 @@ function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>)
   return { finalDecision, shortReason, confidence };
 }
 
-function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
+function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>, season: SeasonContext) {
   const maturity = evidenceMaturity(input, derived);
   const signals: ConfidenceSignal[] = [
     {
@@ -188,7 +214,16 @@ function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typ
       weight: 25,
     },
   ];
+  if (season.isMaterial) {
+    signals.push({
+      label: `Season: ${season.label}`,
+      detail: season.note ?? `${season.label} — market baseline adjusted`,
+      score: Math.max(0, Math.min(100, 50 + season.confidenceBonus)),
+      weight: 0,
+    });
+  }
   let confidenceScore = Math.round(signals.reduce((sum, signal) => sum + signal.score * signal.weight, 0) / 100);
+  confidenceScore = Math.max(0, Math.min(100, confidenceScore + season.confidenceBonus));
   if (maturity.lowSpend || !maturity.enoughTime) {
     confidenceScore = Math.min(confidenceScore, 45);
   } else if (maturity.enoughEvidence && input.clicks >= 80) {
@@ -446,28 +481,36 @@ function decideContinueOrStop(
 export function runRuleAnalysis(
   input: AnalysisInput,
   ltvOverride?: LtvBreakEvenOverride,
+  analysisDate?: Date,
 ): Omit<AnalysisOutput, "saved" | "savedId"> {
+  const season = getSeasonContext(analysisDate);
   const derived = deriveMetrics(input, ltvOverride);
-  const baseDecision = decide(input, derived);
-  const confidence = confidenceFromSingleInput(input, derived);
+  const signalInput = attributionAdjustedInput(input, derived);
+  const baseDecision = decide(signalInput, derived, season);
+  const confidence = confidenceFromSingleInput(signalInput, derived, season);
+  const baseShortReason =
+    confidence.confidenceScore < 50
+      ? `Confidence is below 50%, so this is surfaced as Watch until more signal is available. ${baseDecision.shortReason}`
+      : baseDecision.shortReason;
+  const finalShortReason =
+    season.isMaterial && season.note
+      ? `${baseShortReason} ${season.note}`
+      : baseShortReason;
   const decision = {
     ...baseDecision,
     finalDecision: confidence.confidenceScore < 50 ? "TEST AGAIN" as const : baseDecision.finalDecision,
-    shortReason:
-      confidence.confidenceScore < 50
-        ? `Confidence is below 50%, so this is surfaced as Watch until more signal is available. ${baseDecision.shortReason}`
-        : baseDecision.shortReason,
+    shortReason: finalShortReason,
     confidence: confidence.confidence,
     confidenceScore: confidence.confidenceScore,
     confidenceSignals: confidence.confidenceSignals,
   };
-  const diagnosis = diagnose(input, derived);
+  const diagnosis = diagnose(signalInput, derived);
   const actionPlan = planActions(diagnosis);
-  const validation = validatePotential(input, derived, diagnosis);
+  const validation = validatePotential(signalInput, derived, diagnosis);
   const profitability = calculateProfitability(derived);
-  const funnelLeak = detectFunnelLeak(input);
+  const funnelLeak = detectFunnelLeak(signalInput);
   const creativeAngles = generateCreativeAngles(input, diagnosis);
-  const continueDecision = decideContinueOrStop(input, derived, decision);
+  const continueDecision = decideContinueOrStop(signalInput, derived, decision);
 
   return {
     decision,
@@ -478,7 +521,18 @@ export function runRuleAnalysis(
     funnelLeak,
     creativeAngles,
     continueDecision,
+    attributionAdjustment: derived.attributionAdjustment ?? undefined,
     derived,
     provider: "rules",
+    seasonContext: {
+      month: season.month,
+      weekOfYear: season.weekOfYear,
+      label: season.label,
+      isMaterial: season.isMaterial,
+      note: season.note,
+      ctrMultiplier: season.ctrMultiplier,
+      convMultiplier: season.convMultiplier,
+      confidenceBonus: season.confidenceBonus,
+    },
   };
 }

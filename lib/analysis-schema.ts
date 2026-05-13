@@ -17,6 +17,16 @@ export const analysisInputSchema = z.object({
   net_revenue: z.coerce.number().min(0).optional(),
   total_spend: z.coerce.number().min(0).optional(),
   days_active: z.coerce.number().int().min(0).optional(),
+  platform_breakdown: z.object({
+    ios: z.coerce.number().min(0).optional(),
+    android: z.coerce.number().min(0).optional(),
+    desktop: z.coerce.number().min(0).optional(),
+    unknown: z.coerce.number().min(0).optional(),
+  }).optional(),
+  ios_audience_pct: z.coerce.number().min(0).max(100).optional(),
+  ios_under_attribution_multiplier: z.coerce.number().min(0).max(10).optional(),
+  pixel_purchases: z.coerce.number().min(0).optional(),
+  shopify_purchases: z.coerce.number().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]),
 });
 
@@ -101,12 +111,26 @@ export type AnalysisOutput = {
     productMatched?: boolean;
     windowDays?: number;
   };
+  attributionAdjustment?: {
+    pixelPurchases: number;
+    adjustedPurchases: number;
+    purchaseUplift: number;
+    revenueUplift: number;
+    iosAudiencePct: number;
+    multiplier: number;
+    source: "shopify_reconciliation" | "user_override" | "global_default";
+    shopifyPurchases?: number;
+    pixelShortfallPct?: number;
+  };
   derived: {
     spend: number;
     grossRevenue?: number;
     effectiveRevenue?: number;
     grossRoas?: number;
     returnRate?: number;
+    pixelPurchases?: number;
+    adjustedPurchases?: number;
+    attributionPurchaseUplift?: number;
     roas: number;
     conversionRate: number;
     addToCartRate: number;
@@ -120,6 +144,16 @@ export type AnalysisOutput = {
   provider: "rules" | "gigachat";
   saved: boolean;
   savedId?: string;
+  seasonContext?: {
+    month: number;
+    weekOfYear: number;
+    label: string;
+    isMaterial: boolean;
+    note: string | null;
+    ctrMultiplier: number;
+    convMultiplier: number;
+    confidenceBonus: number;
+  };
 };
 
 export type AnalysisHistoryItem = {
