@@ -80,12 +80,14 @@ function extractSeoData(html: string, url: string): ExtractedSeoData {
 
   const schemaMarkup = html.includes("application/ld+json");
 
+  let hostname = "";
+  try { hostname = new URL(url).hostname; } catch { hostname = url.replace(/^https?:\/\//, "").split("/")[0]; }
   const internalLinks = [...html.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)]
     .map((m) => m[1])
-    .filter((href) => href.startsWith("/") || href.includes(new URL(url).hostname));
+    .filter((href) => href.startsWith("/") || (hostname && href.includes(hostname)));
   const externalLinks = [...html.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)]
     .map((m) => m[1])
-    .filter((href) => href.startsWith("http") && !href.includes(new URL(url).hostname));
+    .filter((href) => href.startsWith("http") && !(hostname && href.includes(hostname)));
 
   const textContent = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   const words = textContent.toLowerCase().match(/\b[a-zа-я]{4,}\b/g) ?? [];
@@ -265,6 +267,11 @@ Return JSON:
   };
 }
 
+function normalizeUrl(raw: string): string {
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
 export async function analyzeSeo(userId: string): Promise<SeoAnalysisResult> {
   if (!process.env.GIGACHAT_AUTH_KEY && !process.env.GIGACHAT_ACCESS_TOKEN) {
     throw new AppError("SEO analysis is not available: AI provider not configured.", 503);
@@ -276,17 +283,24 @@ export async function analyzeSeo(userId: string): Promise<SeoAnalysisResult> {
     throw new AppError("No store URL configured. Please add your store URL in settings.", 400);
   }
 
-  const html = await fetchStoreHtml(user.storeUrl);
-  const seoData = extractSeoData(html, user.storeUrl);
-  const aiResult = await runGigaChatSeoAnalysis(seoData, user.storeUrl);
+  const storeUrl = normalizeUrl(user.storeUrl);
+  const html = await fetchStoreHtml(storeUrl);
+  const seoData = extractSeoData(html, storeUrl);
+  let aiResult: Awaited<ReturnType<typeof runGigaChatSeoAnalysis>>;
+  try {
+    aiResult = await runGigaChatSeoAnalysis(seoData, storeUrl);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown AI error";
+    throw new AppError(`SEO analysis failed: ${msg}`, 502);
+  }
 
   const result: SeoAnalysisResult = {
-    storeUrl: user.storeUrl,
+    storeUrl,
     analyzedAt: new Date().toISOString(),
     ...aiResult,
   };
 
-  await SeoRepository.upsert(userId, user.storeUrl, result);
+  await SeoRepository.upsert(userId, storeUrl, result);
 
   return result;
 }
