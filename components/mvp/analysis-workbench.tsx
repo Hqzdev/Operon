@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
@@ -136,6 +136,32 @@ function recBadgeVariant(rec: string) {
   if (rec === "SCALE") return "default";
   if (rec === "CUT") return "destructive";
   return "secondary";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function round(value: number, precision = 2) {
+  return Number(value.toFixed(precision));
+}
+
+function heatCellClass(profit: number, profitPerOrder: number) {
+  const scale = Math.max(Math.abs(profitPerOrder) * 4, 25);
+  const intensity = clamp(Math.abs(profit) / scale, 0.15, 1);
+  if (profit > 0) {
+    return {
+      backgroundColor: `rgba(16, 185, 129, ${0.18 + intensity * 0.58})`,
+      color: intensity > 0.62 ? "#052e1a" : undefined,
+    };
+  }
+  if (profit < 0) {
+    return {
+      backgroundColor: `rgba(239, 68, 68, ${0.14 + intensity * 0.56})`,
+      color: intensity > 0.62 ? "#450a0a" : undefined,
+    };
+  }
+  return { backgroundColor: "rgba(245, 158, 11, 0.32)" };
 }
 
 function confidencePercent(result?: AnalysisOutput | null) {
@@ -644,6 +670,51 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
   const [simulationResult, setSimulationResult] = useState<BudgetSimulationResult | null>(null);
 
   const apiBaseUrl = getApiBaseUrl();
+
+  const profitabilityHeatmap = useMemo(() => {
+    const price = Number(form.product_price) || 0;
+    const cost = Number(form.cost) || 0;
+    const margin = Math.max(0, price - cost);
+    const currentCpc = Number(form.cpc) > 0 ? Number(form.cpc) : 1;
+    const observedConversionRate = form.clicks > 0 && form.purchases > 0
+      ? (form.purchases / form.clicks) * 100
+      : result?.derived.conversionRate ?? 2;
+    const maxCpc = Math.max(currentCpc * 1.8, margin * 0.12, 0.5);
+    const minCpc = Math.max(0.05, Math.min(currentCpc * 0.45, maxCpc * 0.2));
+    const cpcs = Array.from({ length: 12 }, (_, index) => round(minCpc + ((maxCpc - minCpc) / 11) * index, 2));
+    const maxRate = clamp(Math.max(observedConversionRate * 2.25, currentCpc / Math.max(margin, 0.01) * 100 * 1.8, 6), 3, 35);
+    const minRate = Math.max(0.5, Math.min(observedConversionRate * 0.35, maxRate * 0.2));
+    const conversionRates = Array.from({ length: 8 }, (_, index) => round(minRate + ((maxRate - minRate) / 7) * index, 2)).reverse();
+
+    return {
+      price,
+      cost,
+      margin,
+      clicks: 100,
+      breakEvenCvrAtCurrentCpc: margin > 0 ? round((currentCpc / margin) * 100, 2) : null,
+      cpcs,
+      conversionRates,
+      cells: conversionRates.map((conversionRate) =>
+        cpcs.map((cpc) => {
+          const conversions = 100 * (conversionRate / 100);
+          const revenue = conversions * price;
+          const productCost = conversions * cost;
+          const adCost = 100 * cpc;
+          const profit = revenue - productCost - adCost;
+          return {
+            cpc,
+            conversionRate,
+            conversions,
+            revenue,
+            productCost,
+            adCost,
+            profit,
+            profitable: profit >= 0,
+          };
+        }),
+      ),
+    };
+  }, [form.clicks, form.cost, form.cpc, form.product_price, form.purchases, result?.derived.conversionRate]);
 
   function getToken() {
     return localStorage.getItem("operon_token");
@@ -1707,6 +1778,80 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                         <option value="retesting">retesting</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div className="mt-6 rounded-2xl border border-border p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Profitability heat map</div>
+                        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                          X-axis is CPC. Y-axis is conversion rate. Each cell models 100 clicks using product price and cost.
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-right text-[11px] text-muted-foreground">
+                        <div>Margin ${round(profitabilityHeatmap.margin)}</div>
+                        <div>
+                          Break-even CVR {profitabilityHeatmap.breakEvenCvrAtCurrentCpc !== null ? `${profitabilityHeatmap.breakEvenCvrAtCurrentCpc}%` : "--"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {profitabilityHeatmap.margin > 0 ? (
+                      <div className="mt-4 overflow-x-auto">
+                        <table className="min-w-[720px] border-separate border-spacing-1 text-[11px]">
+                          <thead>
+                            <tr>
+                              <th className="w-16 px-1 py-1 text-right font-medium text-muted-foreground">CVR / CPC</th>
+                              {profitabilityHeatmap.cpcs.map((cpc) => (
+                                <th key={cpc} className="px-1 py-1 text-center font-medium text-muted-foreground">
+                                  ${cpc}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {profitabilityHeatmap.cells.map((row, rowIndex) => (
+                              <tr key={profitabilityHeatmap.conversionRates[rowIndex]}>
+                                <th className="px-1 py-1 text-right font-medium text-muted-foreground">
+                                  {profitabilityHeatmap.conversionRates[rowIndex]}%
+                                </th>
+                                {row.map((cell) => (
+                                  <td key={`${cell.conversionRate}-${cell.cpc}`} className="p-0">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="h-8 w-full min-w-12 rounded-md border border-transparent px-1 text-center font-mono text-[11px] transition-transform hover:scale-105 hover:border-foreground/30"
+                                          style={heatCellClass(cell.profit, profitabilityHeatmap.margin)}
+                                        >
+                                          {cell.profit >= 0 ? "+" : ""}${round(cell.profit, 0)}
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-[240px] text-left text-[12px] leading-relaxed">
+                                        <div className="font-semibold">{cell.profitable ? "Profitable" : "Loss"} scenario</div>
+                                        <div className="mt-1">CPC: ${cell.cpc} · Conversion rate: {cell.conversionRate}%</div>
+                                        <div>Conversions per 100 clicks: {round(cell.conversions, 1)}</div>
+                                        <div>Revenue: ${round(cell.revenue)} · Product cost: ${round(cell.productCost)} · Ad cost: ${round(cell.adCost)}</div>
+                                        <div className="font-semibold">Profit: {cell.profit >= 0 ? "+" : ""}${round(cell.profit)}</div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-sm bg-red-400" /> Loss</span>
+                          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-sm bg-amber-400" /> Break-even</span>
+                          <span className="inline-flex items-center gap-1.5"><span className="size-3 rounded-sm bg-emerald-400" /> Profitable</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                        Enter a product price higher than product cost to calculate break-even traffic and conversion combinations.
+                      </div>
+                    )}
                   </div>
 
                   {/* Usage bar for Starter plan */}

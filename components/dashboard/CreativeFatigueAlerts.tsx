@@ -17,6 +17,9 @@ type TriggeredMetric = {
   previousValue?: number;
   changePct?: number;
   windowDays?: number;
+  fatigueStartedAt?: string;
+  budgetChangePct?: number;
+  rotationStrategies?: string[];
 };
 
 type FatigueAlert = {
@@ -42,6 +45,13 @@ function formatDate(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${value}T00:00:00`));
 }
 
 function isTriggeredMetric(value: unknown): value is TriggeredMetric {
@@ -140,6 +150,9 @@ export function CreativeFatigueAlerts() {
 
       <div className="grid gap-3">
         {activeAlerts.map((alert) => (
+          (() => {
+            const ctrMetric = alert.triggeredMetrics.find((metric) => metric.signal === "ctr_decay");
+            return (
           <div
             key={alert.id}
             className={cn(
@@ -158,6 +171,12 @@ export function CreativeFatigueAlerts() {
                   </span>
                 </div>
                 <p className="mt-1 truncate text-[13px] opacity-90">Ad: &quot;{alert.creativeName}&quot;</p>
+                {ctrMetric?.fatigueStartedAt ? (
+                  <p className="mt-1 text-[12px] opacity-80">
+                    Fatigue started {formatShortDate(ctrMetric.fatigueStartedAt)}
+                    {typeof ctrMetric.budgetChangePct === "number" ? ` · budget change ${ctrMetric.budgetChangePct > 0 ? "+" : ""}${ctrMetric.budgetChangePct}%` : ""}
+                  </p>
+                ) : null}
               </div>
               <div className="flex shrink-0 gap-2">
                 <Button
@@ -188,8 +207,20 @@ export function CreativeFatigueAlerts() {
                 <p key={`${alert.id}-${metric.signal}`}>{metric.label}</p>
               ))}
               <p className="font-medium">Recommendation: {alert.recommendation}</p>
+              {ctrMetric?.rotationStrategies?.length ? (
+                <div className="mt-2 rounded-md border border-current/15 bg-white/35 px-3 py-2 dark:bg-black/10">
+                  <p className="text-[12px] font-semibold">Creative rotation ideas</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-[12px]">
+                    {ctrMetric.rotationStrategies.map((strategy) => (
+                      <li key={strategy}>{strategy}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </div>
+            );
+          })()
         ))}
       </div>
 

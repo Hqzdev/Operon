@@ -253,6 +253,61 @@
     <div id="screen-loading" class="screen">
       <div class="spinner"></div>
     </div>
+
+    <!-- First-run onboarding wizard -->
+    <div id="onboarding-modal" class="onboarding-modal hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+      <div class="onboarding-card">
+        <button id="btn-onboarding-skip-all" class="onboarding-skip-all" type="button">Skip wizard</button>
+
+        <div class="onboarding-progress">
+          <span class="onboarding-dot active" data-onboarding-dot="0"></span>
+          <span class="onboarding-dot" data-onboarding-dot="1"></span>
+          <span class="onboarding-dot" data-onboarding-dot="2"></span>
+          <span class="onboarding-dot" data-onboarding-dot="3"></span>
+        </div>
+
+        <div id="onboarding-step-0" class="onboarding-step">
+          <div class="onboarding-icon">1</div>
+          <h2 id="onboarding-title">Sign in to dashboard</h2>
+          <p>Open Operon, sign in, then go to Integrations to generate your extension key.</p>
+          <button id="btn-onboarding-dashboard" class="btn btn-primary btn-full" type="button">Open Dashboard</button>
+          <button class="btn btn-outline btn-full onboarding-next" data-next-step="1" type="button">I signed in</button>
+          <button class="onboarding-link onboarding-next" data-next-step="1" type="button">Skip this step</button>
+        </div>
+
+        <div id="onboarding-step-1" class="onboarding-step hidden">
+          <div class="onboarding-icon">2</div>
+          <h2>Copy your Extension Key</h2>
+          <p>Paste the key from Operon Integrations here. We will save it for future syncs.</p>
+          <div class="field onboarding-key-field">
+            <label for="onboarding-extension-key">extension_key</label>
+            <input id="onboarding-extension-key" type="password" placeholder="Paste extension key" />
+          </div>
+          <button id="btn-onboarding-copy" class="btn btn-blue btn-full" type="button">
+            <span id="onboarding-copy-label">Copy</span>
+          </button>
+          <button id="btn-onboarding-save-key" class="btn btn-primary btn-full" type="button">Save key and continue</button>
+          <p id="onboarding-key-error" class="error hidden"></p>
+          <button class="onboarding-link onboarding-next" data-next-step="2" type="button">Skip this step</button>
+        </div>
+
+        <div id="onboarding-step-2" class="onboarding-step hidden">
+          <div class="onboarding-icon">3</div>
+          <h2>Open Meta Ads Manager</h2>
+          <p>Open Meta. The extension will start seeing campaign rows and can sync visible metrics to Operon.</p>
+          <button id="btn-onboarding-meta" class="btn btn-primary btn-full" type="button">Open Meta</button>
+          <button class="btn btn-outline btn-full onboarding-next" data-next-step="3" type="button">I already opened Meta</button>
+          <button class="onboarding-link onboarding-next" data-next-step="3" type="button">Skip this step</button>
+        </div>
+
+        <div id="onboarding-step-3" class="onboarding-step hidden">
+          <div class="onboarding-icon success">✓</div>
+          <h2>You're ready!</h2>
+          <p>Scan Meta Ads Manager whenever you want to sync campaigns into Operon.</p>
+          <button id="btn-onboarding-done" class="btn btn-primary btn-full" type="button">Done</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="src/popup/popup.js" type="module"></script>

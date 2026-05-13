@@ -1,6 +1,9 @@
 const DEFAULT_API_BASE = "https://operons.vercel.app/api";
+const ONBOARDING_DONE_KEY = "operon_onboarding_completed";
+const LOCAL_ONBOARDING_DONE_KEY = "onboarding_completed";
 let activeProvider = null;
 let activeAccountName = "";
+let onboardingStep = 0;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
@@ -52,6 +55,32 @@ function setAutopilot(enabled) {
   return new Promise((resolve) =>
     chrome.storage.local.set({ autopilot_enabled: enabled }, resolve)
   );
+}
+
+function getOnboardingState() {
+  return new Promise((resolve) =>
+    chrome.storage.local.get([ONBOARDING_DONE_KEY, "operon_extension_key"], (r) =>
+      resolve({
+        completed: !!r[ONBOARDING_DONE_KEY] || localStorage.getItem(LOCAL_ONBOARDING_DONE_KEY) === "true",
+        hasKey: !!r.operon_extension_key,
+      })
+    )
+  );
+}
+
+function setOnboardingCompleted(completed = true) {
+  localStorage.setItem(LOCAL_ONBOARDING_DONE_KEY, completed ? "true" : "false");
+  return new Promise((resolve) =>
+    chrome.storage.local.set({ [ONBOARDING_DONE_KEY]: completed }, resolve)
+  );
+}
+
+function openTab(url) {
+  chrome.tabs.create({ url });
+}
+
+function appBaseFromSettings(settings) {
+  return (settings.apiBase || DEFAULT_API_BASE).replace(/\/api\/?$/, "");
 }
 
 async function getConnectionStatus() {
@@ -163,11 +192,58 @@ async function init() {
 
   if (!settings.extensionKey) {
     showScreen("auth");
+    await maybeShowOnboarding(settings);
     return;
   }
 
   showScreen("main");
   await onMainLoaded();
+  await maybeShowOnboarding(settings);
+}
+
+async function maybeShowOnboarding(settings = null) {
+  const state = await getOnboardingState();
+  if (state.completed || state.hasKey) return;
+  const currentSettings = settings || await getSettings();
+  $("onboarding-extension-key").value = currentSettings.extensionKey || "";
+  showOnboardingStep(0);
+  show("onboarding-modal");
+}
+
+function showOnboardingStep(step) {
+  onboardingStep = Math.max(0, Math.min(3, step));
+  [0, 1, 2, 3].forEach((index) => {
+    const stepEl = $(`onboarding-step-${index}`);
+    if (stepEl) stepEl.classList.toggle("hidden", index !== onboardingStep);
+    const dot = document.querySelector(`[data-onboarding-dot="${index}"]`);
+    if (dot) dot.classList.toggle("active", index <= onboardingStep);
+  });
+}
+
+async function closeOnboarding({ completed = false } = {}) {
+  hide("onboarding-modal");
+  if (completed) await setOnboardingCompleted(true);
+}
+
+async function saveOnboardingKey() {
+  const extensionKey = $("onboarding-extension-key").value.trim();
+  if (!extensionKey) {
+    $("onboarding-key-error").textContent = "Paste your extension key first.";
+    show("onboarding-key-error");
+    return false;
+  }
+
+  hide("onboarding-key-error");
+  const settings = await getSettings();
+  await setSettings({
+    extensionKey,
+    apiBase: settings.apiBase || DEFAULT_API_BASE,
+    accountName: settings.accountName || "",
+  });
+  $("token-input").value = extensionKey;
+  showScreen("main");
+  await onMainLoaded();
+  return true;
 }
 
 // ── auth screen ───────────────────────────────────────────────────────────────
@@ -191,6 +267,52 @@ $("btn-save-token").addEventListener("click", async () => {
     $("btn-save-token").disabled = false;
   }
 });
+
+// ── first-run onboarding wizard ──────────────────────────────────────────────
+$("btn-onboarding-skip-all").addEventListener("click", () => closeOnboarding({ completed: true }));
+
+document.querySelectorAll(".onboarding-next").forEach((button) => {
+  button.addEventListener("click", () => {
+    showOnboardingStep(Number(button.dataset.nextStep || onboardingStep + 1));
+  });
+});
+
+$("btn-onboarding-dashboard").addEventListener("click", async () => {
+  const settings = await getSettings();
+  openTab(`${appBaseFromSettings(settings)}/login`);
+});
+
+$("btn-onboarding-copy").addEventListener("click", async () => {
+  const key = $("onboarding-extension-key").value.trim() || $("token-input").value.trim();
+  if (!key) {
+    $("onboarding-key-error").textContent = "Paste your extension key first.";
+    show("onboarding-key-error");
+    return;
+  }
+  hide("onboarding-key-error");
+  try {
+    await navigator.clipboard.writeText(key);
+    $("onboarding-copy-label").textContent = "Copied ✓";
+    setTimeout(() => {
+      $("onboarding-copy-label").textContent = "Copy";
+    }, 1400);
+  } catch {
+    $("onboarding-key-error").textContent = "Clipboard blocked. Select the key and copy it manually.";
+    show("onboarding-key-error");
+  }
+});
+
+$("btn-onboarding-save-key").addEventListener("click", async () => {
+  const saved = await saveOnboardingKey();
+  if (saved) showOnboardingStep(2);
+});
+
+$("btn-onboarding-meta").addEventListener("click", () => {
+  openTab("https://www.facebook.com/ads/manager");
+  showOnboardingStep(3);
+});
+
+$("btn-onboarding-done").addEventListener("click", () => closeOnboarding({ completed: true }));
 
 // ── logout ────────────────────────────────────────────────────────────────────
 $("btn-logout").addEventListener("click", async () => {

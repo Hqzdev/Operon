@@ -183,7 +183,96 @@ input:focus { border-color: #9ca3af; }
 .btn-primary:hover:not(:disabled) { opacity: 0.85; }
 .btn-outline { background: none; border: 1px solid var(--border); color: var(--text); }
 .btn-outline:hover:not(:disabled) { background: var(--surface); }
+.btn-blue { background: #2563eb; color: #fff; }
+.btn-blue:hover:not(:disabled) { opacity: 0.88; }
 .btn-full { width: 100%; }
+
+/* ── First-run onboarding ── */
+.onboarding-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.22);
+}
+.onboarding-card {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  padding: 18px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.onboarding-skip-all {
+  align-self: flex-end;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+}
+.onboarding-progress {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+}
+.onboarding-dot {
+  height: 4px;
+  flex: 1;
+  border-radius: 999px;
+  background: var(--border);
+}
+.onboarding-dot.active { background: var(--primary); }
+.onboarding-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+}
+.onboarding-step h2 {
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.onboarding-step p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.onboarding-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-weight: 700;
+  font-size: 18px;
+}
+.onboarding-icon.success {
+  background: var(--green);
+}
+.onboarding-key-field { margin-top: 2px; }
+.onboarding-link {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 0;
+}
+.onboarding-link:hover,
+.onboarding-skip-all:hover {
+  color: var(--text);
+}
 
 /* ── Scrape hint ── */
 .scrape-hint {

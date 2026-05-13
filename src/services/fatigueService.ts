@@ -15,6 +15,7 @@ const CTR_CRITICAL_DROP = 35;
 const CVR_WARNING_DROP = 20;
 const FREQUENCY_WARNING_THRESHOLD = 3.5;
 const IMPRESSION_STABLE_RATIO = 0.85;
+const BUDGET_STABLE_RATIO = 0.1;
 
 type MetricPoint = {
   date: Date;
@@ -22,6 +23,7 @@ type MetricPoint = {
   cpc: number;
   impressions: number;
   clicks: number;
+  spend: number;
   purchases: number;
   conversionRate: number;
   frequency: number | null;
@@ -34,11 +36,15 @@ type TriggeredMetric = {
   previousValue?: number;
   changePct?: number;
   windowDays?: number;
+  fatigueStartedAt?: string;
+  budgetChangePct?: number;
+  rotationStrategies?: string[];
 };
 
 type FatigueEvaluation = {
   severity: FatigueSeverity;
   triggeredMetrics: TriggeredMetric[];
+  recommendation: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -66,6 +72,40 @@ function pctDrop(previous: number, current: number): number {
   return ((previous - current) / previous) * 100;
 }
 
+function pctChange(previous: number, current: number): number {
+  if (previous <= 0) return 0;
+  return ((current - previous) / previous) * 100;
+}
+
+function isoDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function rotationStrategies(drop: number): string[] {
+  const base = [
+    "Rotate in a new opening hook for the same product angle",
+    "Swap the first 3 seconds or primary image while keeping the winning offer",
+    "Refresh the audience proof: new UGC, review, or before-after claim",
+  ];
+
+  if (drop >= CTR_CRITICAL_DROP) {
+    return [
+      "Pause the fatigued creative and launch a fresh concept today",
+      "Keep the offer, but test a new visual pattern and first-line hook",
+      "Duplicate the ad set with 2-3 new creatives instead of raising budget",
+    ];
+  }
+
+  return base;
+}
+
+function findFatigueStart(window: MetricPoint[]): Date {
+  for (let index = 1; index < window.length; index += 1) {
+    if (window[index].ctr < window[index - 1].ctr) return window[index].date;
+  }
+  return window[window.length - 1]?.date ?? new Date();
+}
+
 function extractFrequency(metrics: unknown): number | null {
   const data = asRecord(metrics);
   const direct = asNumber(data.frequency);
@@ -85,6 +125,7 @@ function toPoint(snapshot: {
   const impressions = asNumber(input.impressions);
   const clicks = asNumber(input.clicks);
   const purchases = asNumber(input.purchases);
+  const spend = asNumber(input.total_spend) || asNumber(input.cpc) * clicks;
 
   return {
     date: snapshot.date,
@@ -92,6 +133,7 @@ function toPoint(snapshot: {
     cpc: asNumber(input.cpc),
     impressions,
     clicks,
+    spend,
     purchases,
     conversionRate: clicks > 0 ? (purchases / clicks) * 100 : 0,
     frequency: extractFrequency(snapshot.metrics),
@@ -102,24 +144,41 @@ function evaluateFatigue(points: MetricPoint[]): FatigueEvaluation | null {
   const ordered = [...points].sort((a, b) => a.date.getTime() - b.date.getTime());
   const triggeredMetrics: TriggeredMetric[] = [];
 
+  if (ordered.length >= 4) {
+    const ctrDropSignals: TriggeredMetric[] = [];
+
+    for (let index = 3; index < ordered.length; index += 1) {
+      const baseline = ordered[index - 3];
+      const current = ordered[index];
+      const window = ordered.slice(index - 3, index + 1);
+      const currentBudget = avg(window.slice(1).map((point) => point.spend));
+      const budgetChange = pctChange(baseline.spend, currentBudget);
+      const sameBudget = baseline.spend > 0 && Math.abs(budgetChange) <= BUDGET_STABLE_RATIO * 100;
+      const drop = pctDrop(baseline.ctr, current.ctr);
+
+      if (sameBudget && drop >= CTR_WARNING_DROP) {
+        const fatigueStartedAt = findFatigueStart(window);
+        ctrDropSignals.push({
+          signal: "ctr_decay",
+          label: `Creative is fatiguing: CTR dropped ${round(drop, 0)}% in 3 days at the same budget`,
+          value: round(current.ctr),
+          previousValue: round(baseline.ctr),
+          changePct: round(drop, 0),
+          windowDays: 3,
+          fatigueStartedAt: isoDay(fatigueStartedAt),
+          budgetChangePct: round(budgetChange, 1),
+          rotationStrategies: rotationStrategies(drop),
+        });
+      }
+    }
+
+    const strongestCtrDrop = ctrDropSignals.sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0))[0];
+    if (strongestCtrDrop) triggeredMetrics.push(strongestCtrDrop);
+  }
+
   if (ordered.length >= 6) {
     const previousWindow = ordered.slice(-6, -3);
     const currentWindow = ordered.slice(-3);
-    const previousCtr = avg(previousWindow.map((p) => p.ctr));
-    const currentCtr = avg(currentWindow.map((p) => p.ctr));
-    const drop = pctDrop(previousCtr, currentCtr);
-
-    if (drop >= CTR_WARNING_DROP) {
-      triggeredMetrics.push({
-        signal: "ctr_decay",
-        label: `CTR down ${round(drop, 0)}% over 3 days`,
-        value: round(currentCtr),
-        previousValue: round(previousCtr),
-        changePct: round(drop, 0),
-        windowDays: 3,
-      });
-    }
-
     const previousCvr = avg(previousWindow.map((p) => p.conversionRate));
     const currentCvr = avg(currentWindow.map((p) => p.conversionRate));
     const cvrDrop = pctDrop(previousCvr, currentCvr);
@@ -175,7 +234,11 @@ function evaluateFatigue(points: MetricPoint[]): FatigueEvaluation | null {
       ? FatigueSeverity.critical
       : FatigueSeverity.warning;
 
-  return { severity, triggeredMetrics };
+  const recommendation = ctrSignal?.rotationStrategies?.length
+    ? `Rotate creative. Start with: ${ctrSignal.rotationStrategies[0]}.`
+    : "Pause or refresh creative";
+
+  return { severity, triggeredMetrics, recommendation };
 }
 
 export async function runFatigueCheckForAccount(connectionId: string) {
@@ -209,6 +272,7 @@ export async function runFatigueCheckForAccount(connectionId: string) {
       creativeName: latest.entityName ?? latest.externalEntityId,
       severity: evaluation.severity,
       triggeredMetrics: evaluation.triggeredMetrics,
+      recommendation: evaluation.recommendation,
     }));
   }
 
@@ -224,6 +288,7 @@ async function upsertFatigueAlert(input: {
   creativeName: string;
   severity: FatigueSeverity;
   triggeredMetrics: TriggeredMetric[];
+  recommendation: string;
 }) {
   const existing = await FatigueRepository.findActiveForEntity(
     input.userId,
@@ -238,6 +303,7 @@ async function upsertFatigueAlert(input: {
     creativeName: input.creativeName,
     severity: input.severity,
     triggeredMetrics: input.triggeredMetrics as unknown as Prisma.InputJsonValue,
+    recommendation: input.recommendation,
     detectedAt: new Date(),
   };
 
@@ -252,6 +318,7 @@ async function upsertFatigueAlert(input: {
         creativeName: input.creativeName,
         severity: input.severity,
         triggeredMetrics: input.triggeredMetrics as unknown as Prisma.InputJsonValue,
+        recommendation: input.recommendation,
       });
 
   if (!existing || existing.severity !== input.severity) {
@@ -261,7 +328,7 @@ async function upsertFatigueAlert(input: {
       body: [
         `Ad: "${input.creativeName}"`,
         ...input.triggeredMetrics.map((metric) => metric.label),
-        "Recommendation: Pause or refresh creative",
+        `Recommendation: ${input.recommendation}`,
       ].join("\n"),
       type: "alert",
     });

@@ -15,6 +15,7 @@ type AlertUpsertInput = {
   creativeName: string;
   severity: FatigueSeverity;
   triggeredMetrics: Prisma.InputJsonValue;
+  recommendation?: string;
 };
 
 export class FatigueRepository {
@@ -42,6 +43,7 @@ export class FatigueRepository {
         creativeName: data.creativeName,
         severity: data.severity,
         triggeredMetrics: data.triggeredMetrics,
+        recommendation: data.recommendation,
         detectedAt: new Date(),
       },
     });
@@ -52,6 +54,7 @@ export class FatigueRepository {
     creativeName?: string;
     severity?: FatigueSeverity;
     triggeredMetrics?: Prisma.InputJsonValue;
+    recommendation?: string;
     detectedAt?: Date;
     status?: FatigueAlertStatus;
     dismissedAt?: Date | null;
