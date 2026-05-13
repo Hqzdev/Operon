@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { Search01Icon, ChartLineData01Icon } from "hugeicons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,7 +128,7 @@ function LoadingState({ step }: { step: number }) {
     <div className="flex flex-col items-center justify-center gap-8 py-24">
       <div className="relative flex h-20 w-20 items-center justify-center">
         <div className="absolute inset-0 animate-spin rounded-full border-4 border-muted border-t-primary" />
-        <span className="text-2xl">🔍</span>
+        <Search01Icon size={28} strokeWidth={1.5} className="text-muted-foreground" />
       </div>
       <div className="flex flex-col items-center gap-3 text-center">
         <p className="text-lg font-semibold">{LOADING_STEPS[step] ?? "Processing..."}</p>
@@ -154,8 +155,8 @@ function LoadingState({ step }: { step: number }) {
 function EmptyState({ onAnalyze, isAnalyzing }: { onAnalyze: () => void; isAnalyzing: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-6 py-24 text-center">
-      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted text-4xl">
-        📊
+      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+        <ChartLineData01Icon size={36} strokeWidth={1.5} className="text-muted-foreground" />
       </div>
       <div className="space-y-2">
         <h2 className="text-xl font-semibold">No SEO analysis yet</h2>

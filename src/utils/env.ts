@@ -33,6 +33,7 @@ const envSchema = z.object({
   SHOPIFY_API_KEY: z.string().optional(),
   SHOPIFY_API_SECRET: z.string().optional(),
   SHOPIFY_API_VERSION: z.string().default("2026-01"),
+  IOS_UNDER_ATTRIBUTION_MULTIPLIER: z.coerce.number().min(1).default(1.25),
   SHOPIFY_STORE_URL: z.string().optional(),
   SHOPIFY_ACCESS_TOKEN: z.string().optional(),
   SMTP_HOST: z.string().default("smtp.gmail.com"),

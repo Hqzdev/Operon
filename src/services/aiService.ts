@@ -1,6 +1,7 @@
 import https from "node:https";
 import { randomUUID } from "node:crypto";
 import { env } from "../utils/env";
+import { deriveAttributionAdjustment, type AttributionAdjustment } from "./attributionService";
 
 // GigaChat uses Russian CA certificates not in the default trust store
 const tlsAgent = new https.Agent({ rejectUnauthorized: false });
@@ -121,6 +122,9 @@ export type DerivedMetrics = {
   effectiveRevenue?: number;
   grossRoas?: number;
   returnRate?: number;
+  pixelPurchases?: number;
+  adjustedPurchases?: number;
+  attributionPurchaseUplift?: number;
   roas: number;
   conversionRate: number;
   addToCartRate: number;
@@ -130,6 +134,7 @@ export type DerivedMetrics = {
   maxCpcAtCurrentConversion: number;
   profit: number;
   netProfitMargin: number;
+  attributionAdjustment?: AttributionAdjustment | null;
 };
 
 export type AiAnalysisResult = {
@@ -175,6 +180,7 @@ export type AiAnalysisResult = {
     reason: string;
     minimumAdditionalTestNeeded: string;
   };
+  attributionAdjustment?: AttributionAdjustment;
   derived: DerivedMetrics;
   provider: "gigachat";
 };
@@ -195,25 +201,32 @@ function effectiveRevenue(input: AnalysisPayload) {
 }
 
 export function deriveMetrics(input: AnalysisPayload): DerivedMetrics {
+  const attributionAdjustment = deriveAttributionAdjustment(input, env.IOS_UNDER_ATTRIBUTION_MULTIPLIER);
   const spend = input.total_spend && input.total_spend > 0 ? input.total_spend : input.clicks * input.cpc;
-  const netRevenue = effectiveRevenue(input);
-  const grossRoas = spend > 0 ? input.revenue / spend : 0;
+  const adjustedPurchases = attributionAdjustment?.adjustedPurchases ?? input.purchases;
+  const adjustedRevenue = attributionAdjustment ? input.revenue * attributionAdjustment.revenueUplift : input.revenue;
+  const adjustedInput = { ...input, purchases: adjustedPurchases, revenue: adjustedRevenue };
+  const netRevenue = effectiveRevenue(adjustedInput);
+  const grossRoas = spend > 0 ? adjustedRevenue / spend : 0;
   const roas = spend > 0 ? netRevenue / spend : 0;
-  const conversionRate = input.clicks > 0 ? (input.purchases / input.clicks) * 100 : 0;
+  const conversionRate = input.clicks > 0 ? (adjustedPurchases / input.clicks) * 100 : 0;
   const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
   const margin = Math.max(input.product_price - input.cost, 0.01);
   const breakEvenRoas = input.product_price / margin;
   const breakEvenCpa = margin;
-  const currentCpa = input.purchases > 0 ? spend / input.purchases : null;
+  const currentCpa = adjustedPurchases > 0 ? spend / adjustedPurchases : null;
   const maxCpcAtCurrentConversion = conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
-  const profit = netRevenue - spend - input.purchases * input.cost;
+  const profit = netRevenue - spend - adjustedPurchases * input.cost;
   const netProfitMargin = netRevenue > 0 ? (profit / netRevenue) * 100 : 0;
   return {
     spend: round(spend),
-    grossRevenue: round(input.revenue),
+    grossRevenue: round(adjustedRevenue),
     effectiveRevenue: round(netRevenue),
     grossRoas: round(grossRoas),
     returnRate: round(normalizedReturnRate(input) * 100),
+    pixelPurchases: round(input.purchases),
+    adjustedPurchases: round(adjustedPurchases),
+    attributionPurchaseUplift: attributionAdjustment?.purchaseUplift,
     roas: round(roas),
     conversionRate: round(conversionRate),
     addToCartRate: round(addToCartRate),
@@ -223,6 +236,7 @@ export function deriveMetrics(input: AnalysisPayload): DerivedMetrics {
     maxCpcAtCurrentConversion: round(maxCpcAtCurrentConversion),
     profit: round(profit),
     netProfitMargin: round(netProfitMargin),
+    attributionAdjustment,
   };
 }
 
@@ -230,7 +244,15 @@ export async function runAiAnalysis(input: AnalysisPayload): Promise<AiAnalysisR
   if (!env.GIGACHAT_AUTH_KEY) throw new Error("GIGACHAT_AUTH_KEY is not configured");
 
   const derived = deriveMetrics(input);
-  const dataBlock = JSON.stringify({ ...input, ...derived }, null, 2);
+  const modelInput = derived.attributionAdjustment
+    ? {
+        ...input,
+        pixel_purchases: input.purchases,
+        purchases: derived.attributionAdjustment.adjustedPurchases,
+        revenue: derived.grossRevenue ?? input.revenue,
+      }
+    : input;
+  const dataBlock = JSON.stringify({ ...modelInput, ...derived }, null, 2);
 
   const [decision, diagnosis, actionPlan, validation, funnelLeak, creativeAngles, continueDecision] =
     await Promise.all([
@@ -302,7 +324,7 @@ Return JSON:
 {"creativeAngles":[{"hookIdea":"opening line max 20 words","concept":"what the ad communicates","targetEmotion":"core emotion"}]}
 
 Product: ${input.product_description ?? input.product_name ?? "e-commerce product"}
-Context: CTR ${input.ctr}%, ${input.purchases} purchases from ${input.clicks} clicks`,
+Context: CTR ${input.ctr}%, ${modelInput.purchases} purchases from ${input.clicks} clicks`,
       ),
       complete<AiAnalysisResult["continueDecision"]>(
         "continueDecision",
@@ -338,6 +360,7 @@ ${dataBlock}`,
             ? "Current CPA is below break-even, so the setup can support profit at this level."
             : "Current CPA exceeds break-even, so this setup is losing money at scale.",
     },
+    attributionAdjustment: derived.attributionAdjustment ?? undefined,
     funnelLeak,
     creativeAngles: ((creativeAngles as { creativeAngles: AiAnalysisResult["creativeAngles"] }).creativeAngles ?? []).slice(0, 3),
     continueDecision,

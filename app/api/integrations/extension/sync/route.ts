@@ -20,6 +20,15 @@ const metricSchema = z.object({
   frequency: z.coerce.number().optional(),
   product_price: z.coerce.number().optional(),
   cost: z.coerce.number().optional(),
+  platform_breakdown: z.object({
+    ios: z.coerce.number().min(0).optional(),
+    android: z.coerce.number().min(0).optional(),
+    desktop: z.coerce.number().min(0).optional(),
+    unknown: z.coerce.number().min(0).optional(),
+  }).optional(),
+  ios_audience_pct: z.coerce.number().min(0).max(100).optional(),
+  pixel_purchases: z.coerce.number().min(0).optional(),
+  shopify_purchases: z.coerce.number().min(0).optional(),
   source: z.unknown().optional(),
 });
 

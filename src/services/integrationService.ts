@@ -29,6 +29,16 @@ const analysisInputSchema = z.object({
   net_revenue: z.coerce.number().min(0).optional(),
   total_spend: z.coerce.number().min(0).optional(),
   days_active: z.coerce.number().int().min(0).optional(),
+  platform_breakdown: z.object({
+    ios: z.coerce.number().min(0).optional(),
+    android: z.coerce.number().min(0).optional(),
+    desktop: z.coerce.number().min(0).optional(),
+    unknown: z.coerce.number().min(0).optional(),
+  }).optional(),
+  ios_audience_pct: z.coerce.number().min(0).max(100).optional(),
+  ios_under_attribution_multiplier: z.coerce.number().min(0).max(10).optional(),
+  pixel_purchases: z.coerce.number().min(0).optional(),
+  shopify_purchases: z.coerce.number().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]),
 });
 
@@ -77,6 +87,15 @@ type RawMetrics = {
   cost?: number;
   total_spend?: number;
   days_active?: number;
+  platform_breakdown?: {
+    ios?: number;
+    android?: number;
+    desktop?: number;
+    unknown?: number;
+  };
+  ios_audience_pct?: number;
+  pixel_purchases?: number;
+  shopify_purchases?: number;
   source?: Prisma.InputJsonValue;
 };
 
@@ -97,6 +116,15 @@ type ExtensionMetricInput = {
   cost?: number;
   total_spend?: number;
   days_active?: number;
+  platform_breakdown?: {
+    ios?: number;
+    android?: number;
+    desktop?: number;
+    unknown?: number;
+  };
+  ios_audience_pct?: number;
+  pixel_purchases?: number;
+  shopify_purchases?: number;
   source?: unknown;
 };
 
@@ -190,6 +218,10 @@ function toAnalysisInput(metrics: RawMetrics): AnalysisInput {
     net_revenue: metrics.net_revenue !== undefined ? round(metrics.net_revenue) : undefined,
     total_spend: round(spend),
     days_active: metrics.days_active ?? 1,
+    platform_breakdown: metrics.platform_breakdown,
+    ios_audience_pct: metrics.ios_audience_pct,
+    pixel_purchases: metrics.pixel_purchases ?? metrics.purchases,
+    shopify_purchases: metrics.shopify_purchases,
     stage: "testing",
   };
   return analysisInputSchema.parse(input);
@@ -533,6 +565,10 @@ function extensionMetricToRaw(metric: ExtensionMetricInput, fallback: { accountN
     cost: asNumber(metric.cost),
     total_spend: asNumber(metric.total_spend || metric.spend),
     days_active: asNumber(metric.days_active || 1),
+    platform_breakdown: metric.platform_breakdown,
+    ios_audience_pct: metric.ios_audience_pct,
+    pixel_purchases: metric.pixel_purchases ?? metric.purchases,
+    shopify_purchases: metric.shopify_purchases,
     source: (metric.source ?? metric) as Prisma.InputJsonValue,
   } satisfies RawMetrics;
 }
@@ -686,28 +722,67 @@ function sumActions(actions: unknown, names: string[]) {
   }, 0);
 }
 
+function platformKey(value: unknown): keyof NonNullable<RawMetrics["platform_breakdown"]> {
+  const device = String(value ?? "").toLowerCase();
+  if (device.includes("iphone") || device.includes("ipad") || device.includes("ios")) return "ios";
+  if (device.includes("android")) return "android";
+  if (device.includes("desktop")) return "desktop";
+  return "unknown";
+}
+
+function addPlatformAudience(
+  current: RawMetrics,
+  row: Record<string, unknown>,
+) {
+  const key = platformKey(row.impression_device);
+  const impressions = asNumber(row.impressions);
+  current.platform_breakdown = current.platform_breakdown ?? {};
+  current.platform_breakdown[key] = (current.platform_breakdown[key] ?? 0) + impressions;
+  const total = Object.values(current.platform_breakdown).reduce((sum, value) => sum + asNumber(value), 0);
+  current.ios_audience_pct = total > 0 ? round(((current.platform_breakdown.ios ?? 0) / total) * 100) : undefined;
+}
+
 async function fetchMetaMetrics(connection: IntegrationConnection): Promise<RawMetrics[]> {
   const token = decryptIntegrationToken(connection.accessToken);
   const url = new URL(`https://graph.facebook.com/${env.META_API_VERSION}/${connection.externalAccountId}/insights`);
   url.searchParams.set("level", "adset");
   url.searchParams.set("date_preset", "last_7d");
   url.searchParams.set("time_increment", "1");
-  url.searchParams.set("fields", "adset_id,adset_name,date_start,spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,action_values");
+  url.searchParams.set("breakdowns", "impression_device");
+  url.searchParams.set("fields", "adset_id,adset_name,date_start,impression_device,spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,action_values");
   url.searchParams.set("access_token", token);
   const data = await providerFetch<{ data?: Array<Record<string, unknown>> }>(url.toString());
-  return (data.data ?? []).map((row) => ({
-    externalEntityId: String(row.adset_id ?? "account"),
-    entityName: String(row.adset_name ?? connection.accountName ?? "Meta ad set"),
-    date: day(new Date(String(row.date_start))),
-    spend: asNumber(row.spend),
-    impressions: asNumber(row.impressions),
-    clicks: asNumber(row.clicks),
-    add_to_cart: sumActions(row.actions, ["add_to_cart", "omni_add_to_cart", "offsite_conversion.fb_pixel_add_to_cart"]),
-    purchases: sumActions(row.actions, ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]),
-    revenue: sumActions(row.action_values, ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]),
-    frequency: asNumber(row.frequency),
-    source: row as Prisma.InputJsonValue,
-  }));
+  const aggregated = new Map<string, RawMetrics>();
+  for (const row of data.data ?? []) {
+    const externalEntityId = String(row.adset_id ?? "account");
+    const date = day(new Date(String(row.date_start)));
+    const key = `${externalEntityId}:${date.toISOString()}`;
+    const current: RawMetrics = aggregated.get(key) ?? ({
+      externalEntityId,
+      entityName: String(row.adset_name ?? connection.accountName ?? "Meta ad set"),
+      date,
+      spend: 0,
+      impressions: 0,
+      clicks: 0,
+      add_to_cart: 0,
+      purchases: 0,
+      revenue: 0,
+      frequency: 0,
+      source: { rows: [] },
+    } as RawMetrics);
+    current.spend += asNumber(row.spend);
+    current.impressions += asNumber(row.impressions);
+    current.clicks += asNumber(row.clicks);
+    current.add_to_cart += sumActions(row.actions, ["add_to_cart", "omni_add_to_cart", "offsite_conversion.fb_pixel_add_to_cart"]);
+    current.purchases += sumActions(row.actions, ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]);
+    current.revenue += sumActions(row.action_values, ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]);
+    current.frequency = Math.max(current.frequency ?? 0, asNumber(row.frequency));
+    current.pixel_purchases = current.purchases;
+    addPlatformAudience(current, row);
+    (current.source as { rows: Record<string, unknown>[] }).rows.push(row);
+    aggregated.set(key, current);
+  }
+  return [...aggregated.values()];
 }
 
 async function fetchTikTokMetrics(connection: IntegrationConnection): Promise<RawMetrics[]> {

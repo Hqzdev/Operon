@@ -247,6 +247,15 @@ export class IntegrationRepository {
     });
   }
 
+  static async findRecentSnapshotsByProvider(userId: string, provider: IntegrationProvider, since: Date) {
+    return prisma.integrationMetricSnapshot.findMany({
+      where: { userId, provider, date: { gte: since } },
+      select: { analysisInput: true, metrics: true, date: true },
+      orderBy: { date: "desc" },
+      take: 50,
+    });
+  }
+
   static async findLatestSnapshot(userId: string) {
     return prisma.integrationMetricSnapshot.findFirst({
       where: { userId },

@@ -115,7 +115,15 @@ async function completeJson<T>(prompt: string, systemPrompt?: string): Promise<T
 
 function buildDataBlock(input: AnalysisInput) {
   const derived = deriveMetrics(input);
-  return JSON.stringify({ ...input, ...derived }, null, 2);
+  const modelInput = derived.attributionAdjustment
+    ? {
+        ...input,
+        pixel_purchases: input.purchases,
+        purchases: derived.attributionAdjustment.adjustedPurchases,
+        revenue: derived.grossRevenue ?? input.revenue,
+      }
+    : input;
+  return JSON.stringify({ ...modelInput, ...derived }, null, 2);
 }
 
 export async function runGigachatAnalysis(input: AnalysisInput) {
@@ -307,6 +315,7 @@ ${dataBlock}`),
     funnelLeak,
     creativeAngles: creativeAngles.slice(0, 3),
     continueDecision,
+    attributionAdjustment: derived.attributionAdjustment ?? undefined,
     derived,
     provider: "gigachat" as const,
   };

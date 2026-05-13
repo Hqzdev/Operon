@@ -74,6 +74,9 @@ const initialForm: AnalysisInput = {
   net_revenue: 0,
   total_spend: 0,
   days_active: 0,
+  ios_audience_pct: 0,
+  ios_under_attribution_multiplier: 0,
+  shopify_purchases: 0,
   stage: "testing",
 };
 
@@ -92,6 +95,9 @@ const fields: Array<{ key: keyof AnalysisInput; label: string; step?: string }> 
   { key: "net_revenue", label: "Net revenue", step: "0.01" },
   { key: "total_spend", label: "Total spend", step: "0.01" },
   { key: "days_active", label: "Days active", step: "1" },
+  { key: "ios_audience_pct", label: "iOS audience %", step: "0.01" },
+  { key: "ios_under_attribution_multiplier", label: "iOS purchase multiplier", step: "0.01" },
+  { key: "shopify_purchases", label: "Shopify purchases", step: "1" },
 ];
 
 function badgeVariant(decision: string) {
@@ -474,12 +480,16 @@ function normalizeAnalysisOutput(raw: unknown): AnalysisOutput {
       minimumAdditionalTestNeeded: continueDecision.minimumAdditionalTestNeeded ?? "Run until the dataset has enough clicks and purchase signal.",
     },
     ltvAdjustment: input.ltvAdjustment,
+    attributionAdjustment: input.attributionAdjustment,
     derived: {
       spend: derived.spend ?? 0,
       grossRevenue: derived.grossRevenue ?? 0,
       effectiveRevenue: derived.effectiveRevenue ?? derived.grossRevenue ?? 0,
       grossRoas: derived.grossRoas ?? derived.roas ?? 0,
       returnRate: derived.returnRate ?? 0,
+      pixelPurchases: derived.pixelPurchases,
+      adjustedPurchases: derived.adjustedPurchases,
+      attributionPurchaseUplift: derived.attributionPurchaseUplift,
       roas: derived.roas ?? 0,
       conversionRate: derived.conversionRate ?? 0,
       addToCartRate: derived.addToCartRate ?? 0,
@@ -1820,6 +1830,42 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                         </div>
                       ) : null}
 
+                      {result.attributionAdjustment ? (
+                        <div className="rounded-2xl border border-border p-4">
+                          <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground mb-3">Attribution reconciliation</div>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                            <div>
+                              <div className="text-xs text-muted-foreground">Pixel purchases</div>
+                              <div className="mt-1 font-mono">{result.attributionAdjustment.pixelPurchases}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Adjusted purchases</div>
+                              <div className="mt-1 font-mono text-green-600">{result.attributionAdjustment.adjustedPurchases}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">iOS audience</div>
+                              <div className="mt-1 font-mono">{result.attributionAdjustment.iosAudiencePct}%</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">iOS multiplier</div>
+                              <div className="mt-1 font-mono">{result.attributionAdjustment.multiplier}x</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Purchase uplift</div>
+                              <div className="mt-1 font-mono">{((result.attributionAdjustment.purchaseUplift - 1) * 100).toFixed(1)}%</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Source</div>
+                              <div className="mt-1 font-mono">{result.attributionAdjustment.source.replaceAll("_", " ")}</div>
+                            </div>
+                          </div>
+                          <div className="mt-3 text-xs text-muted-foreground">
+                            iOS-attributed purchases are uplifted before CPA, ROAS, profit, and verdict logic are calculated.
+                            {result.attributionAdjustment.shopifyPurchases ? ` Shopify reported ${result.attributionAdjustment.shopifyPurchases} purchases, a ${result.attributionAdjustment.pixelShortfallPct}% pixel shortfall.` : ""}
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div className="rounded-2xl border border-border p-4">
                         <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Funnel leak</div>
                         <div className="mt-2 text-lg font-medium">{result.funnelLeak.weakestStage}</div>
@@ -1902,6 +1948,8 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                         ["Gross revenue", `$${result.derived.grossRevenue ?? result.derived.effectiveRevenue ?? 0}`],
                         ["Net revenue", `$${result.derived.effectiveRevenue ?? result.derived.grossRevenue ?? 0}`],
                         ["Return rate", `${result.derived.returnRate ?? 0}%`],
+                        ["Pixel purchases", `${result.derived.pixelPurchases ?? form.purchases}`],
+                        ["Adjusted purchases", `${result.derived.adjustedPurchases ?? result.derived.pixelPurchases ?? form.purchases}`],
                         ["Gross ROAS", String(result.derived.grossRoas ?? result.derived.roas)],
                         ["Net ROAS", String(result.derived.roas)],
                         ["Conversion rate", `${result.derived.conversionRate}%`],
