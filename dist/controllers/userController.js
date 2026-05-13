@@ -8,8 +8,8 @@ exports.profileController = (0, asyncHandler_1.asyncHandler)(async (req, res) =>
     res.status(200).json(profile);
 });
 exports.updateProfileController = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { name, storeName, niche } = req.body;
-    const profile = await (0, userService_1.updateUserProfile)(req.auth.userId, { name, storeName, niche });
+    const { name, storeName, niche, accountType } = req.body;
+    const profile = await (0, userService_1.updateUserProfile)(req.auth.userId, { name, storeName, niche, accountType });
     res.status(200).json(profile);
 });
 exports.changePasswordController = (0, asyncHandler_1.asyncHandler)(async (req, res) => {

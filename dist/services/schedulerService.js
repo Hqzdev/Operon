@@ -10,20 +10,21 @@ const fatigueService_1 = require("./fatigueService");
 const redditAcquisitionService_1 = require("./redditAcquisitionService");
 const recommendationOutcomeService_1 = require("./recommendationOutcomeService");
 const agencyService_1 = require("./agencyService");
+const communityBenchmarkService_1 = require("./communityBenchmarkService");
 let started = false;
 function startScheduler() {
     if (started)
         return;
     started = true;
-    node_cron_1.default.schedule("0 8 * * *", async () => {
-        console.log("[scheduler] Running morning digest job");
+    node_cron_1.default.schedule("0 22 * * 0", async () => {
+        console.log("[scheduler] Running weekly digest job");
         try {
             await (0, digestService_1.generateDigestsForAllUsers)();
         }
         catch (err) {
-            console.error("[scheduler] Morning digest job failed:", err);
+            console.error("[scheduler] Weekly digest job failed:", err);
         }
-    });
+    }, { timezone: "UTC" });
     node_cron_1.default.schedule("15 7 * * *", async () => {
         console.log("[scheduler] Running creative fatigue job");
         try {
@@ -51,6 +52,15 @@ function startScheduler() {
             console.error("[scheduler] Recommendation accuracy job failed:", err);
         }
     });
+    node_cron_1.default.schedule("50 4 * * *", async () => {
+        console.log("[scheduler] Recomputing community benchmarks");
+        try {
+            await (0, communityBenchmarkService_1.recomputeCommunityBenchmarks)();
+        }
+        catch (err) {
+            console.error("[scheduler] Community benchmark job failed:", err);
+        }
+    });
     node_cron_1.default.schedule("10 6 * * 1", async () => {
         console.log("[scheduler] Generating agency weekly reports");
         try {
@@ -62,7 +72,8 @@ function startScheduler() {
     });
     console.log("[scheduler] Agency weekly reports scheduled for Monday 06:10");
     console.log("[scheduler] Recommendation accuracy scheduled for 05:30 daily");
-    console.log("[scheduler] Morning digest scheduled for 08:00 daily");
+    console.log("[scheduler] Community benchmarks scheduled for 04:50 daily");
+    console.log("[scheduler] Weekly digest scheduled for Sunday 22:00 UTC");
     console.log("[scheduler] Creative fatigue check scheduled for 07:15 daily");
     console.log("[scheduler] Reddit acquisition scan scheduled for 06:45 daily");
 }

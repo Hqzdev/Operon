@@ -6,12 +6,14 @@ import { comparePassword, hashPassword } from "../utils/password";
 import { signToken } from "../utils/jwt";
 import { getUserProfile } from "./userService";
 import { UserRepository } from "../repositories/userRepository";
+import { enrollOutcomePricing } from "./outcomePricingService";
 
 export async function registerUser(input: {
   email: string;
   password: string;
   name?: string;
   storeName?: string;
+  pricingModel?: string;
 }) {
   const existingUser = await UserRepository.findByEmail(input.email);
 
@@ -34,6 +36,9 @@ export async function registerUser(input: {
   });
 
   const profile = await getUserProfile(user.id);
+  if (input.pricingModel === "outcome") {
+    await enrollOutcomePricing(user.id);
+  }
 
   return {
     token,

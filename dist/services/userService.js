@@ -31,9 +31,11 @@ async function updateUserProfile(userId, input) {
         name: input.name,
         storeName: input.storeName,
         niche: input.niche,
+        accountType: input.accountType,
         quietModeEnabled: input.quietModeEnabled,
         quietMinConfidence,
         quietMinSpendImpact: input.quietMinSpendImpact,
+        weeklyDigestEnabled: input.weeklyDigestEnabled,
     });
 }
 async function changeUserPassword(userId, input) {

@@ -4,10 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
+  ChevronsUpDown,
   CircleDollarSign,
   Package,
+  Pause,
+  RefreshCw,
   ShoppingBag,
   Target,
+  TrendingUp,
 } from "lucide-react";
 import {
   Area,
@@ -81,21 +85,71 @@ type RecommendationTrackRecord = {
   }>;
 };
 
+type OutcomePricingStatus = {
+  enrolled: boolean;
+  status: string;
+  savedSpend: string;
+  threshold: string;
+  remainingToThreshold: string;
+  progressPct: number;
+  feeRate: number;
+  cap: string;
+  projectedInvoice: string;
+  formula: string;
+  noDisputeRule: string;
+  economics: {
+    invoiceAmount: string;
+    contributionMargin: string;
+    contributionMarginPct: number;
+    positiveContribution: boolean;
+  };
+  latestInvoice: null | {
+    id: string;
+    status: string;
+    amount: string;
+    confirmationUrl: string | null;
+    savedSpend: string;
+    createdAt: string;
+  };
+};
+
 const COLUMN_HINTS: Record<string, string> = {
   product:   "The name of the product or ad campaign you were running",
   revenue:   "Total money earned from sales of this product in the selected period",
   purchases: "Number of completed orders for this product",
   roas:      "Return on ad spend — how much you earn for every dollar put into ads. For example, 3x means you spent $100 and got $300 back",
+  cpa:       "Cost per acquisition — ad spend divided by completed purchases",
+  trend:     "ROAS movement over the last 7 days compared with the previous 7 days",
   status:    "AI recommendation: whether you should keep spending money on this product's ads right now",
 };
 
 const STATUS_META: Record<string, { label: string; hint: string; cls: string }> = {
-  SCALE: { label: "Scale up",    hint: "Ads are working well — increase your budget while it lasts",          cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900" },
-  KILL:  { label: "Stop",        hint: "Ads aren't paying off — better to pause and stop wasting money",      cls: "text-red-700 bg-red-50 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900" },
-  FIX:   { label: "Watch",       hint: "Fix the weak signal before spending more",                            cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
-  "TEST AGAIN": { label: "Watch", hint: "Confidence is not high enough for a scale or stop call yet",          cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
+  SCALE: { label: "SCALE",       hint: "ROAS is above 3x. Increase budget while performance holds.",           cls: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900" },
+  KILL:  { label: "KILL",        hint: "ROAS is below 1.2x. Pause spend or rebuild the offer.",                cls: "text-red-700 bg-red-50 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900" },
+  TEST:  { label: "TEST",        hint: "ROAS is between 1.2x and 3x. Keep testing before scaling.",            cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
+  FIX:   { label: "TEST",        hint: "Fix the weak signal before spending more",                            cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
+  "TEST AGAIN": { label: "TEST", hint: "Confidence is not high enough for a scale or stop call yet",           cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
   WATCH: { label: "Keep an eye", hint: "Results are mixed — give it a little more time and see how it goes",  cls: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900" },
   WAIT:  { label: "Wait",        hint: "Not enough data yet to make a recommendation",                        cls: "text-muted-foreground bg-muted border-border" },
+};
+
+type PortfolioStatus = "SCALE" | "KILL" | "TEST";
+type PortfolioAction = "pause" | "increase" | "creative";
+type PortfolioSortKey = "name" | "status" | "roas" | "cpa" | "trend" | "revenue" | "purchases";
+
+type PortfolioRow = {
+  id: string;
+  name: string;
+  status: PortfolioStatus;
+  revenue: number;
+  purchases: number;
+  spend: number;
+  roas: number;
+  cpa: number | null;
+  trendDelta: number;
+  trendDirection: "up" | "down" | "flat";
+  confidence?: number;
+  signals?: NonNullable<AnalysisOutput["decision"]["confidenceSignals"]>;
 };
 
 function InfoDot({ text }: { text: string }) {
@@ -142,6 +196,34 @@ function confidencePercent(result?: AnalysisOutput | null) {
   return result.decision?.confidence === "high" ? 85 : result.decision?.confidence === "medium" ? 65 : 35;
 }
 
+function spendFromInput(input: AnalysisInput) {
+  return input.total_spend && input.total_spend > 0 ? input.total_spend : input.cpc * input.clicks;
+}
+
+function classifyPortfolioStatus(roas: number): PortfolioStatus {
+  if (roas > 3) return "SCALE";
+  if (roas < 1.2) return "KILL";
+  return "TEST";
+}
+
+function roasFromTotals(revenue: number, spend: number) {
+  return spend > 0 ? revenue / spend : 0;
+}
+
+function TrendCell({ row }: { row: PortfolioRow }) {
+  const cls =
+    row.trendDirection === "up" ? "text-emerald-700 dark:text-emerald-400" :
+    row.trendDirection === "down" ? "text-red-700 dark:text-red-400" :
+    "text-muted-foreground";
+  const symbol = row.trendDirection === "up" ? "↑" : row.trendDirection === "down" ? "↓" : "→";
+  return (
+    <span className={`inline-flex items-center gap-1 tabular-nums font-medium ${cls}`}>
+      <span>{symbol}</span>
+      {row.trendDelta > 0 ? "+" : ""}{row.trendDelta.toFixed(2)}x
+    </span>
+  );
+}
+
 function StatusCell({
   decision,
   confidence,
@@ -151,7 +233,7 @@ function StatusCell({
   confidence?: number;
   signals?: NonNullable<AnalysisOutput["decision"]["confidenceSignals"]>;
 }) {
-  const displayDecision = typeof confidence === "number" && confidence < 50 ? "TEST AGAIN" : decision;
+  const displayDecision = typeof confidence === "number" && confidence < 50 && decision !== "KILL" ? "TEST" : decision;
   const meta = STATUS_META[displayDecision] ?? STATUS_META.WAIT;
   return (
     <Tooltip>
@@ -241,8 +323,14 @@ export function DashboardHome() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [latestInput, setLatestInput] = useState<AnalysisInput | null>(null);
   const [trackRecord, setTrackRecord] = useState<RecommendationTrackRecord | null>(null);
+  const [outcomePricing, setOutcomePricing] = useState<OutcomePricingStatus | null>(null);
+  const [outcomeEnrollLoading, setOutcomeEnrollLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>(7);
+  const [portfolioStatusFilter, setPortfolioStatusFilter] = useState<PortfolioStatus | "ALL">("ALL");
+  const [portfolioSort, setPortfolioSort] = useState<{ key: PortfolioSortKey; direction: "asc" | "desc" }>({ key: "roas", direction: "desc" });
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [portfolioActionMessage, setPortfolioActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -255,11 +343,12 @@ export function DashboardHome() {
       }
 
       try {
-        const [profileRes, historyRes, metricsRes, trackRecordRes] = await Promise.all([
+        const [profileRes, historyRes, metricsRes, trackRecordRes, outcomePricingRes] = await Promise.all([
           fetch(`${apiBaseUrl}/users/me`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/analysis`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/integrations/metrics`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiBaseUrl}/recommendation-outcomes`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiBaseUrl}/outcome-pricing`, { cache: "no-store", headers: { Authorization: `Bearer ${token}` } }),
         ]);
 
         if (!isMounted) return;
@@ -282,6 +371,9 @@ export function DashboardHome() {
         if (trackRecordRes.ok) {
           setTrackRecord(await trackRecordRes.json() as RecommendationTrackRecord);
         }
+        if (outcomePricingRes.ok) {
+          setOutcomePricing(await outcomePricingRes.json() as OutcomePricingStatus);
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -292,6 +384,26 @@ export function DashboardHome() {
       isMounted = false;
     };
   }, [apiBaseUrl, router]);
+
+  async function joinOutcomeTier() {
+    const token = localStorage.getItem("operon_token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    setOutcomeEnrollLoading(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/outcome-pricing`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        setOutcomePricing(await response.json() as OutcomePricingStatus);
+      }
+    } finally {
+      setOutcomeEnrollLoading(false);
+    }
+  }
 
   const activeStoreName = user?.activeStore?.name || user?.storeName || user?.storeUrl || null;
   const firstName = user?.name?.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || null;
@@ -314,20 +426,24 @@ export function DashboardHome() {
   }, [snapshots, cutoffDate]);
 
   const totals = useMemo(() => {
-    const source =
-      filteredSnapshots[0]?.analysisInput ??
-      filteredHistory[0]?.inputData ??
-      latestInput ??
-      history[0]?.inputData;
-    if (!source) return { revenue: 0, purchases: 0, clicks: 0, impressions: 0, spend: 0, roas: 0 };
-    const spend = source.cpc * source.clicks;
+    const inputs = [
+      ...filteredSnapshots.map((snapshot) => snapshot.analysisInput),
+      ...filteredHistory.map((item) => item.inputData),
+    ];
+    const sourceInputs = inputs.length ? inputs : [latestInput ?? history[0]?.inputData].filter(Boolean) as AnalysisInput[];
+    const summary = sourceInputs.reduce((acc, input) => {
+      const spend = spendFromInput(input);
+      acc.revenue += input.revenue;
+      acc.purchases += input.purchases;
+      acc.clicks += input.clicks;
+      acc.impressions += input.impressions;
+      acc.spend += spend;
+      return acc;
+    }, { revenue: 0, purchases: 0, clicks: 0, impressions: 0, spend: 0, roas: 0 });
     return {
-      revenue: source.revenue,
-      purchases: source.purchases,
-      clicks: source.clicks,
-      impressions: 0,
-      spend: Number(spend.toFixed(2)),
-      roas: spend > 0 ? Number((source.revenue / spend).toFixed(2)) : 0,
+      ...summary,
+      spend: Number(summary.spend.toFixed(2)),
+      roas: summary.spend > 0 ? Number((summary.revenue / summary.spend).toFixed(2)) : 0,
     };
   }, [filteredHistory, filteredSnapshots, latestInput, history]);
 
@@ -362,31 +478,139 @@ export function DashboardHome() {
     return Array.from(byDate.values()).reverse();
   }, [filteredHistory, filteredSnapshots, period]);
 
-  const productRows = useMemo(() => {
-    const rows = filteredHistory.slice(0, 10).map((item) => ({
-      name: item.inputData.product_name,
-      revenue: item.inputData.revenue,
-      purchases: item.inputData.purchases,
-      roas: item.inputData.cpc * item.inputData.clicks > 0
-        ? item.inputData.revenue / (item.inputData.cpc * item.inputData.clicks)
-        : 0,
-      decision: item.result.decision?.finalDecision ?? "WAIT",
-      confidence: confidencePercent(item.result),
-      signals: item.result.decision?.confidenceSignals,
+  const portfolioRows = useMemo<PortfolioRow[]>(() => {
+    type Bucket = {
+      name: string;
+      revenue: number;
+      purchases: number;
+      spend: number;
+      current7Revenue: number;
+      current7Spend: number;
+      previous7Revenue: number;
+      previous7Spend: number;
+      latestAt: number;
+      confidence?: number;
+      signals?: NonNullable<AnalysisOutput["decision"]["confidenceSignals"]>;
+    };
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    const buckets = new Map<string, Bucket>();
+
+    const addInput = (dateValue: string, input: AnalysisInput, result?: AnalysisOutput) => {
+      const name = input.product_name?.trim() || activeStoreName || "Unnamed product";
+      const key = name.toLowerCase();
+      const spend = spendFromInput(input);
+      const date = new Date(dateValue).getTime();
+      const bucket = buckets.get(key) ?? {
+        name,
+        revenue: 0,
+        purchases: 0,
+        spend: 0,
+        current7Revenue: 0,
+        current7Spend: 0,
+        previous7Revenue: 0,
+        previous7Spend: 0,
+        latestAt: 0,
+      };
+      bucket.revenue += input.revenue;
+      bucket.purchases += input.purchases;
+      bucket.spend += spend;
+      if (now - date <= sevenDays) {
+        bucket.current7Revenue += input.revenue;
+        bucket.current7Spend += spend;
+      } else if (now - date <= sevenDays * 2) {
+        bucket.previous7Revenue += input.revenue;
+        bucket.previous7Spend += spend;
+      }
+      if (date >= bucket.latestAt) {
+        bucket.latestAt = date;
+        bucket.confidence = result ? confidencePercent(result) : bucket.confidence;
+        bucket.signals = result?.decision?.confidenceSignals ?? bucket.signals;
+      }
+      buckets.set(key, bucket);
+    };
+
+    filteredSnapshots.forEach((snapshot) => addInput(snapshot.date, snapshot.analysisInput));
+    filteredHistory.forEach((item) => addInput(item.createdAt, item.inputData, item.result));
+
+    if (!buckets.size && latestInput) addInput(new Date().toISOString(), latestInput);
+
+    return Array.from(buckets.values()).map((bucket) => {
+      const roas = roasFromTotals(bucket.revenue, bucket.spend);
+      const cpa = bucket.purchases > 0 ? bucket.spend / bucket.purchases : null;
+      const current7Roas = roasFromTotals(bucket.current7Revenue, bucket.current7Spend);
+      const previous7Roas = roasFromTotals(bucket.previous7Revenue, bucket.previous7Spend);
+      const trendDelta = current7Roas - previous7Roas;
+      return {
+        id: bucket.name.toLowerCase(),
+        name: bucket.name,
+        status: classifyPortfolioStatus(roas),
+        revenue: bucket.revenue,
+        purchases: bucket.purchases,
+        spend: bucket.spend,
+        roas,
+        cpa,
+        trendDelta,
+        trendDirection: Math.abs(trendDelta) < 0.05 ? "flat" : trendDelta > 0 ? "up" : "down",
+        confidence: bucket.confidence,
+        signals: bucket.signals,
+      };
+    }).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
+  }, [activeStoreName, filteredHistory, filteredSnapshots, latestInput]);
+
+  const portfolioSummary = useMemo(() => {
+    const summary = portfolioRows.reduce((acc, row) => {
+      acc.revenue += row.revenue;
+      acc.purchases += row.purchases;
+      acc.spend += row.spend;
+      acc.scale += row.status === "SCALE" ? 1 : 0;
+      acc.kill += row.status === "KILL" ? 1 : 0;
+      acc.test += row.status === "TEST" ? 1 : 0;
+      return acc;
+    }, { revenue: 0, purchases: 0, spend: 0, scale: 0, kill: 0, test: 0 });
+    return {
+      ...summary,
+      roas: roasFromTotals(summary.revenue, summary.spend),
+      cpa: summary.purchases > 0 ? summary.spend / summary.purchases : null,
+    };
+  }, [portfolioRows]);
+
+  const visiblePortfolioRows = useMemo(() => {
+    const rows = portfolioStatusFilter === "ALL"
+      ? portfolioRows
+      : portfolioRows.filter((row) => row.status === portfolioStatusFilter);
+    const direction = portfolioSort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const readValue = (row: PortfolioRow) => {
+        if (portfolioSort.key === "name" || portfolioSort.key === "status") return row[portfolioSort.key];
+        if (portfolioSort.key === "cpa") return row.cpa ?? Number.POSITIVE_INFINITY;
+        if (portfolioSort.key === "trend") return row.trendDelta;
+        return row[portfolioSort.key];
+      };
+      const av = readValue(a);
+      const bv = readValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * direction;
+      return (Number(av) - Number(bv)) * direction;
+    });
+  }, [portfolioRows, portfolioSort, portfolioStatusFilter]);
+
+  const selectedProducts = useMemo(
+    () => portfolioRows.filter((row) => selectedProductIds.includes(row.id)),
+    [portfolioRows, selectedProductIds],
+  );
+
+  function togglePortfolioSort(key: PortfolioSortKey) {
+    setPortfolioSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "desc" ? "asc" : "desc",
     }));
+  }
 
-    if (rows.length > 0) return rows;
-
-    return [{
-      name: activeStoreName,
-      revenue: totals.revenue,
-      purchases: totals.purchases,
-      roas: totals.roas,
-      decision: totals.revenue > 0 ? "WATCH" : "WAIT",
-      confidence: undefined,
-      signals: undefined,
-    }];
-  }, [activeStoreName, filteredHistory, totals]);
+  function runPortfolioAction(action: PortfolioAction, rows = selectedProducts) {
+    const count = rows.length;
+    const label = action === "pause" ? "pause" : action === "increase" ? "budget increase" : "creative rotation";
+    setPortfolioActionMessage(count ? `${count} ${label} ${count === 1 ? "action" : "actions"} staged for review.` : "Select at least one product first.");
+  }
 
   return (
     <main className="h-full overflow-y-auto bg-background text-foreground">
@@ -496,6 +720,83 @@ export function DashboardHome() {
           ) : null}
         </section>
 
+        <section className="rounded-xl border border-border bg-card p-5">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <CircleDollarSign className="size-4 text-muted-foreground" />
+                <h2 className="text-[14px] font-semibold text-foreground">Outcome tier</h2>
+              </div>
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Free until Operon tracks your first 50 000 ₽ saved from proven KILL calls.
+              </p>
+            </div>
+            {outcomePricing?.latestInvoice?.confirmationUrl ? (
+              <a
+                href={outcomePricing.latestInvoice.confirmationUrl}
+                className="rounded-md bg-foreground px-3 py-1.5 text-[12px] font-medium text-background"
+              >
+                Pay {outcomePricing.latestInvoice.amount}
+              </a>
+            ) : outcomePricing?.enrolled ? (
+              <div className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                {outcomePricing.status}
+              </div>
+            ) : null}
+          </div>
+
+          {outcomePricing?.enrolled ? (
+            <div className="grid gap-4 md:grid-cols-[1.4fr_0.8fr]">
+              <div>
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-[12px] text-muted-foreground">Saved so far</div>
+                    <div className="mt-1 text-[30px] font-semibold leading-none">{outcomePricing.savedSpend}</div>
+                  </div>
+                  <div className="text-right text-[12px] text-muted-foreground">
+                    <div>{outcomePricing.remainingToThreshold} to threshold</div>
+                    <div>{Math.round(outcomePricing.feeRate * 100)}% fee, capped at {outcomePricing.cap}</div>
+                  </div>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-emerald-500"
+                    style={{ width: `${outcomePricing.progressPct}%` }}
+                  />
+                </div>
+                <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+                  {outcomePricing.noDisputeRule}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <div className="text-[12px] text-muted-foreground">Economics check</div>
+                <div className="mt-2 text-[20px] font-semibold leading-none">{outcomePricing.economics.contributionMargin}</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  {outcomePricing.economics.contributionMarginPct}% contribution margin at expected mix
+                </div>
+                <div className="mt-3 text-[11px] text-muted-foreground">
+                  Projected first invoice: {outcomePricing.projectedInvoice}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border px-4 py-3">
+              <div>
+                <div className="text-sm font-medium">Start free until value is proven</div>
+                <p className="mt-1 text-[12px] text-muted-foreground">The counter only moves on connected KILL calls paused through Operon.</p>
+              </div>
+              <button
+                type="button"
+                onClick={joinOutcomeTier}
+                disabled={outcomeEnrollLoading}
+                className="rounded-md bg-foreground px-3 py-1.5 text-[12px] font-medium text-background disabled:opacity-60"
+              >
+                {outcomeEnrollLoading ? "Joining..." : "Join outcome tier"}
+              </button>
+            </div>
+          )}
+        </section>
+
         <section className="grid gap-4 md:grid-cols-2">
           {[
             { label: "Revenue", value: `$${fmt(totals.revenue)}`, note: "Latest data", icon: CircleDollarSign },
@@ -583,44 +884,201 @@ export function DashboardHome() {
         </section>
 
         <section className="rounded-xl border border-border bg-card p-5">
-          <div className="mb-1 flex items-center gap-2">
-            <Package className="size-4 text-muted-foreground" />
-            <h2 className="text-[14px] font-semibold text-foreground">Product performance</h2>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="mb-1 flex items-center gap-2">
+                <Package className="size-4 text-muted-foreground" />
+                <h2 className="text-[14px] font-semibold text-foreground">Portfolio performance</h2>
+              </div>
+              <p className="text-[12px] text-muted-foreground">
+                Multi-product view with status, CPA, 7-day ROAS trend, and quick actions.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(["ALL", "SCALE", "TEST", "KILL"] as Array<PortfolioStatus | "ALL">).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setPortfolioStatusFilter(status)}
+                  className={cn(
+                    "h-8 rounded-md border px-3 text-[12px] font-medium transition-colors",
+                    portfolioStatusFilter === status
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
           </div>
-          <p className="mb-4 text-[12px] text-muted-foreground">
-            A summary of each product. Hover the <span className="inline-flex size-[14px] items-center justify-center rounded-full border border-border bg-muted text-[9px] font-bold">?</span> next to any column or status to see a plain-language explanation.
-          </p>
+
+          <div className="mb-4 grid gap-3 md:grid-cols-5">
+            {[
+              ["Products", fmt(portfolioRows.length)],
+              ["ROAS", `${portfolioSummary.roas.toFixed(2)}x`],
+              ["CPA", portfolioSummary.cpa !== null ? `$${fmt(portfolioSummary.cpa, { maximumFractionDigits: 2 })}` : "—"],
+              ["SCALE", fmt(portfolioSummary.scale)],
+              ["KILL", fmt(portfolioSummary.kill)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <div className="text-[11px] text-muted-foreground">{label}</div>
+                <div className="mt-1 text-[16px] font-semibold tabular-nums">{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => runPortfolioAction("pause")}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-[12px] font-medium hover:bg-accent"
+            >
+              <Pause className="size-3.5" />
+              Pause selected
+            </button>
+            <button
+              type="button"
+              onClick={() => runPortfolioAction("increase")}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-[12px] font-medium hover:bg-accent"
+            >
+              <TrendingUp className="size-3.5" />
+              Increase selected
+            </button>
+            <button
+              type="button"
+              onClick={() => runPortfolioAction("creative")}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-[12px] font-medium hover:bg-accent"
+            >
+              <RefreshCw className="size-3.5" />
+              Rotate selected
+            </button>
+            {portfolioActionMessage ? (
+              <span className="text-[12px] text-muted-foreground">{portfolioActionMessage}</span>
+            ) : null}
+          </div>
+
           <div className="max-h-[360px] max-w-full overflow-auto overscroll-contain rounded-lg">
-            <table className="w-full min-w-[640px] text-[13px]">
+            <table className="w-full min-w-[980px] text-[13px]">
               <thead className="sticky top-0 z-10 bg-card text-left text-muted-foreground">
                 <tr className="border-b border-border">
-                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
-                    <span className="inline-flex items-center">Product <InfoDot text={COLUMN_HINTS.product} /></span>
+                  <th className="w-10 pb-3 pr-3">
+                    <input
+                      type="checkbox"
+                      checked={visiblePortfolioRows.length > 0 && visiblePortfolioRows.every((row) => selectedProductIds.includes(row.id))}
+                      onChange={(event) => {
+                        if (event.target.checked) {
+                          setSelectedProductIds(Array.from(new Set([...selectedProductIds, ...visiblePortfolioRows.map((row) => row.id)])));
+                        } else {
+                          setSelectedProductIds(selectedProductIds.filter((id) => !visiblePortfolioRows.some((row) => row.id === id)));
+                        }
+                      }}
+                      aria-label="Select visible products"
+                    />
                   </th>
                   <th className="whitespace-nowrap pb-3 pr-6 font-medium">
-                    <span className="inline-flex items-center">Revenue <InfoDot text={COLUMN_HINTS.revenue} /></span>
+                    <button type="button" onClick={() => togglePortfolioSort("name")} className="inline-flex items-center">
+                      Product <ChevronsUpDown className="ml-1 size-3" /> <InfoDot text={COLUMN_HINTS.product} />
+                    </button>
                   </th>
                   <th className="whitespace-nowrap pb-3 pr-6 font-medium">
-                    <span className="inline-flex items-center">Orders <InfoDot text={COLUMN_HINTS.purchases} /></span>
+                    <button type="button" onClick={() => togglePortfolioSort("status")} className="inline-flex items-center">
+                      Status <ChevronsUpDown className="ml-1 size-3" /> <InfoDot text={COLUMN_HINTS.status} />
+                    </button>
                   </th>
                   <th className="whitespace-nowrap pb-3 pr-6 font-medium">
-                    <span className="inline-flex items-center">Return <InfoDot text={COLUMN_HINTS.roas} /></span>
+                    <button type="button" onClick={() => togglePortfolioSort("roas")} className="inline-flex items-center">
+                      ROAS <ChevronsUpDown className="ml-1 size-3" /> <InfoDot text={COLUMN_HINTS.roas} />
+                    </button>
+                  </th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
+                    <button type="button" onClick={() => togglePortfolioSort("cpa")} className="inline-flex items-center">
+                      CPA <ChevronsUpDown className="ml-1 size-3" /> <InfoDot text={COLUMN_HINTS.cpa} />
+                    </button>
+                  </th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
+                    <button type="button" onClick={() => togglePortfolioSort("trend")} className="inline-flex items-center">
+                      7-day trend <ChevronsUpDown className="ml-1 size-3" /> <InfoDot text={COLUMN_HINTS.trend} />
+                    </button>
+                  </th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
+                    <button type="button" onClick={() => togglePortfolioSort("revenue")} className="inline-flex items-center">
+                      Revenue <ChevronsUpDown className="ml-1 size-3" /> <InfoDot text={COLUMN_HINTS.revenue} />
+                    </button>
+                  </th>
+                  <th className="whitespace-nowrap pb-3 pr-6 font-medium">
+                    <button type="button" onClick={() => togglePortfolioSort("purchases")} className="inline-flex items-center">
+                      Orders <ChevronsUpDown className="ml-1 size-3" /> <InfoDot text={COLUMN_HINTS.purchases} />
+                    </button>
                   </th>
                   <th className="whitespace-nowrap pb-3 font-medium">
-                    <span className="inline-flex items-center">Action <InfoDot text={COLUMN_HINTS.status} /></span>
+                    Quick actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {productRows.map((row) => (
-                  <tr key={`${row.name}-${row.decision}`} className="border-b border-border transition-colors last:border-0 hover:bg-muted/40">
-                    <td className="max-w-[280px] truncate py-3.5 pr-6 font-medium text-foreground">{row.name || "Unnamed"}</td>
+                {visiblePortfolioRows.map((row) => (
+                  <tr key={row.id} className="border-b border-border transition-colors last:border-0 hover:bg-muted/40">
+                    <td className="py-3.5 pr-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedProductIds.includes(row.id)}
+                        onChange={(event) => {
+                          setSelectedProductIds((current) => event.target.checked
+                            ? [...current, row.id]
+                            : current.filter((id) => id !== row.id));
+                        }}
+                        aria-label={`Select ${row.name}`}
+                      />
+                    </td>
+                    <td className="max-w-[260px] truncate py-3.5 pr-6 font-medium text-foreground">{row.name || "Unnamed"}</td>
+                    <td className="whitespace-nowrap py-3.5 pr-6">
+                      <StatusCell decision={row.status} confidence={row.confidence} signals={row.signals} />
+                    </td>
+                    <td className="whitespace-nowrap py-3.5 pr-6"><RoasCell value={row.roas} /></td>
+                    <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">
+                      {row.cpa !== null ? `$${fmt(row.cpa, { maximumFractionDigits: 2 })}` : "—"}
+                    </td>
+                    <td className="whitespace-nowrap py-3.5 pr-6"><TrendCell row={row} /></td>
                     <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">${fmt(row.revenue)}</td>
                     <td className="whitespace-nowrap py-3.5 pr-6 tabular-nums text-foreground/80">{fmt(row.purchases)}</td>
-                    <td className="whitespace-nowrap py-3.5 pr-6"><RoasCell value={row.roas} /></td>
-                    <td className="whitespace-nowrap py-3.5"><StatusCell decision={row.decision} confidence={row.confidence} signals={row.signals} /></td>
+                    <td className="whitespace-nowrap py-3.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => runPortfolioAction("pause", [row])}
+                          className="inline-flex size-7 items-center justify-center rounded-md border border-border hover:bg-accent"
+                          aria-label={`Pause ${row.name}`}
+                        >
+                          <Pause className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => runPortfolioAction("increase", [row])}
+                          className="inline-flex size-7 items-center justify-center rounded-md border border-border hover:bg-accent"
+                          aria-label={`Increase budget for ${row.name}`}
+                        >
+                          <TrendingUp className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => runPortfolioAction("creative", [row])}
+                          className="inline-flex size-7 items-center justify-center rounded-md border border-border hover:bg-accent"
+                          aria-label={`Rotate creative for ${row.name}`}
+                        >
+                          <RefreshCw className="size-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
+                {!visiblePortfolioRows.length ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                      No products match this filter.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

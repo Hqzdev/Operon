@@ -23,9 +23,11 @@ export async function updateUserProfile(userId: string, input: {
   name?: string;
   storeName?: string;
   niche?: string;
+  accountType?: string;
   quietModeEnabled?: boolean;
   quietMinConfidence?: string;
   quietMinSpendImpact?: number;
+  weeklyDigestEnabled?: boolean;
 }) {
   const quietMinConfidence = input.quietMinConfidence && ["low", "medium", "high"].includes(input.quietMinConfidence)
     ? input.quietMinConfidence
@@ -34,9 +36,11 @@ export async function updateUserProfile(userId: string, input: {
     name: input.name,
     storeName: input.storeName,
     niche: input.niche,
+    accountType: input.accountType,
     quietModeEnabled: input.quietModeEnabled,
     quietMinConfidence,
     quietMinSpendImpact: input.quietMinSpendImpact,
+    weeklyDigestEnabled: input.weeklyDigestEnabled,
   });
 }
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getSeasonContext } from "../lib/seasonality";
 
 export const adSetSchema = z.object({
   name: z.string().min(1).max(120),
@@ -17,7 +18,19 @@ export const budgetInputSchema = z.object({
   adSets: z.array(adSetSchema).min(2).max(10),
 });
 
+export const weeklyBudgetPlanInputSchema = z.object({
+  weeklyBudget: z.number().positive(),
+  targetSales: z.number().int().positive(),
+  startDate: z.string().optional(),
+  historical: z.object({
+    spend: z.number().min(0),
+    clicks: z.number().int().min(0),
+    purchases: z.number().int().min(0),
+  }).optional(),
+});
+
 export type BudgetInput = z.infer<typeof budgetInputSchema>;
+export type WeeklyBudgetPlanInput = z.infer<typeof weeklyBudgetPlanInputSchema>;
 export type AdSet = z.infer<typeof adSetSchema>;
 
 type AdSetResult = {
@@ -38,6 +51,50 @@ type BudgetAllocationResult = {
   adSets: AdSetResult[];
   summary: string;
 };
+
+type DailyBudgetPlan = {
+  date: string;
+  day: string;
+  recommendedBudget: number;
+  allocatedPct: number;
+  expectedSales: number;
+  confidenceLow: number;
+  confidenceHigh: number;
+  trafficMultiplier: number;
+  cpcMultiplier: number;
+  seasonalityMultiplier: number;
+  seasonLabel: string;
+};
+
+type WeeklyBudgetPlanResult = {
+  weeklyBudget: number;
+  targetSales: number;
+  expectedSales: number;
+  confidenceLow: number;
+  confidenceHigh: number;
+  expectedCpa: number;
+  requiredCpa: number;
+  dailyPlan: DailyBudgetPlan[];
+  assumptions: {
+    averageCpc: number;
+    conversionRate: number;
+    historicalDataUsed: boolean;
+    confidenceRangePct: number;
+  };
+  summary: string;
+};
+
+const DAY_VARIANCE: Record<number, { traffic: number; cpc: number }> = {
+  0: { traffic: 0.9, cpc: 1.08 },
+  1: { traffic: 1.04, cpc: 0.92 },
+  2: { traffic: 1.08, cpc: 0.9 },
+  3: { traffic: 1.07, cpc: 0.91 },
+  4: { traffic: 1.03, cpc: 0.95 },
+  5: { traffic: 0.98, cpc: 1.02 },
+  6: { traffic: 0.92, cpc: 1.1 },
+};
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function scoreAdSet(set: AdSet): number {
   if (set.spend === 0) return 0;
@@ -111,4 +168,107 @@ export function allocateBudget(input: BudgetInput): BudgetAllocationResult {
     `Total budget $${input.totalBudget} distributed across ${results.length} ad sets.`;
 
   return { totalBudget: input.totalBudget, adSets: results, summary };
+}
+
+function round(value: number, precision = 2) {
+  return Number(value.toFixed(precision));
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function nextMonday(date = new Date()) {
+  const utc = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const daysUntilMonday = (8 - utc.getUTCDay()) % 7 || 7;
+  return addDays(utc, daysUntilMonday);
+}
+
+function parsePlanStartDate(value?: string) {
+  if (!value) return nextMonday();
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? nextMonday() : parsed;
+}
+
+function deriveHistoricalAssumptions(input: WeeklyBudgetPlanInput) {
+  const historical = input.historical;
+  if (historical && historical.spend > 0 && historical.clicks > 0 && historical.purchases > 0) {
+    return {
+      averageCpc: historical.spend / historical.clicks,
+      conversionRate: historical.purchases / historical.clicks,
+      historicalDataUsed: true,
+    };
+  }
+
+  const requiredCpa = input.weeklyBudget / input.targetSales;
+  const conversionRate = 0.02;
+  return {
+    averageCpc: Math.max(0.01, requiredCpa * conversionRate),
+    conversionRate,
+    historicalDataUsed: false,
+  };
+}
+
+export function planWeeklyBudget(input: WeeklyBudgetPlanInput): WeeklyBudgetPlanResult {
+  const start = parsePlanStartDate(input.startDate);
+  const assumptions = deriveHistoricalAssumptions(input);
+  const requiredCpa = input.weeklyBudget / input.targetSales;
+
+  const dayModels = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(start, index);
+    const variance = DAY_VARIANCE[date.getUTCDay()];
+    const season = getSeasonContext(date);
+    const seasonalityMultiplier = Math.max(0.2, season.convMultiplier / Math.max(season.cpmMultiplier, 0.2));
+    const conversionPerDollar =
+      (variance.traffic * assumptions.conversionRate * seasonalityMultiplier) /
+      Math.max(assumptions.averageCpc * variance.cpc, 0.01);
+    return { date, variance, season, seasonalityMultiplier, conversionPerDollar };
+  });
+
+  const totalEfficiency = dayModels.reduce((sum, day) => sum + day.conversionPerDollar, 0);
+  const dailyPlan = dayModels.map((day) => {
+    const allocatedPct = totalEfficiency > 0 ? day.conversionPerDollar / totalEfficiency : 1 / 7;
+    const recommendedBudget = input.weeklyBudget * allocatedPct;
+    const expectedSales = recommendedBudget * day.conversionPerDollar;
+    return {
+      date: day.date.toISOString().slice(0, 10),
+      day: DAY_NAMES[day.date.getUTCDay()],
+      recommendedBudget: round(recommendedBudget),
+      allocatedPct: round(allocatedPct * 100, 1),
+      expectedSales: round(expectedSales, 1),
+      confidenceLow: round(expectedSales * 0.9, 1),
+      confidenceHigh: round(expectedSales * 1.1, 1),
+      trafficMultiplier: day.variance.traffic,
+      cpcMultiplier: day.variance.cpc,
+      seasonalityMultiplier: round(day.seasonalityMultiplier, 2),
+      seasonLabel: day.season.label,
+    };
+  });
+
+  const expectedSales = dailyPlan.reduce((sum, day) => sum + day.expectedSales, 0);
+  const expectedCpa = expectedSales > 0 ? input.weeklyBudget / expectedSales : input.weeklyBudget;
+  const gap = expectedSales - input.targetSales;
+  const summary = assumptions.historicalDataUsed
+    ? `Plan expects ${round(expectedSales, 1)} sales against a ${input.targetSales}-sale goal, using historical CPC and conversion rate.`
+    : `Plan distributes budget for a ${input.targetSales}-sale goal using target CPA because historical conversion data was not available.`;
+
+  return {
+    weeklyBudget: input.weeklyBudget,
+    targetSales: input.targetSales,
+    expectedSales: round(expectedSales, 1),
+    confidenceLow: round(expectedSales * 0.9, 1),
+    confidenceHigh: round(expectedSales * 1.1, 1),
+    expectedCpa: round(expectedCpa),
+    requiredCpa: round(requiredCpa),
+    dailyPlan,
+    assumptions: {
+      averageCpc: round(assumptions.averageCpc),
+      conversionRate: round(assumptions.conversionRate * 100, 2),
+      historicalDataUsed: assumptions.historicalDataUsed,
+      confidenceRangePct: 10,
+    },
+    summary: `${summary} ${gap >= 0 ? "The plan is above target." : "The plan is below target; improve conversion rate, CPC, or budget to close the gap."}`,
+  };
 }

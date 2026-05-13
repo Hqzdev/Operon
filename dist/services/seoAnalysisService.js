@@ -24,12 +24,19 @@ function extractSeoData(html, url) {
     const ogDescription = (html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1] ?? "").trim();
     const ogImage = (html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1] ?? "").trim();
     const schemaMarkup = html.includes("application/ld+json");
+    let hostname = "";
+    try {
+        hostname = new URL(url).hostname;
+    }
+    catch {
+        hostname = url.replace(/^https?:\/\//, "").split("/")[0];
+    }
     const internalLinks = [...html.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)]
         .map((m) => m[1])
-        .filter((href) => href.startsWith("/") || href.includes(new URL(url).hostname));
+        .filter((href) => href.startsWith("/") || (hostname && href.includes(hostname)));
     const externalLinks = [...html.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)]
         .map((m) => m[1])
-        .filter((href) => href.startsWith("http") && !href.includes(new URL(url).hostname));
+        .filter((href) => href.startsWith("http") && !(hostname && href.includes(hostname)));
     const textContent = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     const words = textContent.toLowerCase().match(/\b[a-zа-я]{4,}\b/g) ?? [];
     const freq = {};
@@ -180,6 +187,11 @@ Return JSON:
         socialMediaRecommendations: marketing.socialMediaRecommendations.slice(0, 3),
     };
 }
+function normalizeUrl(raw) {
+    if (/^https?:\/\//i.test(raw))
+        return raw;
+    return `https://${raw}`;
+}
 async function analyzeSeo(userId) {
     if (!process.env.GIGACHAT_AUTH_KEY && !process.env.GIGACHAT_ACCESS_TOKEN) {
         throw new appError_1.AppError("SEO analysis is not available: AI provider not configured.", 503);
@@ -188,15 +200,23 @@ async function analyzeSeo(userId) {
     if (!user?.storeUrl) {
         throw new appError_1.AppError("No store URL configured. Please add your store URL in settings.", 400);
     }
-    const html = await fetchStoreHtml(user.storeUrl);
-    const seoData = extractSeoData(html, user.storeUrl);
-    const aiResult = await runGigaChatSeoAnalysis(seoData, user.storeUrl);
+    const storeUrl = normalizeUrl(user.storeUrl);
+    const html = await fetchStoreHtml(storeUrl);
+    const seoData = extractSeoData(html, storeUrl);
+    let aiResult;
+    try {
+        aiResult = await runGigaChatSeoAnalysis(seoData, storeUrl);
+    }
+    catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown AI error";
+        throw new appError_1.AppError(`SEO analysis failed: ${msg}`, 502);
+    }
     const result = {
-        storeUrl: user.storeUrl,
+        storeUrl,
         analyzedAt: new Date().toISOString(),
         ...aiResult,
     };
-    await seoRepository_1.SeoRepository.upsert(userId, user.storeUrl, result);
+    await seoRepository_1.SeoRepository.upsert(userId, storeUrl, result);
     return result;
 }
 async function getCachedSeoResult(userId) {

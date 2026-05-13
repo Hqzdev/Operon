@@ -10,10 +10,12 @@ export interface UserProfile {
   storeName: string | null;
   storeUrl: string | null;
   niche: string | null;
+  accountType: string;
   quietModeEnabled: boolean;
   quietMinConfidence: number;
   quietMinSpendImpact: number;
   quietNoUrgentDigestAt: Date | null;
+  weeklyDigestEnabled: boolean;
   activeStoreId: string | null;
   onboardingCompleted: boolean;
   plan: UserPlan;
@@ -37,10 +39,12 @@ export interface UpdateUserDTO {
   storeName?: string;
   storeUrl?: string;
   niche?: string;
+  accountType?: string;
   avatarUrl?: string;
   quietModeEnabled?: boolean;
   quietMinConfidence?: number;
   quietMinSpendImpact?: number;
+  weeklyDigestEnabled?: boolean;
   activeStoreId?: string | null;
   onboardingCompleted?: boolean;
 }

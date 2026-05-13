@@ -4,6 +4,7 @@ import { runFatigueChecksForDueAccounts } from "./fatigueService";
 import { runRedditAcquisitionScan } from "./redditAcquisitionService";
 import { recomputeDueRecommendationOutcomes } from "./recommendationOutcomeService";
 import { generateWeeklyAgencyReports } from "./agencyService";
+import { recomputeCommunityBenchmarks } from "./communityBenchmarkService";
 
 let started = false;
 
@@ -11,14 +12,14 @@ export function startScheduler(): void {
   if (started) return;
   started = true;
 
-  cron.schedule("0 8 * * *", async () => {
-    console.log("[scheduler] Running morning digest job");
+  cron.schedule("0 22 * * 0", async () => {
+    console.log("[scheduler] Running weekly digest job");
     try {
       await generateDigestsForAllUsers();
     } catch (err) {
-      console.error("[scheduler] Morning digest job failed:", err);
+      console.error("[scheduler] Weekly digest job failed:", err);
     }
-  });
+  }, { timezone: "UTC" });
 
   cron.schedule("15 7 * * *", async () => {
     console.log("[scheduler] Running creative fatigue job");
@@ -47,6 +48,15 @@ export function startScheduler(): void {
     }
   });
 
+  cron.schedule("50 4 * * *", async () => {
+    console.log("[scheduler] Recomputing community benchmarks");
+    try {
+      await recomputeCommunityBenchmarks();
+    } catch (err) {
+      console.error("[scheduler] Community benchmark job failed:", err);
+    }
+  });
+
   cron.schedule("10 6 * * 1", async () => {
     console.log("[scheduler] Generating agency weekly reports");
     try {
@@ -58,7 +68,8 @@ export function startScheduler(): void {
 
   console.log("[scheduler] Agency weekly reports scheduled for Monday 06:10");
   console.log("[scheduler] Recommendation accuracy scheduled for 05:30 daily");
-  console.log("[scheduler] Morning digest scheduled for 08:00 daily");
+  console.log("[scheduler] Community benchmarks scheduled for 04:50 daily");
+  console.log("[scheduler] Weekly digest scheduled for Sunday 22:00 UTC");
   console.log("[scheduler] Creative fatigue check scheduled for 07:15 daily");
   console.log("[scheduler] Reddit acquisition scan scheduled for 06:45 daily");
 }

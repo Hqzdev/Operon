@@ -117,6 +117,14 @@ const SYSTEM =
   "You are a strict e-commerce performance analyst. Return valid JSON only — no markdown, no text outside the JSON.";
 
 export type DerivedMetrics = {
+  accountType?: "dropship" | "dtc" | "subscription" | "leadgen" | "b2b";
+  primaryConversionLabel?: string;
+  intentEventLabel?: string;
+  revenueBasis?: "order_revenue" | "subscription_ltv" | "lead_value";
+  effectiveConversions?: number;
+  effectiveIntentEvents?: number;
+  subscriptionLtv?: number;
+  leadValue?: number;
   spend: number;
   grossRevenue?: number;
   effectiveRevenue?: number;
@@ -200,25 +208,82 @@ function effectiveRevenue(input: AnalysisPayload) {
   return input.revenue * (1 - normalizedReturnRate(input));
 }
 
+function accountMetrics(input: AnalysisPayload) {
+  const accountType = input.account_type ?? "dropship";
+  if (accountType === "subscription") {
+    const conversions = input.subscription_starts ?? input.purchases;
+    const churn = Math.max(input.monthly_churn_rate ?? 0, 0.1);
+    const subscriptionLtv = (input.mrr ?? 0) * (1 / (churn / 100));
+    return {
+      accountType,
+      conversions,
+      intentEvents: input.add_to_cart,
+      revenue: conversions * subscriptionLtv,
+      unitCost: input.cost,
+      unitValue: subscriptionLtv,
+      conversionLabel: "subscription starts",
+      intentLabel: "add-to-carts",
+      revenueBasis: "subscription_ltv" as const,
+      subscriptionLtv: round(subscriptionLtv),
+    };
+  }
+  if (accountType === "leadgen" || accountType === "b2b") {
+    const conversions = input.qualified_leads ?? input.purchases;
+    const leadValue = input.lead_value && input.lead_value > 0 ? input.lead_value : input.product_price;
+    return {
+      accountType,
+      conversions,
+      intentEvents: input.form_starts ?? input.add_to_cart,
+      revenue: conversions * leadValue,
+      unitCost: input.cost,
+      unitValue: leadValue,
+      conversionLabel: "qualified leads",
+      intentLabel: "form starts",
+      revenueBasis: "lead_value" as const,
+      leadValue: round(leadValue),
+    };
+  }
+  return {
+    accountType,
+    conversions: input.purchases,
+    intentEvents: input.add_to_cart,
+    revenue: input.revenue,
+    unitCost: input.cost,
+    unitValue: input.product_price,
+    conversionLabel: "purchases",
+    intentLabel: "add-to-carts",
+    revenueBasis: "order_revenue" as const,
+  };
+}
+
 export function deriveMetrics(input: AnalysisPayload): DerivedMetrics {
   const attributionAdjustment = deriveAttributionAdjustment(input, env.IOS_UNDER_ATTRIBUTION_MULTIPLIER);
+  const commercial = accountMetrics(input);
   const spend = input.total_spend && input.total_spend > 0 ? input.total_spend : input.clicks * input.cpc;
-  const adjustedPurchases = attributionAdjustment?.adjustedPurchases ?? input.purchases;
-  const adjustedRevenue = attributionAdjustment ? input.revenue * attributionAdjustment.revenueUplift : input.revenue;
+  const adjustedPurchases = attributionAdjustment?.adjustedPurchases ?? commercial.conversions;
+  const adjustedRevenue = attributionAdjustment ? commercial.revenue * attributionAdjustment.revenueUplift : commercial.revenue;
   const adjustedInput = { ...input, purchases: adjustedPurchases, revenue: adjustedRevenue };
   const netRevenue = effectiveRevenue(adjustedInput);
   const grossRoas = spend > 0 ? adjustedRevenue / spend : 0;
   const roas = spend > 0 ? netRevenue / spend : 0;
   const conversionRate = input.clicks > 0 ? (adjustedPurchases / input.clicks) * 100 : 0;
-  const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
-  const margin = Math.max(input.product_price - input.cost, 0.01);
-  const breakEvenRoas = input.product_price / margin;
+  const addToCartRate = input.clicks > 0 ? (commercial.intentEvents / input.clicks) * 100 : 0;
+  const margin = Math.max(commercial.unitValue - commercial.unitCost, 0.01);
+  const breakEvenRoas = commercial.unitValue / margin;
   const breakEvenCpa = margin;
   const currentCpa = adjustedPurchases > 0 ? spend / adjustedPurchases : null;
   const maxCpcAtCurrentConversion = conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
-  const profit = netRevenue - spend - adjustedPurchases * input.cost;
+  const profit = netRevenue - spend - adjustedPurchases * commercial.unitCost;
   const netProfitMargin = netRevenue > 0 ? (profit / netRevenue) * 100 : 0;
   return {
+    accountType: commercial.accountType,
+    primaryConversionLabel: commercial.conversionLabel,
+    intentEventLabel: commercial.intentLabel,
+    revenueBasis: commercial.revenueBasis,
+    effectiveConversions: round(adjustedPurchases),
+    effectiveIntentEvents: round(commercial.intentEvents),
+    subscriptionLtv: "subscriptionLtv" in commercial ? commercial.subscriptionLtv : undefined,
+    leadValue: "leadValue" in commercial ? commercial.leadValue : undefined,
     spend: round(spend),
     grossRevenue: round(adjustedRevenue),
     effectiveRevenue: round(netRevenue),
@@ -245,10 +310,12 @@ export async function runAiAnalysis(input: AnalysisPayload): Promise<AiAnalysisR
 
   const derived = deriveMetrics(input);
   const modelInput = derived.attributionAdjustment
-    ? {
+      ? {
         ...input,
         pixel_purchases: input.purchases,
         purchases: derived.attributionAdjustment.adjustedPurchases,
+        qualified_leads: input.account_type === "leadgen" || input.account_type === "b2b" ? derived.attributionAdjustment.adjustedPurchases : input.qualified_leads,
+        subscription_starts: input.account_type === "subscription" ? derived.attributionAdjustment.adjustedPurchases : input.subscription_starts,
         revenue: derived.grossRevenue ?? input.revenue,
       }
     : input;

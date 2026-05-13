@@ -115,10 +115,12 @@ model User {
   storeName           String?
   storeUrl            String?
   niche               String?
+  accountType         String             @default("dropship")
   quietModeEnabled    Boolean            @default(true)
   quietMinConfidence  String             @default("")
   quietMinSpendImpact Float              @default(-1)
   quietNoUrgentDigestAt DateTime?
+  weeklyDigestEnabled Boolean            @default(true)
   activeStoreId       String?
   onboardingCompleted Boolean            @default(false)
   plan                UserPlan           @default(STARTER)
@@ -139,6 +141,8 @@ model User {
   simulationLogs      SimulationLog[]
   adActionLogs        AdActionLog[]
   recommendationOutcomes RecommendationOutcome[]
+  outcomePricingEnrollment OutcomePricingEnrollment?
+  outcomeInvoices      OutcomeInvoice[]
   ownedAgencyWorkspaces AgencyWorkspace[] @relation("AgencyWorkspaceOwner")
   agencyMemberships   AgencyMember[]
   agencyClients       AgencyClient[]      @relation("AgencyClientUser")
@@ -339,6 +343,75 @@ model Analysis {
   killRecoveryListings KillRecoveryListing[]
 
   @@index([userId, createdAt])
+}
+
+model CommunityBenchmark {
+  id                    String   @id @default(cuid())
+  niche                 String
+  country               String
+  analysisCount         Int
+  medianCtr             Float
+  medianCpc             Float
+  medianCpm             Float
+  medianAddToCartRate   Float
+  medianPurchaseRate    Float
+  computedAt            DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([niche, country])
+  @@index([country, niche])
+  @@index([computedAt])
+  @@map("community_benchmarks")
+}
+
+model OutcomePricingEnrollment {
+  id                    String           @id @default(cuid())
+  userId                String           @unique
+  status                String           @default("active")
+  currency              String           @default("RUB")
+  thresholdMinor        Int              @default(5000000)
+  feeRate               Float            @default(0.12)
+  capMinor              Int              @default(1500000)
+  activatedAt           DateTime         @default(now())
+  firstInvoiceTriggeredAt DateTime?
+  canceledAt            DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices              OutcomeInvoice[]
+
+  @@index([status, createdAt])
+  @@map("outcome_pricing_enrollments")
+}
+
+model OutcomeInvoice {
+  id                    String                   @id @default(cuid())
+  userId                String
+  enrollmentId          String
+  status                PaymentStatus            @default(PENDING)
+  currency              String                   @default("RUB")
+  savedSpendMinor       Int
+  billableSavedSpendMinor Int
+  amountMinor           Int
+  feeRate               Float
+  capMinor              Int
+  provider              String                   @default("yookassa")
+  providerPaymentId     String?                  @unique
+  confirmationUrl       String?
+  thresholdCrossedAt    DateTime                 @default(now())
+  periodStart           DateTime
+  periodEnd             DateTime
+  webhookPayload        Json?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  user                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment            OutcomePricingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([providerPaymentId])
+  @@map("outcome_invoices")
 }
 
 model RecommendationOutcome {

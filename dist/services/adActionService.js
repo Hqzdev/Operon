@@ -12,6 +12,7 @@ const env_1 = require("../utils/env");
 const integrationService_1 = require("./integrationService");
 const userRepository_1 = require("../repositories/userRepository");
 const adActionRepository_1 = require("../repositories/adActionRepository");
+const outcomePricingService_1 = require("./outcomePricingService");
 const integrationRepository_1 = require("../repositories/integrationRepository");
 exports.executeAdActionSchema = zod_1.z.object({
     connectionId: zod_1.z.string().min(1),
@@ -171,7 +172,7 @@ async function executeAdAction(userId, input) {
     try {
         const after = await applyAction(connection, input.externalEntityId, actionType, before);
         const isBudgetChange = actionType === client_1.AdActionType.increase_budget_20 || actionType === client_1.AdActionType.decrease_budget_20;
-        return adActionRepository_1.AdActionRepository.create({
+        const log = await adActionRepository_1.AdActionRepository.create({
             userId,
             connectionId: connection.id,
             provider: connection.provider,
@@ -185,6 +186,12 @@ async function executeAdAction(userId, input) {
             afterState: after,
             undoUntil: isBudgetChange ? new Date(Date.now() + 60 * 60 * 1000) : null,
         });
+        if (actionType === client_1.AdActionType.pause) {
+            await (0, outcomePricingService_1.maybeCreateOutcomeInvoice)(userId).catch((error) => {
+                console.error("[outcome-pricing] Failed to create invoice after pause:", error);
+            });
+        }
+        return log;
     }
     catch (error) {
         await adActionRepository_1.AdActionRepository.create({

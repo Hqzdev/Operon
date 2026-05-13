@@ -23,6 +23,87 @@ function effectiveRevenue(input: AnalysisInput) {
   return input.revenue * (1 - normalizedReturnRate(input));
 }
 
+type AccountMetrics = {
+  accountType: AnalysisInput["account_type"];
+  conversions: number;
+  intentEvents: number;
+  revenue: number;
+  unitCost: number;
+  unitValue: number;
+  conversionLabel: string;
+  intentLabel: string;
+  revenueBasis: "order_revenue" | "subscription_ltv" | "lead_value";
+  subscriptionLtv?: number;
+  leadValue?: number;
+};
+
+const ACCOUNT_THRESHOLDS: Record<NonNullable<AnalysisInput["account_type"]>, {
+  minClicks: number;
+  minImpressions: number;
+  weakIntentCeiling: number;
+  weakConversionClicks: number;
+  intentFixFloor: number;
+  scaleConversions: number;
+  ctrFloor: number;
+  expensiveCpm: number;
+}> = {
+  dropship: { minClicks: 80, minImpressions: 5000, weakIntentCeiling: 1, weakConversionClicks: 60, intentFixFloor: 3, scaleConversions: 2, ctrFloor: 1.5, expensiveCpm: 60 },
+  dtc: { minClicks: 80, minImpressions: 5000, weakIntentCeiling: 1, weakConversionClicks: 60, intentFixFloor: 3, scaleConversions: 2, ctrFloor: 1.4, expensiveCpm: 70 },
+  subscription: { minClicks: 100, minImpressions: 6000, weakIntentCeiling: 1, weakConversionClicks: 80, intentFixFloor: 4, scaleConversions: 2, ctrFloor: 1.2, expensiveCpm: 80 },
+  leadgen: { minClicks: 80, minImpressions: 4000, weakIntentCeiling: 1, weakConversionClicks: 50, intentFixFloor: 5, scaleConversions: 3, ctrFloor: 1.0, expensiveCpm: 90 },
+  b2b: { minClicks: 60, minImpressions: 3000, weakIntentCeiling: 0, weakConversionClicks: 40, intentFixFloor: 3, scaleConversions: 2, ctrFloor: 0.8, expensiveCpm: 120 },
+};
+
+function accountMetrics(input: AnalysisInput): AccountMetrics {
+  const accountType = input.account_type ?? "dropship";
+  if (accountType === "subscription") {
+    const conversions = input.subscription_starts ?? input.purchases;
+    const churn = Math.max(input.monthly_churn_rate ?? 0, 0.1);
+    const subscriptionLtv = (input.mrr ?? 0) * (1 / (churn / 100));
+    return {
+      accountType,
+      conversions,
+      intentEvents: input.add_to_cart,
+      revenue: conversions * subscriptionLtv,
+      unitCost: input.cost,
+      unitValue: subscriptionLtv,
+      conversionLabel: "subscription starts",
+      intentLabel: "add-to-carts",
+      revenueBasis: "subscription_ltv",
+      subscriptionLtv: round(subscriptionLtv),
+    };
+  }
+
+  if (accountType === "leadgen" || accountType === "b2b") {
+    const conversions = input.qualified_leads ?? input.purchases;
+    const leadValue = input.lead_value && input.lead_value > 0 ? input.lead_value : input.product_price;
+    return {
+      accountType,
+      conversions,
+      intentEvents: input.form_starts ?? input.add_to_cart,
+      revenue: conversions * leadValue,
+      unitCost: input.cost,
+      unitValue: leadValue,
+      conversionLabel: "qualified leads",
+      intentLabel: "form starts",
+      revenueBasis: "lead_value",
+      leadValue: round(leadValue),
+    };
+  }
+
+  return {
+    accountType,
+    conversions: input.purchases,
+    intentEvents: input.add_to_cart,
+    revenue: input.revenue,
+    unitCost: input.cost,
+    unitValue: input.product_price,
+    conversionLabel: "purchases",
+    intentLabel: "add-to-carts",
+    revenueBasis: "order_revenue",
+  };
+}
+
 function effectiveSpend(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
   return input.total_spend && input.total_spend > 0 ? input.total_spend : derived.spend;
 }
@@ -36,6 +117,8 @@ function attributionAdjustedInput(input: AnalysisInput, derived: ReturnType<type
   return {
     ...input,
     purchases: derived.attributionAdjustment.adjustedPurchases,
+    qualified_leads: input.account_type === "leadgen" || input.account_type === "b2b" ? derived.attributionAdjustment.adjustedPurchases : input.qualified_leads,
+    subscription_starts: input.account_type === "subscription" ? derived.attributionAdjustment.adjustedPurchases : input.subscription_starts,
     revenue: derived.grossRevenue ?? input.revenue,
   };
 }
@@ -66,32 +149,86 @@ export type LtvBreakEvenOverride = {
   ltvBreakEvenCpa: number;
 };
 
+export type CommunityBenchmarkContext = {
+  niche: string;
+  country: string;
+  sampleSize: number;
+  medianCtr: number;
+  medianCpc: number;
+  medianCpm: number;
+  medianAddToCartRate: number;
+  medianPurchaseRate: number;
+};
+
+function benchmarkDelta(value: number, median: number) {
+  if (median <= 0) return 0;
+  return Math.round(((value - median) / median) * 100);
+}
+
+function buildBenchmarkComparison(input: AnalysisInput, benchmark?: CommunityBenchmarkContext | null) {
+  if (!benchmark) return undefined;
+  const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
+  const purchaseRate = input.clicks > 0 ? (input.purchases / input.clicks) * 100 : 0;
+  return {
+    niche: benchmark.niche,
+    country: benchmark.country,
+    sampleSize: benchmark.sampleSize,
+    source: "community" as const,
+    metrics: {
+      ctr: { value: input.ctr, median: benchmark.medianCtr, deltaPct: benchmarkDelta(input.ctr, benchmark.medianCtr), unit: "%" as const },
+      cpc: { value: input.cpc, median: benchmark.medianCpc, deltaPct: benchmarkDelta(input.cpc, benchmark.medianCpc), unit: "currency" as const },
+      cpm: { value: input.cpm, median: benchmark.medianCpm, deltaPct: benchmarkDelta(input.cpm, benchmark.medianCpm), unit: "currency" as const },
+      addToCartRate: {
+        value: round(addToCartRate),
+        median: benchmark.medianAddToCartRate,
+        deltaPct: benchmarkDelta(addToCartRate, benchmark.medianAddToCartRate),
+        unit: "%" as const,
+      },
+      purchaseRate: {
+        value: round(purchaseRate),
+        median: benchmark.medianPurchaseRate,
+        deltaPct: benchmarkDelta(purchaseRate, benchmark.medianPurchaseRate),
+        unit: "%" as const,
+      },
+    },
+  };
+}
+
 export function deriveMetrics(input: AnalysisInput, ltvOverride?: LtvBreakEvenOverride) {
   const attributionAdjustment = deriveAttributionAdjustment(
     input,
     Number(process.env.IOS_UNDER_ATTRIBUTION_MULTIPLIER ?? 1.25),
   );
+  const commercial = accountMetrics(input);
   const spend = input.total_spend && input.total_spend > 0 ? input.total_spend : input.clicks * input.cpc;
-  const adjustedPurchases = attributionAdjustment?.adjustedPurchases ?? input.purchases;
-  const adjustedRevenue = attributionAdjustment ? input.revenue * attributionAdjustment.revenueUplift : input.revenue;
+  const adjustedPurchases = attributionAdjustment?.adjustedPurchases ?? commercial.conversions;
+  const adjustedRevenue = attributionAdjustment ? commercial.revenue * attributionAdjustment.revenueUplift : commercial.revenue;
   const adjustedInput = { ...input, purchases: adjustedPurchases, revenue: adjustedRevenue };
   const netRevenue = effectiveRevenue(adjustedInput);
   const grossRoas = spend > 0 ? adjustedRevenue / spend : 0;
   const roas = spend > 0 ? netRevenue / spend : 0;
   const conversionRate = input.clicks > 0 ? (adjustedPurchases / input.clicks) * 100 : 0;
-  const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
-  const margin = Math.max(input.product_price - input.cost, 0.01);
-  const firstOrderBreakEvenRoas = input.product_price / margin;
+  const addToCartRate = input.clicks > 0 ? (commercial.intentEvents / input.clicks) * 100 : 0;
+  const margin = Math.max(commercial.unitValue - commercial.unitCost, 0.01);
+  const firstOrderBreakEvenRoas = commercial.unitValue / margin;
   const firstOrderBreakEvenCpa = margin;
   const breakEvenRoas = ltvOverride?.ltvBreakEvenRoas ?? firstOrderBreakEvenRoas;
   const breakEvenCpa = ltvOverride?.ltvBreakEvenCpa ?? firstOrderBreakEvenCpa;
   const currentCpa = adjustedPurchases > 0 ? spend / adjustedPurchases : null;
   const maxCpcAtCurrentConversion =
     conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
-  const profit = netRevenue - spend - adjustedPurchases * input.cost;
+  const profit = netRevenue - spend - adjustedPurchases * commercial.unitCost;
   const netProfitMargin = netRevenue > 0 ? (profit / netRevenue) * 100 : 0;
 
   return {
+    accountType: commercial.accountType,
+    primaryConversionLabel: commercial.conversionLabel,
+    intentEventLabel: commercial.intentLabel,
+    revenueBasis: commercial.revenueBasis,
+    effectiveConversions: round(adjustedPurchases),
+    effectiveIntentEvents: round(commercial.intentEvents),
+    subscriptionLtv: commercial.subscriptionLtv,
+    leadValue: commercial.leadValue,
     spend: round(spend),
     grossRevenue: round(adjustedRevenue),
     effectiveRevenue: round(netRevenue),
@@ -113,27 +250,36 @@ export function deriveMetrics(input: AnalysisInput, ltvOverride?: LtvBreakEvenOv
   };
 }
 
-function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>, season: SeasonContext) {
+function decide(
+  input: AnalysisInput,
+  derived: ReturnType<typeof deriveMetrics>,
+  season: SeasonContext,
+  benchmark?: CommunityBenchmarkContext | null,
+) {
   const maturity = evidenceMaturity(input, derived);
-  const enoughTraffic = (input.clicks >= 80 || input.impressions >= 5000) && maturity.enoughEvidence;
-  const weakCreative = input.ctr < 1;
-  const expensiveTraffic = input.cpm > 60 * season.cpmMultiplier;
-  const killAtcCeiling = season.killReticence >= 0.5 ? 0 : 1;
-  const weakPurchaseSignal = input.clicks >= 60 && input.purchases === 0 && maturity.enoughEvidence;
-  const weakDemand = input.clicks >= 80 && input.add_to_cart <= killAtcCeiling && maturity.enoughEvidence;
+  const thresholds = ACCOUNT_THRESHOLDS[input.account_type ?? "dropship"];
+  const conversionCount = derived.effectiveConversions ?? input.purchases;
+  const intentEvents = derived.effectiveIntentEvents ?? input.add_to_cart;
+  const enoughTraffic = (input.clicks >= thresholds.minClicks || input.impressions >= thresholds.minImpressions) && maturity.enoughEvidence;
+  const weakCreative = benchmark ? input.ctr < benchmark.medianCtr : input.ctr < thresholds.ctrFloor * 0.67;
+  const expensiveTraffic = benchmark ? input.cpm > benchmark.medianCpm * 1.25 : input.cpm > thresholds.expensiveCpm * season.cpmMultiplier;
+  const killAtcCeiling = season.killReticence >= 0.5 ? 0 : thresholds.weakIntentCeiling;
+  const weakPurchaseSignal = input.clicks >= thresholds.weakConversionClicks && conversionCount === 0 && maturity.enoughEvidence;
+  const weakDemand = input.clicks >= thresholds.minClicks && intentEvents <= killAtcCeiling && maturity.enoughEvidence;
   const returnDrag =
     maturity.enoughEvidence &&
     (input.return_rate > 0 || (input.net_revenue ?? 0) > 0) &&
     derived.grossRoas >= derived.breakEvenRoas &&
     derived.roas < derived.breakEvenRoas;
-  const ctrFloor = Math.max(1.0, 1.5 - season.scaleEagerness * 0.5);
+  const ctrFloor = Math.max(thresholds.ctrFloor * 0.75, thresholds.ctrFloor - season.scaleEagerness * 0.5);
+  const benchmarkCtrFloor = benchmark ? Math.max(benchmark.medianCtr, ctrFloor) : ctrFloor;
   const roasFloor = derived.breakEvenRoas * Math.max(0.88, 1 - season.scaleEagerness * 0.10);
-  const purchasesMin = season.scaleEagerness >= 0.5 ? 1 : 2;
+  const purchasesMin = season.scaleEagerness >= 0.5 ? Math.max(1, thresholds.scaleConversions - 1) : thresholds.scaleConversions;
   const goodEconomics =
-    input.purchases >= purchasesMin &&
+    conversionCount >= purchasesMin &&
     derived.roas >= roasFloor &&
     derived.profit > 0 &&
-    input.ctr >= ctrFloor;
+    input.ctr >= benchmarkCtrFloor;
 
   let finalDecision: AnalysisDecision = "TEST AGAIN";
   let shortReason = "The sample is still thin, so the setup needs more data before a hard call.";
@@ -153,7 +299,7 @@ function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>,
     finalDecision = "FIX";
     shortReason = "CTR is too low for the traffic volume already collected, which points to a creative-level issue.";
     confidence = "high";
-  } else if (input.clicks >= 80 && input.add_to_cart <= 1 && !maturity.enoughEvidence) {
+  } else if (input.clicks >= thresholds.minClicks && intentEvents <= thresholds.weakIntentCeiling && !maturity.enoughEvidence) {
     finalDecision = "TEST AGAIN";
     shortReason =
       `Intent is weak, but this is too early to call a structural failure: spend is $${round(maturity.spend)} over ` +
@@ -165,7 +311,7 @@ function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>,
       `The product is not generating enough intent after meaningful spend ($${round(maturity.spend)} over ${maturity.days || "unknown"} days), ` +
       "so this looks structurally broken rather than just early noise.";
     confidence = "high";
-  } else if (weakPurchaseSignal && input.add_to_cart >= 3) {
+  } else if (weakPurchaseSignal && intentEvents >= thresholds.intentFixFloor) {
     finalDecision = "FIX";
     shortReason = "Users click and show some cart intent, but the offer or funnel is blocking purchases.";
     confidence = "medium";
@@ -182,7 +328,12 @@ function decide(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>,
   return { finalDecision, shortReason, confidence };
 }
 
-function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>, season: SeasonContext) {
+function confidenceFromSingleInput(
+  input: AnalysisInput,
+  derived: ReturnType<typeof deriveMetrics>,
+  season: SeasonContext,
+  benchmark?: CommunityBenchmarkContext | null,
+) {
   const maturity = evidenceMaturity(input, derived);
   const signals: ConfidenceSignal[] = [
     {
@@ -194,9 +345,15 @@ function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typ
       weight: 30,
     },
     {
-      label: input.ctr >= 1.5 ? "CTR has initial signal" : "CTR signal is weak",
-      detail: `Current CTR is ${input.ctr}%`,
-      score: input.ctr >= 2 ? 80 : input.ctr >= 1.2 ? 60 : input.ctr > 0 ? 35 : 20,
+      label: benchmark
+        ? input.ctr >= benchmark.medianCtr ? "CTR beats niche median" : "CTR trails niche median"
+        : input.ctr >= 1.5 ? "CTR has initial signal" : "CTR signal is weak",
+      detail: benchmark
+        ? `Current CTR is ${input.ctr}% vs ${benchmark.niche}/${benchmark.country} median ${benchmark.medianCtr}%`
+        : `Current CTR is ${input.ctr}%`,
+      score: benchmark
+        ? input.ctr >= benchmark.medianCtr * 1.15 ? 80 : input.ctr >= benchmark.medianCtr ? 65 : input.ctr >= benchmark.medianCtr * 0.8 ? 45 : 25
+        : input.ctr >= 2 ? 80 : input.ctr >= 1.2 ? 60 : input.ctr > 0 ? 35 : 20,
       weight: 25,
     },
     {
@@ -233,36 +390,42 @@ function confidenceFromSingleInput(input: AnalysisInput, derived: ReturnType<typ
   return { confidenceScore, confidence, confidenceSignals: signals };
 }
 
-function diagnose(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>) {
-  if (input.ctr < 1) {
+function diagnose(input: AnalysisInput, derived: ReturnType<typeof deriveMetrics>, benchmark?: CommunityBenchmarkContext | null) {
+  const weakCtr = benchmark ? input.ctr < benchmark.medianCtr : input.ctr < 1;
+  const expensiveCpm = benchmark ? input.cpm > benchmark.medianCpm * 1.25 : input.cpm > 60;
+  const conversionCount = derived.effectiveConversions ?? input.purchases;
+  const intentEvents = derived.effectiveIntentEvents ?? input.add_to_cart;
+  const conversionLabel = derived.primaryConversionLabel ?? "purchases";
+  const intentLabel = derived.intentEventLabel ?? "add-to-carts";
+  if (weakCtr) {
     return {
       mainProblem: "Creative problem" as const,
       why: "The ad is not winning enough attention at the impression-to-click stage.",
-      proofMetric: `CTR is ${input.ctr}%`,
+      proofMetric: benchmark ? `CTR is ${input.ctr}% vs ${benchmark.niche}/${benchmark.country} median ${benchmark.medianCtr}%` : `CTR is ${input.ctr}%`,
     };
   }
 
-  if (input.cpm > 60 && input.ctr >= 1) {
+  if (expensiveCpm && !weakCtr) {
     return {
       mainProblem: "Targeting problem" as const,
       why: "Traffic acquisition is too expensive relative to the quality of the click stream.",
-      proofMetric: `CPM is ${input.cpm}`,
+      proofMetric: benchmark ? `CPM is ${input.cpm} vs ${benchmark.niche}/${benchmark.country} median ${benchmark.medianCpm}` : `CPM is ${input.cpm}`,
     };
   }
 
-  if (input.add_to_cart >= 3 && input.purchases === 0) {
+  if (intentEvents >= 3 && conversionCount === 0) {
     return {
       mainProblem: "Funnel problem" as const,
       why: "Users are interested enough to add to cart, but something breaks between intent and checkout completion.",
-      proofMetric: `${input.add_to_cart} add-to-carts and 0 purchases`,
+      proofMetric: `${intentEvents} ${intentLabel} and 0 ${conversionLabel}`,
     };
   }
 
-  if (input.clicks >= 60 && input.add_to_cart <= 1) {
+  if (input.clicks >= 60 && intentEvents <= 1) {
     return {
       mainProblem: "Product problem" as const,
       why: "The audience clicks, but demand collapses once users evaluate the offer.",
-      proofMetric: `${input.clicks} clicks and only ${input.add_to_cart} add-to-carts`,
+      proofMetric: `${input.clicks} clicks and only ${intentEvents} ${intentLabel}`,
     };
   }
 
@@ -314,7 +477,9 @@ function validatePotential(
   derived: ReturnType<typeof deriveMetrics>,
   problem: ReturnType<typeof diagnose>,
 ) {
-  if (input.ctr >= 1.5 && (input.add_to_cart >= 3 || input.purchases >= 1)) {
+  const conversionCount = derived.effectiveConversions ?? input.purchases;
+  const intentEvents = derived.effectiveIntentEvents ?? input.add_to_cart;
+  if (input.ctr >= 1.5 && (intentEvents >= 3 || conversionCount >= 1)) {
     return {
       verdict: "high potential" as const,
       reason: "The setup already shows engagement and at least one commercial signal worth building on.",
@@ -358,8 +523,9 @@ function calculateProfitability(derived: ReturnType<typeof deriveMetrics>) {
 
 function detectFunnelLeak(input: AnalysisInput) {
   const clickRate = input.impressions > 0 ? input.clicks / input.impressions : 0;
-  const atcRate = input.clicks > 0 ? input.add_to_cart / input.clicks : 0;
-  const purchaseRate = input.add_to_cart > 0 ? input.purchases / input.add_to_cart : 0;
+  const metrics = accountMetrics(input);
+  const atcRate = input.clicks > 0 ? metrics.intentEvents / input.clicks : 0;
+  const purchaseRate = metrics.intentEvents > 0 ? metrics.conversions / metrics.intentEvents : 0;
 
   const stages = [
     {
@@ -372,13 +538,13 @@ function detectFunnelLeak(input: AnalysisInput) {
       weakestStage: "clicks → add to cart" as const,
       score: atcRate,
       explanation:
-        "People click but do not build enough buying intent after landing, which usually points to the offer or product page.",
+        `People click but do not start enough ${metrics.intentLabel}, which usually points to the offer or landing page.`,
     },
     {
       weakestStage: "add to cart → purchase" as const,
       score: purchaseRate,
       explanation:
-        "People show buying intent but drop before purchase, which usually points to checkout friction or low trust near the final step.",
+        `People show intent but drop before ${metrics.conversionLabel}, which usually points to final-step friction or low trust.`,
     },
   ].sort((a, b) => a.score - b.score);
 
@@ -440,11 +606,13 @@ function decideContinueOrStop(
   decision: ReturnType<typeof decide>,
 ) {
   const maturity = evidenceMaturity(input, derived);
-  if (maturity.enoughEvidence && input.purchases === 0) {
+  const conversionCount = derived.effectiveConversions ?? input.purchases;
+  const conversionLabel = derived.primaryConversionLabel ?? "purchases";
+  if (maturity.enoughEvidence && conversionCount === 0) {
     return {
       decision: "STOP" as const,
       reason:
-        `Spend is already high relative to break-even ($${round(maturity.spend)} over ${maturity.days || "unknown"} days) and there are still no purchases, so continuing this exact setup is hard to justify.`,
+        `Spend is already high relative to break-even ($${round(maturity.spend)} over ${maturity.days || "unknown"} days) and there are still no ${conversionLabel}, so continuing this exact setup is hard to justify.`,
       minimumAdditionalTestNeeded: "Do not add more budget to this setup. Change the offer, product angle, or creative first.",
     };
   }
@@ -482,12 +650,13 @@ export function runRuleAnalysis(
   input: AnalysisInput,
   ltvOverride?: LtvBreakEvenOverride,
   analysisDate?: Date,
+  benchmark?: CommunityBenchmarkContext | null,
 ): Omit<AnalysisOutput, "saved" | "savedId"> {
   const season = getSeasonContext(analysisDate);
   const derived = deriveMetrics(input, ltvOverride);
   const signalInput = attributionAdjustedInput(input, derived);
-  const baseDecision = decide(signalInput, derived, season);
-  const confidence = confidenceFromSingleInput(signalInput, derived, season);
+  const baseDecision = decide(signalInput, derived, season, benchmark);
+  const confidence = confidenceFromSingleInput(signalInput, derived, season, benchmark);
   const baseShortReason =
     confidence.confidenceScore < 50
       ? `Confidence is below 50%, so this is surfaced as Watch until more signal is available. ${baseDecision.shortReason}`
@@ -504,7 +673,7 @@ export function runRuleAnalysis(
     confidenceScore: confidence.confidenceScore,
     confidenceSignals: confidence.confidenceSignals,
   };
-  const diagnosis = diagnose(signalInput, derived);
+  const diagnosis = diagnose(signalInput, derived, benchmark);
   const actionPlan = planActions(diagnosis);
   const validation = validatePotential(signalInput, derived, diagnosis);
   const profitability = calculateProfitability(derived);
@@ -522,6 +691,7 @@ export function runRuleAnalysis(
     creativeAngles,
     continueDecision,
     attributionAdjustment: derived.attributionAdjustment ?? undefined,
+    benchmarkComparison: buildBenchmarkComparison(signalInput, benchmark),
     derived,
     provider: "rules",
     seasonContext: {

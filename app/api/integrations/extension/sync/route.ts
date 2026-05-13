@@ -6,6 +6,7 @@ import { ingestExtensionMetrics, parseProvider } from "@/src/services/integratio
 export const dynamic = "force-dynamic";
 
 const metricSchema = z.object({
+  account_type: z.enum(["dropship", "dtc", "subscription", "leadgen", "b2b"]).optional(),
   externalEntityId: z.string().optional(),
   entityName: z.string().optional(),
   date: z.string().optional(),
@@ -29,6 +30,14 @@ const metricSchema = z.object({
   ios_audience_pct: z.coerce.number().min(0).max(100).optional(),
   pixel_purchases: z.coerce.number().min(0).optional(),
   shopify_purchases: z.coerce.number().min(0).optional(),
+  niche: z.string().min(2).max(80).optional(),
+  country: z.string().min(2).max(80).optional(),
+  mrr: z.coerce.number().min(0).optional(),
+  monthly_churn_rate: z.coerce.number().min(0).max(100).optional(),
+  subscription_starts: z.coerce.number().int().min(0).optional(),
+  qualified_leads: z.coerce.number().int().min(0).optional(),
+  form_starts: z.coerce.number().int().min(0).optional(),
+  lead_value: z.coerce.number().min(0).optional(),
   source: z.unknown().optional(),
 });
 

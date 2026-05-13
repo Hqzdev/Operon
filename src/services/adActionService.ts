@@ -17,6 +17,7 @@ import {
 } from "./integrationService";
 import { UserRepository } from "../repositories/userRepository";
 import { AdActionRepository } from "../repositories/adActionRepository";
+import { maybeCreateOutcomeInvoice } from "./outcomePricingService";
 import { IntegrationRepository } from "../repositories/integrationRepository";
 
 export const executeAdActionSchema = z.object({
@@ -197,7 +198,7 @@ export async function executeAdAction(userId: string, input: ExecuteAdActionInpu
   try {
     const after = await applyAction(connection, input.externalEntityId, actionType, before);
     const isBudgetChange = actionType === AdActionType.increase_budget_20 || actionType === AdActionType.decrease_budget_20;
-    return AdActionRepository.create({
+    const log = await AdActionRepository.create({
       userId,
       connectionId: connection.id,
       provider: connection.provider,
@@ -211,6 +212,12 @@ export async function executeAdAction(userId: string, input: ExecuteAdActionInpu
       afterState: after as unknown as Prisma.InputJsonValue,
       undoUntil: isBudgetChange ? new Date(Date.now() + 60 * 60 * 1000) : null,
     });
+    if (actionType === AdActionType.pause) {
+      await maybeCreateOutcomeInvoice(userId).catch((error) => {
+        console.error("[outcome-pricing] Failed to create invoice after pause:", error);
+      });
+    }
+    return log;
   } catch (error) {
     await AdActionRepository.create({
       userId,

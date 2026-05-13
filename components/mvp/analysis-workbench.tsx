@@ -58,6 +58,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const initialForm: AnalysisInput = {
+  account_type: "dropship",
   product_name: "",
   product_description: "",
   product_price: 0,
@@ -77,6 +78,14 @@ const initialForm: AnalysisInput = {
   ios_audience_pct: 0,
   ios_under_attribution_multiplier: 0,
   shopify_purchases: 0,
+  niche: "",
+  country: "",
+  mrr: 0,
+  monthly_churn_rate: 0,
+  subscription_starts: 0,
+  qualified_leads: 0,
+  form_starts: 0,
+  lead_value: 0,
   stage: "testing",
 };
 
@@ -98,6 +107,12 @@ const fields: Array<{ key: keyof AnalysisInput; label: string; step?: string }> 
   { key: "ios_audience_pct", label: "iOS audience %", step: "0.01" },
   { key: "ios_under_attribution_multiplier", label: "iOS purchase multiplier", step: "0.01" },
   { key: "shopify_purchases", label: "Shopify purchases", step: "1" },
+  { key: "mrr", label: "MRR", step: "0.01" },
+  { key: "monthly_churn_rate", label: "Monthly churn %", step: "0.01" },
+  { key: "subscription_starts", label: "Subscription starts", step: "1" },
+  { key: "qualified_leads", label: "Qualified leads", step: "1" },
+  { key: "form_starts", label: "Form starts", step: "1" },
+  { key: "lead_value", label: "Lead value", step: "0.01" },
 ];
 
 function badgeVariant(decision: string) {
@@ -174,6 +189,7 @@ type UserProfile = {
   quietModeEnabled?: boolean;
   quietMinConfidence?: "low" | "medium" | "high" | "";
   quietMinSpendImpact?: number;
+  weeklyDigestEnabled?: boolean;
 };
 
 type SubscriptionOverview = {
@@ -258,6 +274,36 @@ type BudgetAllocationResult = {
     allocatedPct: number;
   }>;
   summary: string;
+};
+
+type WeeklyBudgetPlanResult = {
+  weeklyBudget: number;
+  targetSales: number;
+  expectedSales: number;
+  confidenceLow: number;
+  confidenceHigh: number;
+  expectedCpa: number;
+  requiredCpa: number;
+  assumptions: {
+    averageCpc: number;
+    conversionRate: number;
+    historicalDataUsed: boolean;
+    confidenceRangePct: number;
+  };
+  summary: string;
+  dailyPlan: Array<{
+    date: string;
+    day: string;
+    recommendedBudget: number;
+    allocatedPct: number;
+    expectedSales: number;
+    confidenceLow: number;
+    confidenceHigh: number;
+    trafficMultiplier: number;
+    cpcMultiplier: number;
+    seasonalityMultiplier: number;
+    seasonLabel: string;
+  }>;
 };
 
 type ScenarioMetrics = {
@@ -481,7 +527,16 @@ function normalizeAnalysisOutput(raw: unknown): AnalysisOutput {
     },
     ltvAdjustment: input.ltvAdjustment,
     attributionAdjustment: input.attributionAdjustment,
+    benchmarkComparison: input.benchmarkComparison,
     derived: {
+      accountType: derived.accountType,
+      primaryConversionLabel: derived.primaryConversionLabel,
+      intentEventLabel: derived.intentEventLabel,
+      revenueBasis: derived.revenueBasis,
+      effectiveConversions: derived.effectiveConversions,
+      effectiveIntentEvents: derived.effectiveIntentEvents,
+      subscriptionLtv: derived.subscriptionLtv,
+      leadValue: derived.leadValue,
       spend: derived.spend ?? 0,
       grossRevenue: derived.grossRevenue ?? 0,
       effectiveRevenue: derived.effectiveRevenue ?? derived.grossRevenue ?? 0,
@@ -543,7 +598,6 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
   // Tab state
   const [activeTab, setActiveTab] = useState<DashboardWorkspaceTab>(initialTab ?? "analysis");
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
-  const [digestEnabled, setDigestEnabled] = useState(true);
   const [actionEmailsEnabled, setActionEmailsEnabled] = useState(true);
   const [quietSaving, setQuietSaving] = useState(false);
 
@@ -556,6 +610,11 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
   const [budgetResult, setBudgetResult] = useState<BudgetAllocationResult | null>(null);
   const [budgetLoading, setBudgetLoading] = useState(false);
   const [budgetError, setBudgetError] = useState<string | null>(null);
+  const [weeklyBudget, setWeeklyBudget] = useState(0);
+  const [targetSales, setTargetSales] = useState(0);
+  const [weeklyPlanResult, setWeeklyPlanResult] = useState<WeeklyBudgetPlanResult | null>(null);
+  const [weeklyPlanLoading, setWeeklyPlanLoading] = useState(false);
+  const [weeklyPlanError, setWeeklyPlanError] = useState<string | null>(null);
 
   // Scenario Simulator state
   const [scenarioBase, setScenarioBase] = useState({
@@ -596,7 +655,7 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
     router.push("/login");
   }
 
-  async function updateQuietSettings(next: Partial<Pick<UserProfile, "quietModeEnabled" | "quietMinConfidence" | "quietMinSpendImpact">>) {
+  async function updateQuietSettings(next: Partial<Pick<UserProfile, "quietModeEnabled" | "quietMinConfidence" | "quietMinSpendImpact" | "weeklyDigestEnabled">>) {
     const token = getToken();
     if (!token) return;
     const optimistic = user ? { ...user, ...next } : user;
@@ -795,6 +854,50 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
       setBudgetError("Network error");
     } finally {
       setBudgetLoading(false);
+    }
+  }
+
+  async function submitWeeklyBudgetPlan() {
+    setWeeklyPlanError(null);
+    setWeeklyPlanLoading(true);
+    try {
+      const token = getToken();
+      if (!token) { router.push("/login"); return; }
+      const historical = adSets.reduce((totals, set) => ({
+        spend: totals.spend + set.spend,
+        clicks: totals.clicks + set.clicks,
+        purchases: totals.purchases + set.purchases,
+      }), { spend: 0, clicks: 0, purchases: 0 });
+      const historyTotals = history.slice(0, 20).reduce((totals, item) => {
+        const spend = item.input.total_spend && item.input.total_spend > 0
+          ? item.input.total_spend
+          : item.input.cpc * item.input.clicks;
+        return {
+          spend: totals.spend + spend,
+          clicks: totals.clicks + item.input.clicks,
+          purchases: totals.purchases + item.input.purchases,
+        };
+      }, { spend: 0, clicks: 0, purchases: 0 });
+      const historicalSource = historical.spend > 0 && historical.clicks > 0 && historical.purchases > 0
+        ? historical
+        : historyTotals;
+      const body = {
+        weeklyBudget,
+        targetSales,
+        ...(historicalSource.spend > 0 && historicalSource.clicks > 0 && historicalSource.purchases > 0 ? { historical: historicalSource } : {}),
+      };
+      const res = await fetch(`${apiBaseUrl}/budget/allocate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setWeeklyPlanError(data.message ?? "Failed"); return; }
+      setWeeklyPlanResult(data as WeeklyBudgetPlanResult);
+    } catch {
+      setWeeklyPlanError("Network error");
+    } finally {
+      setWeeklyPlanLoading(false);
     }
   }
 
@@ -1501,6 +1604,26 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                       />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="account_type">Account type</Label>
+                      <select
+                        id="account_type"
+                        value={form.account_type ?? "dropship"}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            account_type: event.target.value as AnalysisInput["account_type"],
+                          }))
+                        }
+                        className="border-input bg-background h-11 w-full rounded-xl border px-3 text-sm outline-none"
+                      >
+                        <option value="dropship">dropship</option>
+                        <option value="dtc">dtc</option>
+                        <option value="subscription">subscription</option>
+                        <option value="leadgen">leadgen</option>
+                        <option value="b2b">b2b</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="product_description">Product description</Label>
                       <textarea
                         id="product_description"
@@ -1511,7 +1634,41 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                         className="border-input bg-background min-h-28 w-full rounded-xl border px-3 py-3 text-sm outline-none"
                       />
                     </div>
-                    {fields.map((field) => (
+                    <div className="space-y-2">
+                      <Label htmlFor="niche">Niche</Label>
+                      <Input
+                        id="niche"
+                        value={form.niche ?? ""}
+                        placeholder="beauty"
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, niche: event.target.value }))
+                        }
+                        className="h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="country">Country</Label>
+                      <Input
+                        id="country"
+                        value={form.country ?? ""}
+                        placeholder="RU"
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, country: event.target.value.toUpperCase() }))
+                        }
+                        className="h-11 rounded-xl"
+                      />
+                    </div>
+                    {fields
+                      .filter((field) => {
+                        const accountType = form.account_type ?? "dropship";
+                        if (["mrr", "monthly_churn_rate", "subscription_starts"].includes(String(field.key))) return accountType === "subscription";
+                        if (["qualified_leads", "form_starts", "lead_value"].includes(String(field.key))) return accountType === "leadgen" || accountType === "b2b";
+                        if (field.key === "add_to_cart") return accountType !== "leadgen" && accountType !== "b2b";
+                        if (field.key === "purchases") return accountType !== "leadgen" && accountType !== "b2b" && accountType !== "subscription";
+                        if (field.key === "revenue") return accountType !== "subscription" && accountType !== "leadgen" && accountType !== "b2b";
+                        return true;
+                      })
+                      .map((field) => (
                       <div key={field.key} className="space-y-2">
                         <Label htmlFor={field.key}>{field.label}</Label>
                         <Input
@@ -1866,6 +2023,41 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                         </div>
                       ) : null}
 
+                      {result.benchmarkComparison ? (
+                        <div className="rounded-2xl border border-border p-4">
+                          <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground mb-3">Niche benchmark</div>
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                            <div>
+                              <div className="text-xs text-muted-foreground">CTR</div>
+                              <div className="mt-1 font-mono">
+                                {result.benchmarkComparison.metrics.ctr?.value}% vs {result.benchmarkComparison.niche}/{result.benchmarkComparison.country} median {result.benchmarkComparison.metrics.ctr?.median}%
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">CPM</div>
+                              <div className="mt-1 font-mono">
+                                {result.benchmarkComparison.metrics.cpm?.value} vs median {result.benchmarkComparison.metrics.cpm?.median}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">ATC rate</div>
+                              <div className="mt-1 font-mono">
+                                {result.benchmarkComparison.metrics.addToCartRate?.value}% vs median {result.benchmarkComparison.metrics.addToCartRate?.median}%
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Purchase rate</div>
+                              <div className="mt-1 font-mono">
+                                {result.benchmarkComparison.metrics.purchaseRate?.value}% vs median {result.benchmarkComparison.metrics.purchaseRate?.median}%
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 text-xs text-muted-foreground">
+                            Based on {result.benchmarkComparison.sampleSize} analyses in this niche/country bucket. Verdict thresholds use this benchmark because the bucket has at least 50 analyses.
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div className="rounded-2xl border border-border p-4">
                         <div className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Funnel leak</div>
                         <div className="mt-2 text-lg font-medium">{result.funnelLeak.weakestStage}</div>
@@ -1947,6 +2139,12 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                         ["Spend", `$${result.derived.spend}`],
                         ["Gross revenue", `$${result.derived.grossRevenue ?? result.derived.effectiveRevenue ?? 0}`],
                         ["Net revenue", `$${result.derived.effectiveRevenue ?? result.derived.grossRevenue ?? 0}`],
+                        ["Account type", result.derived.accountType ?? form.account_type ?? "dropship"],
+                        ["Revenue basis", result.derived.revenueBasis ?? "order_revenue"],
+                        [result.derived.primaryConversionLabel ?? "Conversions", `${result.derived.effectiveConversions ?? result.derived.adjustedPurchases ?? result.derived.pixelPurchases ?? form.purchases}`],
+                        [result.derived.intentEventLabel ?? "Intent events", `${result.derived.effectiveIntentEvents ?? form.add_to_cart}`],
+                        ...(result.derived.subscriptionLtv ? [["Subscription LTV", `$${result.derived.subscriptionLtv}`]] : []),
+                        ...(result.derived.leadValue ? [["Lead value", `$${result.derived.leadValue}`]] : []),
                         ["Return rate", `${result.derived.returnRate ?? 0}%`],
                         ["Pixel purchases", `${result.derived.pixelPurchases ?? form.purchases}`],
                         ["Adjusted purchases", `${result.derived.adjustedPurchases ?? result.derived.pixelPurchases ?? form.purchases}`],
@@ -2055,6 +2253,101 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
               </div>
             ) : (
               <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+                <Card className="border-border bg-card py-0 shadow-none xl:col-span-2">
+                  <CardHeader className="border-b border-foreground/10 py-6">
+                    <CardTitle className="text-[15px] font-semibold tracking-normal">Weekly budget planner</CardTitle>
+                    <CardDescription>
+                      Enter a weekly budget and sales goal. Operon distributes spend by weekday traffic variance and seasonal multipliers.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="px-6 py-6">
+                    <div className="grid gap-5 lg:grid-cols-[0.7fr_1.3fr]">
+                      <div className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                          <div className="space-y-2">
+                            <Label>Weekly budget ($)</Label>
+                            <Input
+                              type="number"
+                              step="10"
+                              value={numberInputValue(weeklyBudget)}
+                              onChange={(e) => setWeeklyBudget(parseNumberInput(e.target.value))}
+                              className="h-11 rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Sales goal</Label>
+                            <Input
+                              type="number"
+                              step="1"
+                              value={numberInputValue(targetSales)}
+                              onChange={(e) => setTargetSales(parseNumberInput(e.target.value))}
+                              className="h-11 rounded-xl"
+                            />
+                          </div>
+                        </div>
+                        <Button
+                          className="w-full rounded-full"
+                          onClick={submitWeeklyBudgetPlan}
+                          disabled={weeklyPlanLoading}
+                        >
+                          {weeklyPlanLoading ? <LoaderCircle className="size-4 animate-spin" /> : "Plan week"}
+                        </Button>
+                        {weeklyPlanError ? <p className="text-sm text-red-600">{weeklyPlanError}</p> : null}
+                        <p className="text-[12px] leading-relaxed text-muted-foreground">
+                          Uses the ad-set table below first, then recent analysis history, to calibrate CPC and conversion rate.
+                        </p>
+                      </div>
+
+                      {weeklyPlanResult ? (
+                        <div className="space-y-4">
+                          <div className="grid gap-3 sm:grid-cols-4">
+                            {[
+                              ["Expected sales", `${weeklyPlanResult.expectedSales}`],
+                              ["Confidence range", `${weeklyPlanResult.confidenceLow}-${weeklyPlanResult.confidenceHigh}`],
+                              ["Expected CPA", `$${weeklyPlanResult.expectedCpa}`],
+                              ["Required CPA", `$${weeklyPlanResult.requiredCpa}`],
+                            ].map(([label, value]) => (
+                              <div key={label} className="rounded-xl border border-border p-3">
+                                <div className="text-[11px] text-muted-foreground">{label}</div>
+                                <div className="mt-1 font-mono text-[16px] font-medium">{value}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-sm leading-relaxed text-muted-foreground">{weeklyPlanResult.summary}</p>
+                          <div className="overflow-hidden rounded-xl border border-border">
+                            <div className="grid grid-cols-[1fr_0.8fr_0.8fr_1fr] border-b border-border bg-muted/40 px-3 py-2 text-[11px] font-medium text-muted-foreground">
+                              <span>Day</span>
+                              <span className="text-right">Budget</span>
+                              <span className="text-right">Sales</span>
+                              <span className="text-right">Season</span>
+                            </div>
+                            {weeklyPlanResult.dailyPlan.map((day) => (
+                              <div key={day.date} className="grid grid-cols-[1fr_0.8fr_0.8fr_1fr] items-center border-b border-border px-3 py-2 text-sm last:border-b-0">
+                                <div>
+                                  <div className="font-medium">{day.day}</div>
+                                  <div className="text-[11px] text-muted-foreground">{day.date} · {day.allocatedPct}%</div>
+                                </div>
+                                <div className="text-right font-mono">${day.recommendedBudget}</div>
+                                <div className="text-right font-mono">{day.expectedSales} <span className="text-[11px] text-muted-foreground">({day.confidenceLow}-{day.confidenceHigh})</span></div>
+                                <div className="text-right text-[12px] text-muted-foreground">{day.seasonLabel}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Assumptions: CPC ${weeklyPlanResult.assumptions.averageCpc}, conversion rate {weeklyPlanResult.assumptions.conversionRate}%, confidence range ±{weeklyPlanResult.assumptions.confidenceRangePct}%.
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex min-h-[300px] items-center justify-center rounded-3xl border border-dashed border-border text-center">
+                          <p className="max-w-sm text-sm text-muted-foreground">
+                            Plan a week to see daily budget distribution, seasonal lift/drag, and confidence bands.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card className="border-border bg-card py-0 shadow-none">
                   <CardHeader className="border-b border-foreground/10 py-6">
                     <CardTitle className="text-[15px] font-semibold tracking-normal">Budget Allocation</CardTitle>
@@ -2744,20 +3037,25 @@ export function AnalysisWorkbench({ initialTab }: { initialTab?: DashboardWorksp
                             Example: high-confidence verdicts on ad sets spending more than ₽1,000/day.
                           </div>
                         </div>
-                        {[
-                          ["Weekly digest", digestEnabled, setDigestEnabled],
-                          ["Action confirmations", actionEmailsEnabled, setActionEmailsEnabled],
-                        ].map(([label, enabled, setter]) => (
-                          <div key={label as string} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-                            <span>{label as string}</span>
-                            <button
-                              onClick={() => (setter as (value: boolean) => void)(!(enabled as boolean))}
-                              className={`rounded-full px-2.5 py-1 text-xs font-medium ${enabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
-                            >
-                              {enabled ? "On" : "Off"}
-                            </button>
-                          </div>
-                        ))}
+                        <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                          <span>Weekly digest</span>
+                          <button
+                            onClick={() => updateQuietSettings({ weeklyDigestEnabled: !(user?.weeklyDigestEnabled ?? true) })}
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${(user?.weeklyDigestEnabled ?? true) ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+                            disabled={quietSaving}
+                          >
+                            {(user?.weeklyDigestEnabled ?? true) ? "On" : "Off"}
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                          <span>Action confirmations</span>
+                          <button
+                            onClick={() => setActionEmailsEnabled(!actionEmailsEnabled)}
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${actionEmailsEnabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+                          >
+                            {actionEmailsEnabled ? "On" : "Off"}
+                          </button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

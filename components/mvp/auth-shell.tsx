@@ -59,6 +59,8 @@ export function AuthShell({
   const [passwordTouched, setPasswordTouched] = useState(false);
 
   const isRegister = mode === "register";
+  const wantsOutcomeTier =
+    isRegister && (searchParams.get("pricing") === "outcome" || searchParams.get("plan") === "OUTCOME");
 
   async function startCheckout(token: string) {
     const plan = searchParams.get("plan");
@@ -97,6 +99,7 @@ export function AuthShell({
 
     const formData = new FormData(event.currentTarget);
     const payload = Object.fromEntries(formData.entries());
+    if (wantsOutcomeTier) payload.pricingModel = "outcome";
     const apiBaseUrl = getApiBaseUrl();
 
     try {
@@ -190,7 +193,9 @@ export function AuthShell({
                 {isRegister ? "Create your free account" : "Welcome back"}
               </CardTitle>
               <CardDescription className="text-sm leading-relaxed">
-                {isRegister
+                {wantsOutcomeTier
+                  ? "Free until Operon tracks your first 50 000 ₽ saved."
+                  : isRegister
                   ? "Takes 30 seconds. No credit card required."
                   : "Sign in to see your live recommendations and verdict history."}
               </CardDescription>
@@ -271,7 +276,7 @@ export function AuthShell({
 
               {isRegister && (
                 <p className="mt-4 text-center text-[11px] text-muted-foreground">
-                  No credit card required · Cancel anytime
+                  {wantsOutcomeTier ? "Outcome tier · You only pay after tracked savings" : "No credit card required · Cancel anytime"}
                 </p>
               )}
 

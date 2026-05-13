@@ -8,7 +8,7 @@ class DigestRepository {
     }
     static async findUsersForDigest() {
         return prisma_1.prisma.user.findMany({
-            where: { onboardingCompleted: true },
+            where: { onboardingCompleted: true, weeklyDigestEnabled: true },
             select: { id: true },
         });
     }

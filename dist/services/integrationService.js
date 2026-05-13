@@ -31,6 +31,7 @@ const appError_1 = require("../utils/appError");
 const fatigueService_1 = require("./fatigueService");
 const integrationRepository_1 = require("../repositories/integrationRepository");
 const analysisInputSchema = zod_1.z.object({
+    account_type: zod_1.z.enum(["dropship", "dtc", "subscription", "leadgen", "b2b"]).default("dropship"),
     product_name: zod_1.z.string().min(2).max(120).default("Untitled product"),
     product_description: zod_1.z.string().min(10).max(2000).default("General e-commerce product"),
     product_price: zod_1.z.coerce.number().positive(),
@@ -57,6 +58,14 @@ const analysisInputSchema = zod_1.z.object({
     ios_under_attribution_multiplier: zod_1.z.coerce.number().min(0).max(10).optional(),
     pixel_purchases: zod_1.z.coerce.number().min(0).optional(),
     shopify_purchases: zod_1.z.coerce.number().min(0).optional(),
+    niche: zod_1.z.string().min(2).max(80).optional(),
+    country: zod_1.z.string().min(2).max(80).optional(),
+    mrr: zod_1.z.coerce.number().min(0).optional(),
+    monthly_churn_rate: zod_1.z.coerce.number().min(0).max(100).optional(),
+    subscription_starts: zod_1.z.coerce.number().int().min(0).optional(),
+    qualified_leads: zod_1.z.coerce.number().int().min(0).optional(),
+    form_starts: zod_1.z.coerce.number().int().min(0).optional(),
+    lead_value: zod_1.z.coerce.number().min(0).optional(),
     stage: zod_1.z.enum(["testing", "scaling", "retesting"]),
 });
 const providerSchema = zod_1.z.enum(["META", "TIKTOK", "SHOPIFY"]);
@@ -125,6 +134,7 @@ function toAnalysisInput(metrics) {
         product_description: `Auto-populated from ${metrics.entityName ?? metrics.externalEntityId} daily performance.`,
         product_price: round(productPrice),
         cost: round(Math.max(metrics.cost ?? 0, 0)),
+        account_type: metrics.account_type ?? "dropship",
         ctr: metrics.impressions > 0 ? round((metrics.clicks / metrics.impressions) * 100) : 0,
         cpc: metrics.clicks > 0 ? round(spend / metrics.clicks) : 0,
         cpm: metrics.impressions > 0 ? round((spend / metrics.impressions) * 1000) : 0,
@@ -141,6 +151,14 @@ function toAnalysisInput(metrics) {
         ios_audience_pct: metrics.ios_audience_pct,
         pixel_purchases: metrics.pixel_purchases ?? metrics.purchases,
         shopify_purchases: metrics.shopify_purchases,
+        niche: metrics.niche,
+        country: metrics.country,
+        mrr: metrics.mrr,
+        monthly_churn_rate: metrics.monthly_churn_rate,
+        subscription_starts: metrics.subscription_starts,
+        qualified_leads: metrics.qualified_leads,
+        form_starts: metrics.form_starts,
+        lead_value: metrics.lead_value,
         stage: "testing",
     };
     return analysisInputSchema.parse(input);
@@ -435,6 +453,15 @@ function extensionMetricToRaw(metric, fallback) {
         ios_audience_pct: metric.ios_audience_pct,
         pixel_purchases: metric.pixel_purchases ?? metric.purchases,
         shopify_purchases: metric.shopify_purchases,
+        niche: metric.niche,
+        country: metric.country,
+        account_type: metric.account_type,
+        mrr: asNumber(metric.mrr),
+        monthly_churn_rate: asNumber(metric.monthly_churn_rate),
+        subscription_starts: asNumber(metric.subscription_starts),
+        qualified_leads: asNumber(metric.qualified_leads),
+        form_starts: asNumber(metric.form_starts),
+        lead_value: asNumber(metric.lead_value),
         source: (metric.source ?? metric),
     };
 }

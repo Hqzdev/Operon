@@ -13,8 +13,8 @@ export const profileController = asyncHandler(async (req: Request, res: Response
 });
 
 export const updateProfileController = asyncHandler(async (req: Request, res: Response) => {
-  const { name, storeName, niche } = req.body as { name?: string; storeName?: string; niche?: string };
-  const profile = await updateUserProfile(req.auth!.userId, { name, storeName, niche });
+  const { name, storeName, niche, accountType } = req.body as { name?: string; storeName?: string; niche?: string; accountType?: string };
+  const profile = await updateUserProfile(req.auth!.userId, { name, storeName, niche, accountType });
   res.status(200).json(profile);
 });
 

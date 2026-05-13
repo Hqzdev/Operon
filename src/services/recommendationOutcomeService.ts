@@ -4,6 +4,7 @@ import { IntegrationRepository } from "../repositories/integrationRepository";
 import { RecommendationOutcomeRepository } from "../repositories/recommendationOutcomeRepository";
 import type { AnalysisPayload } from "./analysisService";
 import type { AiAnalysisResult } from "./aiService";
+import { maybeCreateOutcomeInvoice } from "./outcomePricingService";
 
 type AnalysisResult = Omit<AiAnalysisResult, "provider"> & {
   provider: "gigachat" | "rules";
@@ -232,6 +233,9 @@ export async function recomputeDueRecommendationOutcomes(limit = 100) {
       round(judgment.moneySaved),
       round(judgment.moneyEarned),
     );
+    await maybeCreateOutcomeInvoice(outcome.userId).catch((error) => {
+      console.error("[outcome-pricing] Failed to create invoice:", error);
+    });
     evaluated += 1;
   }
 

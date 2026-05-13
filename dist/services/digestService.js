@@ -32,16 +32,22 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createWeeklyDigestPreferenceToken = createWeeklyDigestPreferenceToken;
+exports.verifyWeeklyDigestPreferenceToken = verifyWeeklyDigestPreferenceToken;
 exports.generateAndSendDigest = generateAndSendDigest;
 exports.generateDigestsForAllUsers = generateDigestsForAllUsers;
-const aiService_1 = require("./aiService");
+const crypto_1 = __importDefault(require("crypto"));
 const env_1 = require("../utils/env");
 const userRepository_1 = require("../repositories/userRepository");
 const analysisRepository_1 = require("../repositories/analysisRepository");
 const fatigueRepository_1 = require("../repositories/fatigueRepository");
 const notificationRepository_1 = require("../repositories/notificationRepository");
 const digestRepository_1 = require("../repositories/digestRepository");
+const seasonality_1 = require("../lib/seasonality");
 const confidenceRank = { low: 0, medium: 1, high: 2 };
 const QUIET_TIER_DEFAULTS = {
     STARTER: { quietMinConfidence: "medium", quietMinSpendImpact: 0 },
@@ -79,6 +85,213 @@ function readSpendImpact(metrics) {
     const values = metrics;
     return Number(values.spendImpact ?? values.dailySpend ?? values.spend ?? values.totalSpend ?? 0) || 0;
 }
+function escapeHtml(value) {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+function round(value, precision = 2) {
+    return Number(value.toFixed(precision));
+}
+function startOfUtcDay(date) {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+function addUtcDays(date, days) {
+    const next = new Date(date);
+    next.setUTCDate(next.getUTCDate() + days);
+    return next;
+}
+function getDigestWindows(now = new Date()) {
+    const today = startOfUtcDay(now);
+    const dayOfWeek = today.getUTCDay();
+    const daysSinceMonday = (dayOfWeek + 6) % 7;
+    const currentWeekStart = addUtcDays(today, -daysSinceMonday);
+    const previousWeekStart = addUtcDays(currentWeekStart, -7);
+    const nextWeekStart = addUtcDays(currentWeekStart, 7);
+    return { previousWeekStart, currentWeekStart, nextWeekStart };
+}
+function readNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+}
+function productNameFromInput(inputData) {
+    if (!inputData || typeof inputData !== "object")
+        return "Untitled product";
+    const name = inputData.product_name ?? inputData.name;
+    return typeof name === "string" && name.trim() ? name.trim() : "Untitled product";
+}
+function roasFromAnalysis(analysis) {
+    if (analysis.result && typeof analysis.result === "object") {
+        const derived = analysis.result.derived;
+        const roas = readNumber(derived?.roas);
+        if (roas > 0)
+            return roas;
+    }
+    if (!analysis.inputData || typeof analysis.inputData !== "object")
+        return 0;
+    const input = analysis.inputData;
+    const spend = readNumber(input.total_spend) || readNumber(input.cpc) * readNumber(input.clicks);
+    return spend > 0 ? readNumber(input.revenue) / spend : 0;
+}
+function confidenceFromResult(result) {
+    if (!result || typeof result !== "object")
+        return null;
+    const decision = result.decision;
+    const numeric = Number(decision?.confidenceScore);
+    if (Number.isFinite(numeric))
+        return numeric;
+    if (decision?.confidence === "high")
+        return 85;
+    if (decision?.confidence === "medium")
+        return 60;
+    if (decision?.confidence === "low")
+        return 35;
+    return null;
+}
+function decisionFromResult(result) {
+    if (!result || typeof result !== "object")
+        return null;
+    const value = result.decision?.finalDecision;
+    return typeof value === "string" ? value : null;
+}
+function summarizeBucket(rows) {
+    const grouped = new Map();
+    rows.forEach((row) => {
+        const name = productNameFromInput(row.inputData);
+        const current = grouped.get(name) ?? { roas: [], confidence: [], decision: null };
+        current.roas.push(roasFromAnalysis(row));
+        const confidence = confidenceFromResult(row.result);
+        if (confidence !== null)
+            current.confidence.push(confidence);
+        current.decision = current.decision ?? decisionFromResult(row.result);
+        grouped.set(name, current);
+    });
+    return grouped;
+}
+function average(values) {
+    if (!values.length)
+        return null;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+function summarizePortfolio(currentRows, previousRows) {
+    const current = summarizeBucket(currentRows);
+    const previous = summarizeBucket(previousRows);
+    const productNames = new Set([...current.keys(), ...previous.keys()]);
+    const products = Array.from(productNames).map((name) => {
+        const currentRoas = average(current.get(name)?.roas ?? []) ?? 0;
+        const previousRoas = average(previous.get(name)?.roas ?? []);
+        const confidenceScore = average(current.get(name)?.confidence ?? []);
+        return {
+            name,
+            currentRoas: round(currentRoas),
+            previousRoas: previousRoas === null ? null : round(previousRoas),
+            deltaRoas: round(currentRoas - (previousRoas ?? 0)),
+            confidenceScore: confidenceScore === null ? null : round(confidenceScore, 0),
+            decision: current.get(name)?.decision ?? null,
+        };
+    });
+    const confidenceChanges = Array.from(productNames).map((name) => {
+        const currentScore = average(current.get(name)?.confidence ?? []);
+        const previousScore = average(previous.get(name)?.confidence ?? []);
+        return {
+            name,
+            currentScore: currentScore === null ? null : round(currentScore, 0),
+            previousScore: previousScore === null ? null : round(previousScore, 0),
+            delta: currentScore === null || previousScore === null ? null : round(currentScore - previousScore, 0),
+        };
+    }).filter((item) => item.currentScore !== null || item.previousScore !== null);
+    const ranked = products
+        .filter((product) => product.currentRoas > 0 || product.previousRoas !== null)
+        .sort((a, b) => b.deltaRoas - a.deltaRoas);
+    return {
+        products,
+        bestProduct: ranked[0] ?? null,
+        worstProduct: ranked[ranked.length - 1] ?? null,
+        confidenceChanges,
+    };
+}
+function buildSeasonalForecast(now = new Date()) {
+    const { nextWeekStart } = getDigestWindows(now);
+    return [nextWeekStart, addUtcDays(nextWeekStart, 7)].map((weekStart) => {
+        const season = (0, seasonality_1.getSeasonContext)(weekStart);
+        return {
+            weekStart: weekStart.toISOString().slice(0, 10),
+            label: season.label,
+            confidenceBonus: season.confidenceBonus,
+            conversionMultiplier: season.convMultiplier,
+            cpmMultiplier: season.cpmMultiplier,
+            note: season.note,
+        };
+    });
+}
+function formatRoas(value) {
+    return value === null ? "n/a" : `${round(value)}x`;
+}
+function buildWeeklyActionItems(input) {
+    const actions = [];
+    if (input.bestProduct) {
+        actions.push(`Scale or protect ${input.bestProduct.name}: ROAS moved ${input.bestProduct.deltaRoas >= 0 ? "+" : ""}${input.bestProduct.deltaRoas}x to ${formatRoas(input.bestProduct.currentRoas)}.`);
+    }
+    if (input.worstProduct && input.worstProduct.name !== input.bestProduct?.name) {
+        actions.push(`Audit ${input.worstProduct.name}: ROAS moved ${input.worstProduct.deltaRoas >= 0 ? "+" : ""}${input.worstProduct.deltaRoas}x to ${formatRoas(input.worstProduct.currentRoas)}.`);
+    }
+    const biggestConfidenceDrop = input.confidenceChanges
+        .filter((item) => typeof item.delta === "number" && item.delta < 0)
+        .sort((a, b) => (a.delta ?? 0) - (b.delta ?? 0))[0];
+    if (biggestConfidenceDrop) {
+        actions.push(`Re-check the evidence on ${biggestConfidenceDrop.name}: confidence changed ${biggestConfidenceDrop.delta} points week over week.`);
+    }
+    const nextSeason = input.seasonalForecast[0];
+    if (nextSeason && actions.length < 3) {
+        actions.push(`Plan next week's tests around ${nextSeason.label}: conversion multiplier ${nextSeason.conversionMultiplier}x and CPM multiplier ${nextSeason.cpmMultiplier}x.`);
+    }
+    while (actions.length < 3) {
+        actions.push("Refresh one creative angle, one offer test, and one landing-page friction point before adding more budget.");
+    }
+    return actions.slice(0, 3);
+}
+async function generateWeeklyDigestContent(userId, storeUrl, storeName) {
+    const now = new Date();
+    const { previousWeekStart, currentWeekStart, nextWeekStart } = getDigestWindows(now);
+    const [currentRows, previousRows] = await Promise.all([
+        analysisRepository_1.AnalysisRepository.findByUserBetween(userId, currentWeekStart, nextWeekStart, 250),
+        analysisRepository_1.AnalysisRepository.findByUserBetween(userId, previousWeekStart, currentWeekStart, 250),
+    ]);
+    const portfolio = summarizePortfolio(currentRows, previousRows);
+    const seasonalForecast = buildSeasonalForecast(now);
+    const actionItems = buildWeeklyActionItems({
+        bestProduct: portfolio.bestProduct,
+        worstProduct: portfolio.worstProduct,
+        confidenceChanges: portfolio.confidenceChanges,
+        seasonalForecast,
+    });
+    const title = `Weekly Digest — ${storeName || storeUrl}`;
+    const bestText = portfolio.bestProduct
+        ? `Best mover: ${portfolio.bestProduct.name} (${portfolio.bestProduct.deltaRoas >= 0 ? "+" : ""}${portfolio.bestProduct.deltaRoas}x ROAS delta).`
+        : "No product had enough fresh analysis data to rank this week.";
+    const worstText = portfolio.worstProduct
+        ? `Worst mover: ${portfolio.worstProduct.name} (${portfolio.worstProduct.deltaRoas >= 0 ? "+" : ""}${portfolio.worstProduct.deltaRoas}x ROAS delta).`
+        : "Add more product analyses this week to unlock ROAS movement ranking.";
+    const confidenceText = portfolio.confidenceChanges.length
+        ? `${portfolio.confidenceChanges[0].name} confidence is now ${portfolio.confidenceChanges[0].currentScore ?? "n/a"}${portfolio.confidenceChanges[0].delta === null ? "" : ` (${portfolio.confidenceChanges[0].delta >= 0 ? "+" : ""}${portfolio.confidenceChanges[0].delta})`}.`
+        : "Confidence movement needs at least one scored analysis in the current or previous week.";
+    return {
+        title,
+        body: `${bestText} ${worstText} Next two-week seasonality: ${seasonalForecast.map((item) => item.label).join(" then ")}.`,
+        takeaways: [bestText, worstText, confidenceText],
+        actionItems,
+        alert: portfolio.worstProduct && portfolio.worstProduct.deltaRoas < -1
+            ? `${portfolio.worstProduct.name} had a material ROAS drop this week.`
+            : null,
+        bestProduct: portfolio.bestProduct,
+        worstProduct: portfolio.worstProduct,
+        confidenceChanges: portfolio.confidenceChanges.slice(0, 5),
+        seasonalForecast,
+    };
+}
 function quietDigestSummary(storeName, threshold) {
     return {
         title: `Nothing urgent — ${storeName || "Operon"}`,
@@ -92,54 +305,71 @@ function quietDigestSummary(storeName, threshold) {
         alert: null,
     };
 }
-async function generateDigestContent(storeUrl, storeName) {
-    const prompt = `You are an e-commerce performance assistant. Generate a concise morning digest for an online store owner.
-
-Store: ${storeName || storeUrl}
-Store URL: ${storeUrl}
-Date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-
-Return ONLY a JSON object:
-{
-  "title": "Morning Digest — <store name>",
-  "body": "1-2 sentence summary of what to focus on today",
-  "takeaways": ["key takeaway 1 from yesterday", "key takeaway 2", "key takeaway 3"],
-  "actionItems": ["specific action 1", "specific action 2", "specific action 3"],
-  "alert": "critical alert if something needs urgent attention, or null if nothing urgent"
-}`;
+function createWeeklyDigestPreferenceToken(userId) {
+    const signature = crypto_1.default
+        .createHmac("sha256", env_1.env.JWT_SECRET)
+        .update(`weekly-digest:${userId}`)
+        .digest("hex");
+    return Buffer.from(`${userId}.${signature}`, "utf8").toString("base64url");
+}
+function verifyWeeklyDigestPreferenceToken(token) {
     try {
-        return await (0, aiService_1.completeGigaChatJson)("digest", "You are a strict e-commerce analyst. Return valid JSON only. No markdown. No text outside the JSON.", prompt);
+        const decoded = Buffer.from(token, "base64url").toString("utf8");
+        const [userId, signature] = decoded.split(".");
+        if (!userId || !signature)
+            return null;
+        const expected = crypto_1.default
+            .createHmac("sha256", env_1.env.JWT_SECRET)
+            .update(`weekly-digest:${userId}`)
+            .digest("hex");
+        return crypto_1.default.timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) ? userId : null;
     }
     catch {
-        return {
-            title: `Morning Digest — ${storeName || storeUrl}`,
-            body: "Start your day with a quick review of your store's key metrics and plan your top priorities.",
-            takeaways: [
-                "Review your conversion rate trends from yesterday",
-                "Check ad spend efficiency and ROAS",
-                "Monitor cart abandonment patterns",
-            ],
-            actionItems: [
-                "Audit your top-performing ad creatives",
-                "Review any customer support tickets from yesterday",
-                "Check inventory levels for bestsellers",
-            ],
-            alert: null,
-        };
+        return null;
     }
 }
-function buildEmailHtml(summary, recipientName) {
+function buildEmailHtml(summary, recipientName, userId) {
+    const preferenceToken = createWeeklyDigestPreferenceToken(userId);
+    const unsubscribeLink = `${env_1.env.NEXT_PUBLIC_APP_URL}/api/email-preferences/weekly-digest?token=${preferenceToken}&action=unsubscribe`;
+    const preferenceLink = `${env_1.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?section=notifications`;
     const alertBlock = summary.alert
-        ? `<div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px 16px;margin:16px 0;border-radius:0 4px 4px 0;">
-        <strong style="color:#856404;">⚠ Alert:</strong>
-        <span style="color:#856404;"> ${summary.alert}</span>
+        ? `<div style="background:#fff7ed;border-left:4px solid #f97316;padding:12px 16px;margin:16px 0;border-radius:0 4px 4px 0;">
+        <strong style="color:#9a3412;">Alert:</strong>
+        <span style="color:#9a3412;"> ${escapeHtml(summary.alert)}</span>
        </div>`
         : "";
     const takeawaysHtml = summary.takeaways
-        .map((t) => `<li style="margin:6px 0;color:#374151;">${t}</li>`)
+        .map((t) => `<li style="margin:6px 0;color:#374151;">${escapeHtml(t)}</li>`)
         .join("");
     const actionsHtml = summary.actionItems
-        .map((a) => `<li style="margin:6px 0;color:#374151;">${a}</li>`)
+        .map((a) => `<li style="margin:6px 0;color:#374151;">${escapeHtml(a)}</li>`)
+        .join("");
+    const productRows = [summary.bestProduct, summary.worstProduct]
+        .filter((product) => Boolean(product))
+        .map((product, index) => `
+      <tr>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:#6b7280;">${index === 0 ? "Best" : "Worst"}</td>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:#111827;font-weight:600;">${escapeHtml(product.name)}</td>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:#111827;text-align:right;">${formatRoas(product.currentRoas)}</td>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:${product.deltaRoas >= 0 ? "#047857" : "#b91c1c"};text-align:right;">${product.deltaRoas >= 0 ? "+" : ""}${product.deltaRoas}x</td>
+      </tr>`)
+        .join("");
+    const forecastRows = (summary.seasonalForecast ?? [])
+        .map((forecast) => `
+      <tr>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:#6b7280;">${escapeHtml(forecast.weekStart)}</td>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:#111827;font-weight:600;">${escapeHtml(forecast.label)}</td>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:#111827;text-align:right;">${forecast.confidenceBonus >= 0 ? "+" : ""}${forecast.confidenceBonus}</td>
+      </tr>`)
+        .join("");
+    const confidenceRows = (summary.confidenceChanges ?? [])
+        .slice(0, 3)
+        .map((item) => `
+      <tr>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:#111827;font-weight:600;">${escapeHtml(item.name)}</td>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:#111827;text-align:right;">${item.currentScore ?? "n/a"}</td>
+        <td style="padding:10px 12px;border-top:1px solid #e5e7eb;color:${(item.delta ?? 0) >= 0 ? "#047857" : "#b91c1c"};text-align:right;">${item.delta === null ? "n/a" : `${item.delta >= 0 ? "+" : ""}${item.delta}`}</td>
+      </tr>`)
         .join("");
     return `<!DOCTYPE html>
 <html>
@@ -159,28 +389,66 @@ function buildEmailHtml(summary, recipientName) {
             <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">${summary.title}</h1>
             <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
 
-            <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.6;">Hi ${recipientName || "there"},</p>
-            <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.6;">${summary.body}</p>
+            <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.6;">Hi ${escapeHtml(recipientName || "there")},</p>
+            <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.6;">${escapeHtml(summary.body)}</p>
 
             ${alertBlock}
 
-            <h2 style="margin:24px 0 12px;font-size:15px;font-weight:600;color:#111827;">Yesterday's Key Takeaways</h2>
+            ${productRows ? `
+            <h2 style="margin:24px 0 12px;font-size:15px;font-weight:600;color:#111827;">Product Performance</h2>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;border-collapse:separate;border-spacing:0;overflow:hidden;margin-bottom:24px;">
+              <tr>
+                <th align="left" style="padding:10px 12px;color:#6b7280;font-size:12px;">Rank</th>
+                <th align="left" style="padding:10px 12px;color:#6b7280;font-size:12px;">Product</th>
+                <th align="right" style="padding:10px 12px;color:#6b7280;font-size:12px;">ROAS</th>
+                <th align="right" style="padding:10px 12px;color:#6b7280;font-size:12px;">Delta</th>
+              </tr>
+              ${productRows}
+            </table>` : ""}
+
+            ${confidenceRows ? `
+            <h2 style="margin:24px 0 12px;font-size:15px;font-weight:600;color:#111827;">Confidence Score Changes</h2>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;border-collapse:separate;border-spacing:0;overflow:hidden;margin-bottom:24px;">
+              <tr>
+                <th align="left" style="padding:10px 12px;color:#6b7280;font-size:12px;">Product</th>
+                <th align="right" style="padding:10px 12px;color:#6b7280;font-size:12px;">Current</th>
+                <th align="right" style="padding:10px 12px;color:#6b7280;font-size:12px;">Change</th>
+              </tr>
+              ${confidenceRows}
+            </table>` : ""}
+
+            ${forecastRows ? `
+            <h2 style="margin:24px 0 12px;font-size:15px;font-weight:600;color:#111827;">Seasonal Forecast</h2>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;border-collapse:separate;border-spacing:0;overflow:hidden;margin-bottom:24px;">
+              <tr>
+                <th align="left" style="padding:10px 12px;color:#6b7280;font-size:12px;">Week</th>
+                <th align="left" style="padding:10px 12px;color:#6b7280;font-size:12px;">Season</th>
+                <th align="right" style="padding:10px 12px;color:#6b7280;font-size:12px;">Confidence</th>
+              </tr>
+              ${forecastRows}
+            </table>` : ""}
+
+            <h2 style="margin:24px 0 12px;font-size:15px;font-weight:600;color:#111827;">Weekly Takeaways</h2>
             <ul style="margin:0 0 24px;padding-left:20px;">${takeawaysHtml}</ul>
 
-            <h2 style="margin:0 0 12px;font-size:15px;font-weight:600;color:#111827;">Today's Action Items</h2>
+            <h2 style="margin:0 0 12px;font-size:15px;font-weight:600;color:#111827;">Actions This Week</h2>
             <ul style="margin:0 0 24px;padding-left:20px;">${actionsHtml}</ul>
 
             <div style="border-top:1px solid #e5e7eb;padding-top:20px;margin-top:8px;">
               <a href="${env_1.env.NEXT_PUBLIC_APP_URL}/dashboard/notifications"
                  style="display:inline-block;background:#000000;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:500;">
-                View in Operon →
+                View in Operon
               </a>
             </div>
           </td>
         </tr>
         <tr>
           <td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
-            <p style="margin:0;font-size:12px;color:#9ca3af;">You're receiving this because you have a morning digest enabled in Operon.</p>
+            <p style="margin:0;font-size:12px;color:#9ca3af;">
+              You're receiving this because weekly digests are enabled in Operon.
+              <a href="${preferenceLink}" style="color:#6b7280;">Preference center</a> ·
+              <a href="${unsubscribeLink}" style="color:#6b7280;">Unsubscribe</a>
+            </p>
           </td>
         </tr>
       </table>
@@ -208,6 +476,9 @@ async function generateAndSendDigest(userId) {
     const user = await userRepository_1.UserRepository.findDigestFields(userId);
     if (!user)
         throw new Error(`User ${userId} not found`);
+    if (!user.weeklyDigestEnabled) {
+        return quietDigestSummary(user.storeName ?? "", "weekly digest disabled");
+    }
     const storeUrl = user.storeUrl ?? user.email;
     const storeName = user.storeName ?? "";
     const tierDefaults = QUIET_TIER_DEFAULTS[user.plan];
@@ -239,12 +510,12 @@ async function generateAndSendDigest(userId) {
                 from: env_1.env.SMTP_FROM,
                 to: user.email,
                 subject: summary.title,
-                html: buildEmailHtml(summary, user.name ?? ""),
+                html: buildEmailHtml(summary, user.name ?? "", userId),
             }).catch((err) => console.error(`[digest] Quiet email delivery failed for ${userId}:`, err));
         }
         return summary;
     }
-    const summary = await generateDigestContent(storeUrl, storeName);
+    const summary = await generateWeeklyDigestContent(userId, storeUrl, storeName);
     const fatigueAlerts = await fatigueRepository_1.FatigueRepository.findActiveAlerts(userId, 10);
     const visibleFatigueAlerts = settings.quietModeEnabled
         ? fatigueAlerts.filter((alert) => readSpendImpact(alert.triggeredMetrics) >= settings.quietMinSpendImpact)
@@ -279,7 +550,7 @@ async function generateAndSendDigest(userId) {
                 from: env_1.env.SMTP_FROM,
                 to: user.email,
                 subject: summary.title,
-                html: buildEmailHtml(summary, user.name ?? ""),
+                html: buildEmailHtml(summary, user.name ?? "", userId),
             });
         }
         catch (err) {

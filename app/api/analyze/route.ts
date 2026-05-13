@@ -7,6 +7,7 @@ import { runRuleAnalysis } from "@/lib/decision-engine";
 import { runGigachatAnalysis } from "@/lib/gigachat";
 import { getRecentAnalyses, saveAnalysis } from "@/lib/storage";
 import { errorResponse, getAuthUserId } from "@/lib/api-auth";
+import { getCommunityBenchmarkForInput } from "@/src/services/communityBenchmarkService";
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +26,16 @@ export async function POST(request: Request) {
     getAuthUserId(request);
     const raw = await request.json();
     const input = analysisInputSchema.parse(raw);
+    const benchmark = await getCommunityBenchmarkForInput(input).catch(() => null);
 
-    const rulesOutput = runRuleAnalysis(input);
+    const rulesOutput = runRuleAnalysis(input, undefined, undefined, benchmark);
     let output: AnalysisOutput = {
       ...rulesOutput,
       saved: false,
     };
 
     try {
+      if (benchmark) throw new Error("Community benchmark verdict uses rules engine");
       const aiOutput = await runGigachatAnalysis(input);
       output = {
         ...aiOutput,

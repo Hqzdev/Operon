@@ -14,8 +14,16 @@ import {
   getUserConfidenceCalibration,
   recordRecommendationOutcomes,
 } from "./recommendationOutcomeService";
+import {
+  buildBenchmarkComparison,
+  getCommunityBenchmarkForInput,
+  normalizeBenchmarkBucket,
+  type CommunityBenchmark,
+} from "./communityBenchmarkService";
+import { UserRepository } from "../repositories/userRepository";
 
 export const analysisInputSchema = z.object({
+  account_type: z.enum(["dropship", "dtc", "subscription", "leadgen", "b2b"]).default("dropship"),
   product_name: z.string().min(2).max(120).optional(),
   product_description: z.string().min(10).max(4000).optional(),
   product_price: z.number().positive(),
@@ -42,7 +50,27 @@ export const analysisInputSchema = z.object({
   ios_under_attribution_multiplier: z.number().min(0).max(10).optional(),
   pixel_purchases: z.number().min(0).optional(),
   shopify_purchases: z.number().min(0).optional(),
+  niche: z.string().min(2).max(80).optional(),
+  country: z.string().min(2).max(80).optional(),
+  mrr: z.number().min(0).optional(),
+  monthly_churn_rate: z.number().min(0).max(100).optional(),
+  subscription_starts: z.number().int().min(0).optional(),
+  qualified_leads: z.number().int().min(0).optional(),
+  form_starts: z.number().int().min(0).optional(),
+  lead_value: z.number().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]).default("testing"),
+}).superRefine((value, ctx) => {
+  if (value.account_type === "subscription") {
+    if (!value.mrr || value.mrr <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mrr"], message: "MRR is required for subscription analyses" });
+    }
+    if (!value.monthly_churn_rate || value.monthly_churn_rate <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["monthly_churn_rate"], message: "Monthly churn rate is required for subscription analyses" });
+    }
+  }
+  if ((value.account_type === "leadgen" || value.account_type === "b2b") && value.qualified_leads === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["qualified_leads"], message: "Qualified leads are required for lead-gen/B2B analyses" });
+  }
 });
 
 export type AnalysisPayload = z.infer<typeof analysisInputSchema>;
@@ -64,6 +92,7 @@ type AnalysisResult = Omit<AiAnalysisResult, "provider"> & {
   savedId?: string;
   ltvAdjustment?: LtvComputeResult & { shopifyConnected: boolean };
   seasonContext?: SeasonContextSummary;
+  benchmarkComparison?: ReturnType<typeof buildBenchmarkComparison>;
 };
 
 type ConfidenceSignal = NonNullable<AiAnalysisResult["decision"]["confidenceSignals"]>[number];
@@ -76,6 +105,23 @@ type ConfidencePoint = {
   roas: number;
   breakEvenCpa: number;
   breakEvenRoas: number;
+};
+
+const ACCOUNT_THRESHOLDS: Record<NonNullable<AnalysisPayload["account_type"]>, {
+  minClicks: number;
+  minImpressions: number;
+  weakIntentCeiling: number;
+  weakConversionClicks: number;
+  intentFixFloor: number;
+  scaleConversions: number;
+  ctrFloor: number;
+  expensiveCpm: number;
+}> = {
+  dropship: { minClicks: 80, minImpressions: 5000, weakIntentCeiling: 1, weakConversionClicks: 60, intentFixFloor: 3, scaleConversions: 2, ctrFloor: 1.5, expensiveCpm: 60 },
+  dtc: { minClicks: 80, minImpressions: 5000, weakIntentCeiling: 1, weakConversionClicks: 60, intentFixFloor: 3, scaleConversions: 2, ctrFloor: 1.4, expensiveCpm: 70 },
+  subscription: { minClicks: 100, minImpressions: 6000, weakIntentCeiling: 1, weakConversionClicks: 80, intentFixFloor: 4, scaleConversions: 2, ctrFloor: 1.2, expensiveCpm: 80 },
+  leadgen: { minClicks: 80, minImpressions: 4000, weakIntentCeiling: 1, weakConversionClicks: 50, intentFixFloor: 5, scaleConversions: 3, ctrFloor: 1.0, expensiveCpm: 90 },
+  b2b: { minClicks: 60, minImpressions: 3000, weakIntentCeiling: 0, weakConversionClicks: 40, intentFixFloor: 3, scaleConversions: 2, ctrFloor: 0.8, expensiveCpm: 120 },
 };
 
 function confidenceLevel(score: number): "low" | "medium" | "high" {
@@ -131,6 +177,8 @@ function attributionAdjustedPayload(input: AnalysisPayload, derived: ReturnType<
   return {
     ...input,
     purchases: adjustment.adjustedPurchases,
+    qualified_leads: input.account_type === "leadgen" || input.account_type === "b2b" ? adjustment.adjustedPurchases : input.qualified_leads,
+    subscription_starts: input.account_type === "subscription" ? adjustment.adjustedPurchases : input.subscription_starts,
     revenue: derived.grossRevenue ?? input.revenue,
   };
 }
@@ -154,6 +202,18 @@ async function enrichAttributionFromShopify(userId: string, payload: AnalysisPay
     ...payload,
     pixel_purchases: payload.pixel_purchases ?? payload.purchases,
     shopify_purchases: shopifyPurchases,
+  };
+}
+
+async function enrichBenchmarkBucket(userId: string, payload: AnalysisPayload) {
+  if (payload.niche && payload.country && payload.account_type) return payload;
+  const user = await UserRepository.findById(userId).catch(() => null);
+  const userAccountType = (user as { accountType?: string } | null)?.accountType;
+  return {
+    ...payload,
+    niche: payload.niche ?? user?.niche ?? undefined,
+    country: payload.country ?? "GLOBAL",
+    account_type: payload.account_type ?? (userAccountType as AnalysisPayload["account_type"] | undefined) ?? "dropship",
   };
 }
 
@@ -316,27 +376,32 @@ async function getRecentComparableInputs(userId: string, payload: AnalysisPayloa
     .slice(-3);
 }
 
-function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "saved" | "savedId"> {
+function fallbackAnalysis(rawInput: AnalysisPayload, benchmark: CommunityBenchmark | null): Omit<AnalysisResult, "saved" | "savedId"> {
   const derived = deriveMetrics(rawInput);
   const input = attributionAdjustedPayload(rawInput, derived);
   const maturity = evidenceMaturity(input, derived);
+  const conversionCount = derived.effectiveConversions ?? input.purchases;
+  const intentEvents = derived.effectiveIntentEvents ?? input.add_to_cart;
+  const conversionLabel = derived.primaryConversionLabel ?? "purchases";
+  const intentLabel = derived.intentEventLabel ?? "add-to-carts";
+  const thresholds = ACCOUNT_THRESHOLDS[input.account_type ?? "dropship"];
 
   // Decision
-  const enoughTraffic = (input.clicks >= 80 || input.impressions >= 5000) && maturity.enoughEvidence;
-  const weakCreative = input.ctr < 1;
-  const expensiveTraffic = input.cpm > 60;
-  const weakPurchaseSignal = input.clicks >= 60 && input.purchases === 0 && maturity.enoughEvidence;
-  const weakDemand = input.clicks >= 80 && input.add_to_cart <= 1 && maturity.enoughEvidence;
+  const enoughTraffic = (input.clicks >= thresholds.minClicks || input.impressions >= thresholds.minImpressions) && maturity.enoughEvidence;
+  const weakCreative = benchmark ? input.ctr < benchmark.medianCtr : input.ctr < thresholds.ctrFloor * 0.67;
+  const expensiveTraffic = benchmark ? input.cpm > benchmark.medianCpm * 1.25 : input.cpm > thresholds.expensiveCpm;
+  const weakPurchaseSignal = input.clicks >= thresholds.weakConversionClicks && conversionCount === 0 && maturity.enoughEvidence;
+  const weakDemand = input.clicks >= thresholds.minClicks && intentEvents <= thresholds.weakIntentCeiling && maturity.enoughEvidence;
   const returnDrag =
     maturity.enoughEvidence &&
     ((input.return_rate ?? 0) > 0 || (input.net_revenue ?? 0) > 0) &&
     (derived.grossRoas ?? derived.roas) >= derived.breakEvenRoas &&
     derived.roas < derived.breakEvenRoas;
   const goodEconomics =
-    input.purchases >= 2 &&
+    conversionCount >= thresholds.scaleConversions &&
     derived.roas >= derived.breakEvenRoas &&
     derived.profit > 0 &&
-    input.ctr >= 1.5;
+    input.ctr >= (benchmark ? Math.max(benchmark.medianCtr, thresholds.ctrFloor) : thresholds.ctrFloor);
 
   let finalDecision: "SCALE" | "KILL" | "TEST AGAIN" | "FIX" = "TEST AGAIN";
   let shortReason = "The sample is still thin. More data is needed before a hard call.";
@@ -356,7 +421,7 @@ function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "save
     finalDecision = "FIX";
     shortReason = "CTR is too low for the traffic volume already collected. Creative-level issue.";
     confidence = "high";
-  } else if (input.clicks >= 80 && input.add_to_cart <= 1 && !maturity.enoughEvidence) {
+  } else if (input.clicks >= thresholds.minClicks && intentEvents <= thresholds.weakIntentCeiling && !maturity.enoughEvidence) {
     finalDecision = "TEST AGAIN";
     shortReason =
       `Intent is weak, but this is too early to call it structurally broken: spend is $${round(maturity.spend, 2)} over ` +
@@ -368,7 +433,7 @@ function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "save
       `Product is not generating enough intent after meaningful spend ($${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days). ` +
       "This looks structurally broken rather than early noise.";
     confidence = "high";
-  } else if (weakPurchaseSignal && input.add_to_cart >= 3) {
+  } else if (weakPurchaseSignal && intentEvents >= thresholds.intentFixFloor) {
     finalDecision = "FIX";
     shortReason = "Users click and show some cart intent, but the offer or funnel is blocking purchases.";
     confidence = "medium";
@@ -387,22 +452,22 @@ function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "save
   let diagWhy = "Commercial intent is not strong enough yet to produce profitable outcomes.";
   let proofMetric = `ROAS ${derived.roas} vs break-even ${derived.breakEvenRoas}`;
 
-  if (input.ctr < 1) {
+  if (weakCreative) {
     mainProblem = "Creative problem";
     diagWhy = "The ad is not winning enough attention at the impression-to-click stage.";
-    proofMetric = `CTR is ${input.ctr}%`;
-  } else if (input.cpm > 60 && input.ctr >= 1) {
+    proofMetric = benchmark ? `CTR is ${input.ctr}% vs ${benchmark.niche}/${benchmark.country} median ${benchmark.medianCtr}%` : `CTR is ${input.ctr}%`;
+  } else if (expensiveTraffic) {
     mainProblem = "Targeting problem";
     diagWhy = "Traffic acquisition is too expensive relative to click quality.";
-    proofMetric = `CPM is ${input.cpm}`;
-  } else if (input.add_to_cart >= 3 && input.purchases === 0) {
+    proofMetric = benchmark ? `CPM is ${input.cpm} vs ${benchmark.niche}/${benchmark.country} median ${benchmark.medianCpm}` : `CPM is ${input.cpm}`;
+  } else if (intentEvents >= 3 && conversionCount === 0) {
     mainProblem = "Funnel problem";
-    diagWhy = "Users add to cart but something breaks between intent and checkout.";
-    proofMetric = `${input.add_to_cart} add-to-carts and 0 purchases`;
-  } else if (input.clicks >= 60 && input.add_to_cart <= 1) {
+    diagWhy = "Users show intent but something breaks before conversion.";
+    proofMetric = `${intentEvents} ${intentLabel} and 0 ${conversionLabel}`;
+  } else if (input.clicks >= 60 && intentEvents <= 1) {
     mainProblem = "Product problem";
     diagWhy = "Demand collapses once users evaluate the offer.";
-    proofMetric = `${input.clicks} clicks and only ${input.add_to_cart} add-to-carts`;
+    proofMetric = `${input.clicks} clicks and only ${intentEvents} ${intentLabel}`;
   }
 
   // Action plan
@@ -440,7 +505,7 @@ function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "save
   let validationReason = `Signals are present but not strong enough yet vs break-even ROAS ${derived.breakEvenRoas}.`;
   let shouldContinueTesting = true;
 
-  if (input.ctr >= 1.5 && (input.add_to_cart >= 3 || input.purchases >= 1)) {
+  if (input.ctr >= 1.5 && (intentEvents >= 3 || conversionCount >= 1)) {
     verdict = "high potential";
     validationReason = "The setup shows engagement and at least one commercial signal worth building on.";
   } else if (mainProblem === "Product problem" && input.clicks >= 80 && maturity.enoughEvidence) {
@@ -455,8 +520,8 @@ function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "save
 
   // Funnel leak
   const clickRate = input.impressions > 0 ? input.clicks / input.impressions : 0;
-  const atcRate = input.clicks > 0 ? input.add_to_cart / input.clicks : 0;
-  const purchaseRate = input.add_to_cart > 0 ? input.purchases / input.add_to_cart : 0;
+  const atcRate = input.clicks > 0 ? intentEvents / input.clicks : 0;
+  const purchaseRate = intentEvents > 0 ? conversionCount / intentEvents : 0;
   const stages = [
     {
       weakestStage: "impressions → clicks" as const,
@@ -518,10 +583,10 @@ function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "save
 
   // Continue decision
   let continueDecision: AiAnalysisResult["continueDecision"];
-  if (maturity.enoughEvidence && input.purchases === 0) {
+  if (maturity.enoughEvidence && conversionCount === 0) {
     continueDecision = {
       decision: "STOP",
-      reason: `Spend is already high relative to break-even ($${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days) and there are still no purchases.`,
+      reason: `Spend is already high relative to break-even ($${round(maturity.spend, 2)} over ${maturity.days || "unknown"} days) and there are still no ${conversionLabel}.`,
       minimumAdditionalTestNeeded: "Change the offer, product angle, or creative first.",
     };
   } else if (finalDecision === "SCALE") {
@@ -573,6 +638,7 @@ function fallbackAnalysis(rawInput: AnalysisPayload): Omit<AnalysisResult, "save
     creativeAngles,
     continueDecision,
     attributionAdjustment: derived.attributionAdjustment ?? undefined,
+    benchmarkComparison: buildBenchmarkComparison(input, benchmark),
     derived,
     provider: "rules",
   };
@@ -793,7 +859,9 @@ function applySeasonalityAdjustment(
 }
 
 export async function createAnalysis(userId: string, payload: AnalysisPayload) {
-  let analysisPayload = await enrichAttributionFromShopify(userId, payload).catch(() => payload);
+  let analysisPayload = await enrichBenchmarkBucket(userId, payload);
+  analysisPayload = await enrichAttributionFromShopify(userId, analysisPayload).catch(() => analysisPayload);
+  const benchmark = await getCommunityBenchmarkForInput(analysisPayload).catch(() => null);
   const normalizedStage =
     analysisPayload.stage === "testing"
       ? AnalysisStage.testing
@@ -828,11 +896,15 @@ export async function createAnalysis(userId: string, payload: AnalysisPayload) {
     partialResult = await runAiAnalysis(analysisPayload);
   } catch (error) {
     console.error("[analysis] GigaChat failed, using fallback logic", error);
-    partialResult = fallbackAnalysis(analysisPayload);
+    partialResult = fallbackAnalysis(analysisPayload, benchmark);
+  }
+  if (benchmark) {
+    partialResult = fallbackAnalysis(analysisPayload, benchmark);
   }
   partialResult = {
     ...partialResult,
     attributionAdjustment: partialResult.derived.attributionAdjustment ?? partialResult.attributionAdjustment,
+    benchmarkComparison: partialResult.benchmarkComparison ?? buildBenchmarkComparison(analysisPayload, benchmark),
   };
 
   const confidence = computeRecommendationConfidence(

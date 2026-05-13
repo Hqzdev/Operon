@@ -15,6 +15,7 @@ const password_1 = require("../utils/password");
 const jwt_1 = require("../utils/jwt");
 const userService_1 = require("./userService");
 const userRepository_1 = require("../repositories/userRepository");
+const outcomePricingService_1 = require("./outcomePricingService");
 async function registerUser(input) {
     const existingUser = await userRepository_1.UserRepository.findByEmail(input.email);
     if (existingUser) {
@@ -32,6 +33,9 @@ async function registerUser(input) {
         email: user.email,
     });
     const profile = await (0, userService_1.getUserProfile)(user.id);
+    if (input.pricingModel === "outcome") {
+        await (0, outcomePricingService_1.enrollOutcomePricing)(user.id);
+    }
     return {
         token,
         user: profile,

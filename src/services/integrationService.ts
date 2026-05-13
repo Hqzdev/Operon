@@ -13,6 +13,7 @@ import { runFatigueCheckForAccount } from "./fatigueService";
 import { IntegrationRepository } from "../repositories/integrationRepository";
 
 const analysisInputSchema = z.object({
+  account_type: z.enum(["dropship", "dtc", "subscription", "leadgen", "b2b"]).default("dropship"),
   product_name: z.string().min(2).max(120).default("Untitled product"),
   product_description: z.string().min(10).max(2000).default("General e-commerce product"),
   product_price: z.coerce.number().positive(),
@@ -39,6 +40,14 @@ const analysisInputSchema = z.object({
   ios_under_attribution_multiplier: z.coerce.number().min(0).max(10).optional(),
   pixel_purchases: z.coerce.number().min(0).optional(),
   shopify_purchases: z.coerce.number().min(0).optional(),
+  niche: z.string().min(2).max(80).optional(),
+  country: z.string().min(2).max(80).optional(),
+  mrr: z.coerce.number().min(0).optional(),
+  monthly_churn_rate: z.coerce.number().min(0).max(100).optional(),
+  subscription_starts: z.coerce.number().int().min(0).optional(),
+  qualified_leads: z.coerce.number().int().min(0).optional(),
+  form_starts: z.coerce.number().int().min(0).optional(),
+  lead_value: z.coerce.number().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]),
 });
 
@@ -96,6 +105,15 @@ type RawMetrics = {
   ios_audience_pct?: number;
   pixel_purchases?: number;
   shopify_purchases?: number;
+  niche?: string;
+  country?: string;
+  account_type?: AnalysisInput["account_type"];
+  mrr?: number;
+  monthly_churn_rate?: number;
+  subscription_starts?: number;
+  qualified_leads?: number;
+  form_starts?: number;
+  lead_value?: number;
   source?: Prisma.InputJsonValue;
 };
 
@@ -125,6 +143,15 @@ type ExtensionMetricInput = {
   ios_audience_pct?: number;
   pixel_purchases?: number;
   shopify_purchases?: number;
+  niche?: string;
+  country?: string;
+  account_type?: AnalysisInput["account_type"];
+  mrr?: number;
+  monthly_churn_rate?: number;
+  subscription_starts?: number;
+  qualified_leads?: number;
+  form_starts?: number;
+  lead_value?: number;
   source?: unknown;
 };
 
@@ -206,6 +233,7 @@ function toAnalysisInput(metrics: RawMetrics): AnalysisInput {
     product_description: `Auto-populated from ${metrics.entityName ?? metrics.externalEntityId} daily performance.`,
     product_price: round(productPrice),
     cost: round(Math.max(metrics.cost ?? 0, 0)),
+    account_type: metrics.account_type ?? "dropship",
     ctr: metrics.impressions > 0 ? round((metrics.clicks / metrics.impressions) * 100) : 0,
     cpc: metrics.clicks > 0 ? round(spend / metrics.clicks) : 0,
     cpm: metrics.impressions > 0 ? round((spend / metrics.impressions) * 1000) : 0,
@@ -222,6 +250,14 @@ function toAnalysisInput(metrics: RawMetrics): AnalysisInput {
     ios_audience_pct: metrics.ios_audience_pct,
     pixel_purchases: metrics.pixel_purchases ?? metrics.purchases,
     shopify_purchases: metrics.shopify_purchases,
+    niche: metrics.niche,
+    country: metrics.country,
+    mrr: metrics.mrr,
+    monthly_churn_rate: metrics.monthly_churn_rate,
+    subscription_starts: metrics.subscription_starts,
+    qualified_leads: metrics.qualified_leads,
+    form_starts: metrics.form_starts,
+    lead_value: metrics.lead_value,
     stage: "testing",
   };
   return analysisInputSchema.parse(input);
@@ -569,6 +605,15 @@ function extensionMetricToRaw(metric: ExtensionMetricInput, fallback: { accountN
     ios_audience_pct: metric.ios_audience_pct,
     pixel_purchases: metric.pixel_purchases ?? metric.purchases,
     shopify_purchases: metric.shopify_purchases,
+    niche: metric.niche,
+    country: metric.country,
+    account_type: metric.account_type,
+    mrr: asNumber(metric.mrr),
+    monthly_churn_rate: asNumber(metric.monthly_churn_rate),
+    subscription_starts: asNumber(metric.subscription_starts),
+    qualified_leads: asNumber(metric.qualified_leads),
+    form_starts: asNumber(metric.form_starts),
+    lead_value: asNumber(metric.lead_value),
     source: (metric.source ?? metric) as Prisma.InputJsonValue,
   } satisfies RawMetrics;
 }

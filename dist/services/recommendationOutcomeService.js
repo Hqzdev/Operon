@@ -8,6 +8,7 @@ exports.getUserConfidenceCalibration = getUserConfidenceCalibration;
 const analysis_schema_1 = require("../../lib/analysis-schema");
 const integrationRepository_1 = require("../repositories/integrationRepository");
 const recommendationOutcomeRepository_1 = require("../repositories/recommendationOutcomeRepository");
+const outcomePricingService_1 = require("./outcomePricingService");
 const HORIZONS = [7, 14, 30];
 function addDays(date, days) {
     return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
@@ -153,6 +154,9 @@ async function recomputeDueRecommendationOutcomes(limit = 100) {
         const actual = summarizeActuals(inputs, outcome.breakEvenRoas);
         const judgment = judgeOutcome(outcome.verdict, actual, outcome.breakEvenRoas);
         await recommendationOutcomeRepository_1.RecommendationOutcomeRepository.markEvaluated(outcome.id, actual, judgment.wasRight, round(judgment.moneySaved), round(judgment.moneyEarned));
+        await (0, outcomePricingService_1.maybeCreateOutcomeInvoice)(outcome.userId).catch((error) => {
+            console.error("[outcome-pricing] Failed to create invoice:", error);
+        });
         evaluated += 1;
     }
     return { evaluated, unavailable, checked: due.length };

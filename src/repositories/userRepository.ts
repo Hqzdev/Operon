@@ -10,10 +10,12 @@ const profileSelect = {
   storeName: true,
   storeUrl: true,
   niche: true,
+  accountType: true,
   quietModeEnabled: true,
   quietMinConfidence: true,
   quietMinSpendImpact: true,
   quietNoUrgentDigestAt: true,
+  weeklyDigestEnabled: true,
   activeStoreId: true,
   onboardingCompleted: true,
   plan: true,
@@ -54,9 +56,11 @@ type ProfileUpdateData = {
   storeName?: string;
   storeUrl?: string;
   niche?: string;
+  accountType?: string;
   quietModeEnabled?: boolean;
   quietMinConfidence?: string;
   quietMinSpendImpact?: number;
+  weeklyDigestEnabled?: boolean;
   activeStoreId?: string | null;
   onboardingCompleted?: boolean;
 };
@@ -110,7 +114,7 @@ export class UserRepository {
 
   static async updateActiveStore(
     id: string,
-    data: { activeStoreId: string; storeName: string; storeUrl: string; niche?: string; onboardingCompleted?: boolean },
+    data: { activeStoreId: string; storeName: string; storeUrl: string; niche?: string; accountType?: string; onboardingCompleted?: boolean },
   ) {
     return prisma.user.update({ where: { id }, data });
   }
@@ -135,6 +139,7 @@ export class UserRepository {
         quietMinConfidence: true,
         quietMinSpendImpact: true,
         quietNoUrgentDigestAt: true,
+        weeklyDigestEnabled: true,
         plan: true,
       },
     });

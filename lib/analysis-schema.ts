@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const analysisInputSchema = z.object({
+  account_type: z.enum(["dropship", "dtc", "subscription", "leadgen", "b2b"]).default("dropship"),
   product_name: z.string().min(2).max(120).default("Untitled product"),
   product_description: z.string().min(10).max(2000).default("General e-commerce product"),
   product_price: z.coerce.number().positive(),
@@ -27,7 +28,29 @@ export const analysisInputSchema = z.object({
   ios_under_attribution_multiplier: z.coerce.number().min(0).max(10).optional(),
   pixel_purchases: z.coerce.number().min(0).optional(),
   shopify_purchases: z.coerce.number().min(0).optional(),
+  niche: z.string().min(2).max(80).optional(),
+  country: z.string().min(2).max(80).optional(),
+  mrr: z.coerce.number().min(0).optional(),
+  monthly_churn_rate: z.coerce.number().min(0).max(100).optional(),
+  subscription_starts: z.coerce.number().int().min(0).optional(),
+  qualified_leads: z.coerce.number().int().min(0).optional(),
+  form_starts: z.coerce.number().int().min(0).optional(),
+  lead_value: z.coerce.number().min(0).optional(),
   stage: z.enum(["testing", "scaling", "retesting"]),
+}).superRefine((value, ctx) => {
+  if (value.account_type === "subscription") {
+    if (!value.mrr || value.mrr <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["mrr"], message: "MRR is required for subscription analyses" });
+    }
+    if (!value.monthly_churn_rate || value.monthly_churn_rate <= 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["monthly_churn_rate"], message: "Monthly churn rate is required for subscription analyses" });
+    }
+  }
+  if (value.account_type === "leadgen" || value.account_type === "b2b") {
+    if (value.qualified_leads === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["qualified_leads"], message: "Qualified leads are required for lead-gen/B2B analyses" });
+    }
+  }
 });
 
 export type AnalysisInput = z.infer<typeof analysisInputSchema>;
@@ -122,7 +145,28 @@ export type AnalysisOutput = {
     shopifyPurchases?: number;
     pixelShortfallPct?: number;
   };
+  benchmarkComparison?: {
+    niche: string;
+    country: string;
+    sampleSize: number;
+    source: "community";
+    metrics: {
+      ctr?: { value: number; median: number; deltaPct: number; unit: "%" };
+      cpc?: { value: number; median: number; deltaPct: number; unit: "currency" };
+      cpm?: { value: number; median: number; deltaPct: number; unit: "currency" };
+      addToCartRate?: { value: number; median: number; deltaPct: number; unit: "%" };
+      purchaseRate?: { value: number; median: number; deltaPct: number; unit: "%" };
+    };
+  };
   derived: {
+    accountType?: "dropship" | "dtc" | "subscription" | "leadgen" | "b2b";
+    primaryConversionLabel?: string;
+    intentEventLabel?: string;
+    revenueBasis?: "order_revenue" | "subscription_ltv" | "lead_value";
+    effectiveConversions?: number;
+    effectiveIntentEvents?: number;
+    subscriptionLtv?: number;
+    leadValue?: number;
     spend: number;
     grossRevenue?: number;
     effectiveRevenue?: number;

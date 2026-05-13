@@ -5,6 +5,7 @@ import { env } from "../utils/env";
 import { PaymentRepository } from "../repositories/paymentRepository";
 import { UserRepository } from "../repositories/userRepository";
 import { getPlanPriceForPayment } from "./pricingService";
+import { syncOutcomeInvoiceFromWebhook } from "./outcomePricingService";
 
 const planLabels: Record<UserPlan, string> = {
   STARTER: "Free",
@@ -163,6 +164,9 @@ export async function handlePaymentWebhook(payload: Record<string, unknown>) {
   if (!object?.id || !object.status) {
     throw new AppError("Invalid webhook payload", 400);
   }
+
+  const outcomeInvoice = await syncOutcomeInvoiceFromWebhook(payload);
+  if (outcomeInvoice) return outcomeInvoice;
 
   const payment = await PaymentRepository.findByProviderId(object.id);
 

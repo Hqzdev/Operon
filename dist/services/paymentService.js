@@ -15,6 +15,7 @@ const env_1 = require("../utils/env");
 const paymentRepository_1 = require("../repositories/paymentRepository");
 const userRepository_1 = require("../repositories/userRepository");
 const pricingService_1 = require("./pricingService");
+const outcomePricingService_1 = require("./outcomePricingService");
 const planLabels = {
     STARTER: "Free",
     PRO: "Pro",
@@ -131,6 +132,9 @@ async function handlePaymentWebhook(payload) {
     if (!object?.id || !object.status) {
         throw new appError_1.AppError("Invalid webhook payload", 400);
     }
+    const outcomeInvoice = await (0, outcomePricingService_1.syncOutcomeInvoiceFromWebhook)(payload);
+    if (outcomeInvoice)
+        return outcomeInvoice;
     const payment = await paymentRepository_1.PaymentRepository.findByProviderId(object.id);
     if (!payment) {
         throw new appError_1.AppError("Payment not found", 404);
