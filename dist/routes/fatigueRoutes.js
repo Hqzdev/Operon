@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.fatigueRoutes = void 0;
+const express_1 = require("express");
+const fatigueController_1 = require("../controllers/fatigueController");
+const authenticate_1 = require("../middleware/authenticate");
+const router = (0, express_1.Router)();
+exports.fatigueRoutes = router;
+router.post("/run", fatigueController_1.runFatigueJob);
+router.use(authenticate_1.authenticate);
+router.get("/", fatigueController_1.getFatigueAlerts);
+router.patch("/:id/dismiss", fatigueController_1.dismissOneFatigueAlert);
+router.patch("/:id/snooze", fatigueController_1.snoozeOneFatigueAlert);

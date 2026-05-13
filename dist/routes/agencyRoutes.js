@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.agencyRoutes = void 0;
+const express_1 = require("express");
+const agencyController_1 = require("../controllers/agencyController");
+const authenticate_1 = require("../middleware/authenticate");
+const router = (0, express_1.Router)();
+exports.agencyRoutes = router;
+router.get("/", authenticate_1.authenticate, agencyController_1.getAgencyOverviewController);
+router.patch("/", authenticate_1.authenticate, agencyController_1.updateAgencyWorkspaceController);
+router.post("/clients", authenticate_1.authenticate, agencyController_1.createAgencyClientController);
+router.post("/clients/:clientId/invite", authenticate_1.authenticate, agencyController_1.inviteClientViewerController);
+router.post("/invitations/accept", agencyController_1.acceptAgencyInvitationController);
+router.post("/reports/generate", authenticate_1.authenticate, agencyController_1.generateAgencyReportsController);
+router.get("/reports/:reportId/download", authenticate_1.authenticate, agencyController_1.downloadAgencyReportController);

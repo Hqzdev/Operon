@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.integrationRoutes = void 0;
+const express_1 = require("express");
+const integrationController_1 = require("../controllers/integrationController");
+const authenticate_1 = require("../middleware/authenticate");
+const router = (0, express_1.Router)();
+exports.integrationRoutes = router;
+router.get("/", authenticate_1.authenticate, integrationController_1.listConnectionsController);
+router.patch("/", authenticate_1.authenticate, integrationController_1.syncConnectionsController);
+router.get("/metrics", authenticate_1.authenticate, integrationController_1.listMetricSnapshotsController);
+router.post("/extension", authenticate_1.authenticate, integrationController_1.createExtensionConnectionController);
+router.post("/extension/sync", integrationController_1.ingestExtensionMetricsController);
+router.delete("/:connectionId", authenticate_1.authenticate, integrationController_1.disconnectConnectionController);

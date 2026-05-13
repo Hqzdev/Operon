@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.redditAcquisitionRoutes = void 0;
+const express_1 = require("express");
+const redditAcquisitionController_1 = require("../controllers/redditAcquisitionController");
+const authenticate_1 = require("../middleware/authenticate");
+const router = (0, express_1.Router)();
+exports.redditAcquisitionRoutes = router;
+router.post("/run", redditAcquisitionController_1.runRedditAcquisitionJob);
+router.post("/", authenticate_1.authenticate, redditAcquisitionController_1.runRedditAcquisitionJob);
+router.get("/", authenticate_1.authenticate, redditAcquisitionController_1.getRedditLeads);

@@ -14,6 +14,8 @@ const envSchema = zod_1.z.object({
     PORT: zod_1.z.coerce.number().default(4000),
     NEXT_PUBLIC_APP_URL: zod_1.z.string().default("http://localhost:3000"),
     NEXT_PUBLIC_API_BASE_URL: zod_1.z.string().default("http://localhost:4000/api"),
+    GOOGLE_CLIENT_ID: zod_1.z.string().optional(),
+    GOOGLE_CLIENT_SECRET: zod_1.z.string().optional(),
     YOOKASSA_SHOP_ID: zod_1.z.string().optional(),
     YOOKASSA_SECRET_KEY: zod_1.z.string().optional(),
     YOOKASSA_RETURN_URL: zod_1.z.string().default("http://localhost:3000/dashboard"),
@@ -25,6 +27,8 @@ const envSchema = zod_1.z.object({
     GIGACHAT_OAUTH_URL: zod_1.z.string().default("https://ngw.devices.sberbank.ru:9443/api/v2/oauth"),
     INTEGRATION_TOKEN_SECRET: zod_1.z.string().optional(),
     INTEGRATION_SYNC_SECRET: zod_1.z.string().optional(),
+    ACQUISITION_CRON_SECRET: zod_1.z.string().optional(),
+    REDDIT_USER_AGENT: zod_1.z.string().default("OperonLeadScanner/1.0"),
     META_APP_ID: zod_1.z.string().optional(),
     META_APP_SECRET: zod_1.z.string().optional(),
     META_API_VERSION: zod_1.z.string().default("v22.0"),
@@ -33,8 +37,14 @@ const envSchema = zod_1.z.object({
     SHOPIFY_API_KEY: zod_1.z.string().optional(),
     SHOPIFY_API_SECRET: zod_1.z.string().optional(),
     SHOPIFY_API_VERSION: zod_1.z.string().default("2026-01"),
+    IOS_UNDER_ATTRIBUTION_MULTIPLIER: zod_1.z.coerce.number().min(1).default(1.25),
     SHOPIFY_STORE_URL: zod_1.z.string().optional(),
     SHOPIFY_ACCESS_TOKEN: zod_1.z.string().optional(),
+    SMTP_HOST: zod_1.z.string().default("smtp.gmail.com"),
+    SMTP_PORT: zod_1.z.coerce.number().default(587),
+    SMTP_USER: zod_1.z.string().optional(),
+    SMTP_PASS: zod_1.z.string().optional(),
+    SMTP_FROM: zod_1.z.string().default("Operon <noreply@operon.app>"),
 });
 let _parsed = null;
 function getParsedEnv() {

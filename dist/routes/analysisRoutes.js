@@ -10,4 +10,5 @@ const analysisService_1 = require("../services/analysisService");
 const router = (0, express_1.Router)();
 exports.analysisRoutes = router;
 router.get("/", authenticate_1.authenticate, analysisController_1.listAnalysesController);
+router.post("/import-meta-csv", authenticate_1.authenticate, analysisController_1.importMetaCsvController);
 router.post("/", authenticate_1.authenticate, trackUsage_1.trackUsage, (0, validate_1.validateBody)(analysisService_1.analysisInputSchema), analysisController_1.createAnalysisController);

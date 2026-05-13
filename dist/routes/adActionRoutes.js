@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.adActionRoutes = void 0;
+const express_1 = require("express");
+const adActionController_1 = require("../controllers/adActionController");
+const authenticate_1 = require("../middleware/authenticate");
+const validate_1 = require("../middleware/validate");
+const adActionService_1 = require("../services/adActionService");
+const router = (0, express_1.Router)();
+exports.adActionRoutes = router;
+router.use(authenticate_1.authenticate);
+router.get("/", adActionController_1.listAdActionLogsController);
+router.post("/", (0, validate_1.validateBody)(adActionService_1.executeAdActionSchema), adActionController_1.executeAdActionController);
+router.post("/:id/undo", adActionController_1.undoAdActionController);
+router.patch("/guardrails", (0, validate_1.validateBody)(adActionService_1.guardrailSchema), adActionController_1.updateActionGuardrailController);

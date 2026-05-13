@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.subscriptionRoutes = void 0;
+const express_1 = require("express");
+const subscriptionController_1 = require("../controllers/subscriptionController");
+const authenticate_1 = require("../middleware/authenticate");
+const router = (0, express_1.Router)();
+exports.subscriptionRoutes = router;
+router.get("/", authenticate_1.authenticate, subscriptionController_1.getSubscriptionController);
+router.post("/", authenticate_1.authenticate, subscriptionController_1.subscriptionActionController);

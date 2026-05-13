@@ -3,11 +3,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.completeGigaChatJson = completeGigaChatJson;
 exports.deriveMetrics = deriveMetrics;
 exports.runAiAnalysis = runAiAnalysis;
 const node_https_1 = __importDefault(require("node:https"));
 const node_crypto_1 = require("node:crypto");
 const env_1 = require("../utils/env");
+const attribution_1 = require("../../lib/attribution");
 // GigaChat uses Russian CA certificates not in the default trust store
 const tlsAgent = new node_https_1.default.Agent({ rejectUnauthorized: false });
 let cachedToken = null;
@@ -55,7 +57,7 @@ function stripCodeFences(content) {
         .replace(/\s*```$/i, "")
         .trim();
 }
-async function complete(schemaName, systemPrompt, userPrompt) {
+async function completeGigaChatJson(schemaName, systemPrompt, userPrompt) {
     const token = await getAccessToken();
     const body = JSON.stringify({
         model: env_1.env.GIGACHAT_MODEL,
@@ -81,21 +83,46 @@ async function complete(schemaName, systemPrompt, userPrompt) {
         throw new Error(`Empty GigaChat response for ${schemaName}`);
     return JSON.parse(stripCodeFences(content));
 }
+const complete = completeGigaChatJson;
 const SYSTEM = "You are a strict e-commerce performance analyst. Return valid JSON only — no markdown, no text outside the JSON.";
 function round(n, p = 2) { return Number(n.toFixed(p)); }
+function normalizedReturnRate(input) {
+    const raw = input.return_rate ?? 0;
+    const decimal = raw > 1 ? raw / 100 : raw;
+    return Math.max(0, Math.min(1, decimal));
+}
+function effectiveRevenue(input) {
+    if (typeof input.net_revenue === "number" && input.net_revenue > 0)
+        return input.net_revenue;
+    return input.revenue * (1 - normalizedReturnRate(input));
+}
 function deriveMetrics(input) {
-    const spend = input.clicks * input.cpc;
-    const roas = spend > 0 ? input.revenue / spend : 0;
-    const conversionRate = input.clicks > 0 ? (input.purchases / input.clicks) * 100 : 0;
+    const attributionAdjustment = (0, attribution_1.deriveAttributionAdjustment)(input, env_1.env.IOS_UNDER_ATTRIBUTION_MULTIPLIER);
+    const spend = input.total_spend && input.total_spend > 0 ? input.total_spend : input.clicks * input.cpc;
+    const adjustedPurchases = attributionAdjustment?.adjustedPurchases ?? input.purchases;
+    const adjustedRevenue = attributionAdjustment ? input.revenue * attributionAdjustment.revenueUplift : input.revenue;
+    const adjustedInput = { ...input, purchases: adjustedPurchases, revenue: adjustedRevenue };
+    const netRevenue = effectiveRevenue(adjustedInput);
+    const grossRoas = spend > 0 ? adjustedRevenue / spend : 0;
+    const roas = spend > 0 ? netRevenue / spend : 0;
+    const conversionRate = input.clicks > 0 ? (adjustedPurchases / input.clicks) * 100 : 0;
     const addToCartRate = input.clicks > 0 ? (input.add_to_cart / input.clicks) * 100 : 0;
     const margin = Math.max(input.product_price - input.cost, 0.01);
     const breakEvenRoas = input.product_price / margin;
     const breakEvenCpa = margin;
-    const currentCpa = input.purchases > 0 ? spend / input.purchases : null;
+    const currentCpa = adjustedPurchases > 0 ? spend / adjustedPurchases : null;
     const maxCpcAtCurrentConversion = conversionRate > 0 ? breakEvenCpa * (conversionRate / 100) : 0;
-    const profit = input.revenue - spend - input.purchases * input.cost;
+    const profit = netRevenue - spend - adjustedPurchases * input.cost;
+    const netProfitMargin = netRevenue > 0 ? (profit / netRevenue) * 100 : 0;
     return {
         spend: round(spend),
+        grossRevenue: round(adjustedRevenue),
+        effectiveRevenue: round(netRevenue),
+        grossRoas: round(grossRoas),
+        returnRate: round(normalizedReturnRate(input) * 100),
+        pixelPurchases: round(input.purchases),
+        adjustedPurchases: round(adjustedPurchases),
+        attributionPurchaseUplift: attributionAdjustment?.purchaseUplift,
         roas: round(roas),
         conversionRate: round(conversionRate),
         addToCartRate: round(addToCartRate),
@@ -104,13 +131,23 @@ function deriveMetrics(input) {
         currentCpa: currentCpa === null ? null : round(currentCpa),
         maxCpcAtCurrentConversion: round(maxCpcAtCurrentConversion),
         profit: round(profit),
+        netProfitMargin: round(netProfitMargin),
+        attributionAdjustment,
     };
 }
 async function runAiAnalysis(input) {
     if (!env_1.env.GIGACHAT_AUTH_KEY)
         throw new Error("GIGACHAT_AUTH_KEY is not configured");
     const derived = deriveMetrics(input);
-    const dataBlock = JSON.stringify({ ...input, ...derived }, null, 2);
+    const modelInput = derived.attributionAdjustment
+        ? {
+            ...input,
+            pixel_purchases: input.purchases,
+            purchases: derived.attributionAdjustment.adjustedPurchases,
+            revenue: derived.grossRevenue ?? input.revenue,
+        }
+        : input;
+    const dataBlock = JSON.stringify({ ...modelInput, ...derived }, null, 2);
     const [decision, diagnosis, actionPlan, validation, funnelLeak, creativeAngles, continueDecision] = await Promise.all([
         complete("decision", SYSTEM, `Analyze this ad campaign and return one strict decision.
 
@@ -157,7 +194,7 @@ Return JSON:
 {"creativeAngles":[{"hookIdea":"opening line max 20 words","concept":"what the ad communicates","targetEmotion":"core emotion"}]}
 
 Product: ${input.product_description ?? input.product_name ?? "e-commerce product"}
-Context: CTR ${input.ctr}%, ${input.purchases} purchases from ${input.clicks} clicks`),
+Context: CTR ${input.ctr}%, ${modelInput.purchases} purchases from ${input.clicks} clicks`),
         complete("continueDecision", SYSTEM, `Decide whether to continue testing or stop this campaign.
 
 Return JSON:
@@ -184,6 +221,7 @@ ${dataBlock}`),
                     ? "Current CPA is below break-even, so the setup can support profit at this level."
                     : "Current CPA exceeds break-even, so this setup is losing money at scale.",
         },
+        attributionAdjustment: derived.attributionAdjustment ?? undefined,
         funnelLeak,
         creativeAngles: (creativeAngles.creativeAngles ?? []).slice(0, 3),
         continueDecision,

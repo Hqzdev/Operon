@@ -8,7 +8,16 @@ function createPrismaClient() {
     const adapter = new adapter_pg_1.PrismaPg({ connectionString: env_1.env.DATABASE_URL });
     return new client_1.PrismaClient({ adapter, log: ["warn", "error"] });
 }
-exports.prisma = global.__prisma__ ?? createPrismaClient();
-if (process.env.NODE_ENV !== "production") {
-    global.__prisma__ = exports.prisma;
+function getPrismaClient() {
+    if (!global.__prisma__) {
+        global.__prisma__ = createPrismaClient();
+    }
+    return global.__prisma__;
 }
+exports.prisma = new Proxy({}, {
+    get(_, property) {
+        const client = getPrismaClient();
+        const value = client[property];
+        return typeof value === "function" ? value.bind(client) : value;
+    },
+});

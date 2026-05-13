@@ -8,19 +8,20 @@ const paymentService_1 = require("../services/paymentService");
 const planService_1 = require("../services/planService");
 const paymentCreateSchema = zod_1.z.object({
     plan: zod_1.z.string().min(1),
+    currency: zod_1.z.string().min(3).max(3).optional(),
 });
 exports.listPaymentsController = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const payments = await (0, paymentService_1.listPayments)(req.auth.userId);
     res.status(200).json(payments);
 });
 exports.createPaymentController = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-    const { plan: rawPlan } = paymentCreateSchema.parse(req.body);
+    const { plan: rawPlan, currency } = paymentCreateSchema.parse(req.body);
     const plan = (0, planService_1.normalizeUserPlan)(rawPlan);
     if (!plan || plan === client_1.UserPlan.STARTER) {
         res.status(400).json({ error: "Paid plan must be PRO or SCALE" });
         return;
     }
-    const payment = await (0, paymentService_1.createPaymentIntent)(req.auth.userId, plan);
+    const payment = await (0, paymentService_1.createPaymentIntent)(req.auth.userId, plan, currency);
     res.status(201).json(payment);
 });
 exports.paymentWebhookController = (0, asyncHandler_1.asyncHandler)(async (req, res) => {

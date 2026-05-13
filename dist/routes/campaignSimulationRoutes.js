@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.campaignSimulationRoutes = void 0;
+const express_1 = require("express");
+const campaignSimulationController_1 = require("../controllers/campaignSimulationController");
+const authenticate_1 = require("../middleware/authenticate");
+const validate_1 = require("../middleware/validate");
+const campaignSimulationService_1 = require("../services/campaignSimulationService");
+const router = (0, express_1.Router)();
+exports.campaignSimulationRoutes = router;
+router.post("/", authenticate_1.authenticate, (0, validate_1.validateBody)(campaignSimulationService_1.campaignSimulationInputSchema), campaignSimulationController_1.simulateCampaignController);

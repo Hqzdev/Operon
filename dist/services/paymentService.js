@@ -3,24 +3,22 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.activateSubscription = activateSubscription;
 exports.createPaymentIntent = createPaymentIntent;
 exports.handlePaymentWebhook = handlePaymentWebhook;
 exports.listPayments = listPayments;
 exports.syncPaymentStatus = syncPaymentStatus;
 const node_crypto_1 = __importDefault(require("node:crypto"));
 const client_1 = require("@prisma/client");
-const prisma_1 = require("../models/prisma");
 const appError_1 = require("../utils/appError");
 const env_1 = require("../utils/env");
-const planAmounts = {
-    STARTER: 0,
-    PRO: 109000,
-    SCALE: 219000,
-};
+const paymentRepository_1 = require("../repositories/paymentRepository");
+const userRepository_1 = require("../repositories/userRepository");
+const pricingService_1 = require("./pricingService");
 const planLabels = {
-    STARTER: "Starter",
-    PRO: "Basic",
-    SCALE: "Pro",
+    STARTER: "Free",
+    PRO: "Pro",
+    SCALE: "Business",
 };
 function getReturnUrl(paymentId) {
     const url = new URL(env_1.env.YOOKASSA_RETURN_URL, env_1.env.NEXT_PUBLIC_APP_URL);
@@ -36,13 +34,10 @@ function mapYooKassaStatus(status) {
 }
 async function activateSubscription(payment) {
     const subscriptionEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    await prisma_1.prisma.user.update({
-        where: { id: payment.userId },
-        data: {
-            plan: payment.plan,
-            subscriptionStatus: "ACTIVE",
-            subscriptionEndDate,
-        },
+    await userRepository_1.UserRepository.updateSubscription(payment.userId, {
+        plan: payment.plan,
+        subscriptionStatus: client_1.SubscriptionStatus.ACTIVE,
+        subscriptionEndDate,
     });
 }
 async function fetchYooKassaPayment(providerPaymentId) {
@@ -62,25 +57,24 @@ async function fetchYooKassaPayment(providerPaymentId) {
     }
     return (await response.json());
 }
-async function createPaymentIntent(userId, plan) {
-    const amount = planAmounts[plan];
-    if (plan === client_1.UserPlan.STARTER || amount <= 0) {
-        throw new appError_1.AppError("Starter plan does not require payment", 400);
+async function createPaymentIntent(userId, plan, currencyInput) {
+    if (plan === client_1.UserPlan.STARTER) {
+        throw new appError_1.AppError("Free plan does not require payment", 400);
     }
-    const payment = await prisma_1.prisma.payment.create({
-        data: {
-            userId,
-            plan,
-            amount,
-            status: client_1.PaymentStatus.PENDING,
-        },
+    const pricing = await (0, pricingService_1.getPlanPriceForPayment)(plan, currencyInput);
+    const payment = await paymentRepository_1.PaymentRepository.create({
+        userId,
+        plan,
+        amount: pricing.amountMinor,
+        currency: pricing.currency,
+        status: client_1.PaymentStatus.PENDING,
     });
     if (!env_1.env.YOOKASSA_SHOP_ID || !env_1.env.YOOKASSA_SECRET_KEY) {
         return {
             paymentId: payment.id,
             status: payment.status,
-            amount,
-            currency: "RUB",
+            amount: pricing.amountMinor,
+            currency: pricing.currency,
             provider: "yookassa",
             ready: false,
             message: "YooKassa credentials are missing. Add them to enable live payment creation.",
@@ -96,8 +90,8 @@ async function createPaymentIntent(userId, plan) {
         },
         body: JSON.stringify({
             amount: {
-                value: (amount / 100).toFixed(2),
-                currency: "RUB",
+                value: pricing.amountMajor.toFixed(pricing.currency === "JPY" ? 0 : 2),
+                currency: pricing.currency,
             },
             capture: true,
             confirmation: {
@@ -109,6 +103,7 @@ async function createPaymentIntent(userId, plan) {
                 internal_payment_id: payment.id,
                 user_id: userId,
                 plan,
+                currency: pricing.currency,
             },
         }),
     });
@@ -117,19 +112,16 @@ async function createPaymentIntent(userId, plan) {
         throw new appError_1.AppError("YooKassa payment creation failed", 502, text);
     }
     const externalPayment = (await response.json());
-    await prisma_1.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-            providerPaymentId: externalPayment.id,
-            confirmationUrl: externalPayment.confirmation?.confirmation_url,
-        },
+    await paymentRepository_1.PaymentRepository.update(payment.id, {
+        providerPaymentId: externalPayment.id,
+        confirmationUrl: externalPayment.confirmation?.confirmation_url,
     });
     return {
         paymentId: payment.id,
         providerPaymentId: externalPayment.id,
         status: externalPayment.status,
-        amount,
-        currency: "RUB",
+        amount: pricing.amountMinor,
+        currency: pricing.currency,
         confirmationUrl: externalPayment.confirmation?.confirmation_url ?? null,
         ready: true,
     };
@@ -139,21 +131,17 @@ async function handlePaymentWebhook(payload) {
     if (!object?.id || !object.status) {
         throw new appError_1.AppError("Invalid webhook payload", 400);
     }
-    const payment = await prisma_1.prisma.payment.findFirst({
-        where: {
-            providerPaymentId: object.id,
-        },
-    });
+    const payment = await paymentRepository_1.PaymentRepository.findByProviderId(object.id);
     if (!payment) {
         throw new appError_1.AppError("Payment not found", 404);
     }
     const status = mapYooKassaStatus(object.status);
-    const updated = await prisma_1.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-            status,
-            webhookPayload: payload,
-        },
+    const updated = await paymentRepository_1.PaymentRepository.update(payment.id, {
+        status,
+        cardLast4: object.payment_method?.card?.last4,
+        country: object.metadata?.country,
+        customerName: object.metadata?.customer_name,
+        webhookPayload: payload,
     });
     if (status === client_1.PaymentStatus.SUCCEEDED) {
         await activateSubscription(payment);
@@ -161,27 +149,10 @@ async function handlePaymentWebhook(payload) {
     return updated;
 }
 async function listPayments(userId) {
-    return prisma_1.prisma.payment.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        select: {
-            id: true,
-            plan: true,
-            amount: true,
-            currency: true,
-            status: true,
-            provider: true,
-            providerPaymentId: true,
-            confirmationUrl: true,
-            createdAt: true,
-            updatedAt: true,
-        },
-    });
+    return paymentRepository_1.PaymentRepository.findByUserId(userId);
 }
 async function syncPaymentStatus(userId, paymentId) {
-    const payment = await prisma_1.prisma.payment.findFirst({
-        where: { id: paymentId, userId },
-    });
+    const payment = await paymentRepository_1.PaymentRepository.findByIdAndUser(paymentId, userId);
     if (!payment) {
         throw new appError_1.AppError("Payment not found", 404);
     }
@@ -190,12 +161,9 @@ async function syncPaymentStatus(userId, paymentId) {
     }
     const yooKassaPayment = await fetchYooKassaPayment(payment.providerPaymentId);
     const status = mapYooKassaStatus(yooKassaPayment.status);
-    const updated = await prisma_1.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-            status,
-            webhookPayload: yooKassaPayment,
-        },
+    const updated = await paymentRepository_1.PaymentRepository.update(payment.id, {
+        status,
+        webhookPayload: yooKassaPayment,
     });
     if (status === client_1.PaymentStatus.SUCCEEDED) {
         await activateSubscription(payment);
