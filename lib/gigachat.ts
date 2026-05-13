@@ -1,6 +1,44 @@
 import { randomUUID } from "node:crypto";
+import https from "node:https";
 import { type AnalysisInput } from "@/lib/analysis-schema";
 import { deriveMetrics } from "@/lib/decision-engine";
+
+// GigaChat uses Russian CA certs not trusted by Node.js's default store.
+// Use node:https.request with rejectUnauthorized:false per-request instead of
+// a global NODE_TLS_REJECT_UNAUTHORIZED=0 flag.
+async function gigaFetchWithAgent(url: string, init: RequestInit): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const bodyStr =
+      typeof init.body === "string"
+        ? init.body
+        : init.body instanceof URLSearchParams
+          ? init.body.toString()
+          : "";
+    const req = https.request(
+      {
+        hostname: parsed.hostname,
+        port: Number(parsed.port) || 443,
+        path: parsed.pathname + parsed.search,
+        method: (init.method ?? "GET").toUpperCase(),
+        headers: init.headers as Record<string, string>,
+        rejectUnauthorized: false,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => {
+          const body = Buffer.concat(chunks).toString("utf8");
+          resolve(new Response(body, { status: res.statusCode ?? 200, headers: res.headers as HeadersInit }));
+        });
+        res.on("error", reject);
+      },
+    );
+    req.on("error", reject);
+    if (bodyStr) req.write(bodyStr);
+    req.end();
+  });
+}
 
 const oauthUrl =
   process.env.GIGACHAT_OAUTH_URL ??
@@ -35,7 +73,7 @@ async function getAccessToken() {
     throw new Error("Missing GIGACHAT_AUTH_KEY or GIGACHAT_ACCESS_TOKEN");
   }
 
-  const response = await fetch(oauthUrl, {
+  const response = await gigaFetchWithAgent(oauthUrl, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -44,7 +82,6 @@ async function getAccessToken() {
       RqUID: randomUUID(),
     },
     body: new URLSearchParams({ scope }),
-    cache: "no-store",
   });
 
   if (!response.ok) {
@@ -70,7 +107,7 @@ export async function gigaChatComplete<T>(prompt: string, systemPrompt?: string)
 
 async function completeJson<T>(prompt: string, systemPrompt?: string): Promise<T> {
   const token = await getAccessToken();
-  const response = await fetch(`${apiBaseUrl}/chat/completions`, {
+  const response = await gigaFetchWithAgent(`${apiBaseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -96,7 +133,6 @@ async function completeJson<T>(prompt: string, systemPrompt?: string): Promise<T
       repetition_penalty: 1,
       update_interval: 0,
     }),
-    cache: "no-store",
   });
 
   if (!response.ok) {
